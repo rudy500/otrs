@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,30 +8,14 @@
 
 package Kernel::Output::HTML::Preferences::OutOfOffice;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
-our @ObjectDependencies = (
-    'Kernel::Output::HTML::Layout',
-    'Kernel::System::Web::Request',
-    'Kernel::Config',
-    'Kernel::System::User',
-    'Kernel::System::AuthSession',
-);
+use Kernel::Language qw(Translatable);
 
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {%Param};
-    bless( $Self, $Type );
-
-    if ( !$Self->{UserID} ) {
-        die "Got no UserID!";
-    }
-
-    return $Self;
-}
+our $ObjectManagerDisabled = 1;
 
 sub Param {
     my ( $Self, %Param ) = @_;
@@ -58,6 +42,10 @@ sub Param {
         YearPeriodPast         => 1,
         YearPeriodFuture       => 5,
         Validate               => 1,
+
+        # Do not convert to local time zone, show stored date as-is
+        #   (please see bug#12471 for more information).
+        OverrideTimeZone => 1,
     );
     $Param{OptionEnd} = $LayoutObject->BuildDateSelection(
         Format               => 'DateInputFormat',
@@ -72,6 +60,10 @@ sub Param {
         YearPeriodPast       => 1,
         YearPeriodFuture     => 5,
         Validate             => 1,
+
+        # Do not convert to local time zone, show stored date as-is
+        #   (please see bug#12471 for more information).
+        OverrideTimeZone => 1,
     );
 
     push(
@@ -88,50 +80,72 @@ sub Run {
     my ( $Self, %Param ) = @_;
 
     #  get needed objects
-    my $UserObject    = $Kernel::OM->Get('Kernel::System::User');
-    my $SessionObject = $Kernel::OM->Get('Kernel::System::AuthSession');
+    my $UserObject     = $Kernel::OM->Get('Kernel::System::User');
+    my $SessionObject  = $Kernel::OM->Get('Kernel::System::AuthSession');
+    my $ParamObject    = $Kernel::OM->Get('Kernel::System::Web::Request');
+    my $LanguageObject = $Kernel::OM->Get('Kernel::Language');
 
     for my $Key (
         qw(OutOfOffice OutOfOfficeStartYear OutOfOfficeStartMonth OutOfOfficeStartDay OutOfOfficeEndYear OutOfOfficeEndMonth OutOfOfficeEndDay)
         )
     {
+        $Param{$Key} = $ParamObject->GetParam( Param => $Key ) || '';
+    }
 
-        $Param{$Key} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $Key );
+    my $OOOStartDTObject = $Self->_GetOutOfOfficeDateTimeObject(
+        Type => 'Start',
+        Data => \%Param
+    );
+    my $OOOEndDTObject = $Self->_GetOutOfOfficeDateTimeObject(
+        Type => 'End',
+        Data => \%Param
+    );
 
-        if ( defined $Param{$Key} ) {
+    if ( $OOOStartDTObject <= $OOOEndDTObject ) {
+        for my $Key (
+            qw(OutOfOffice OutOfOfficeStartYear OutOfOfficeStartMonth OutOfOfficeStartDay OutOfOfficeEndYear OutOfOfficeEndMonth OutOfOfficeEndDay)
+            )
+        {
+            if ( defined $Param{$Key} ) {
 
-            # pref update db
-            if ( !$Kernel::OM->Get('Kernel::Config')->Get('DemoSystem') ) {
-                $UserObject->SetPreferences(
-                    UserID => $Param{UserData}->{UserID},
-                    Key    => $Key,
-                    Value  => $Param{$Key},
-                );
-            }
+                # pref update db
+                if ( !$Kernel::OM->Get('Kernel::Config')->Get('DemoSystem') ) {
+                    $UserObject->SetPreferences(
+                        UserID => $Param{UserData}->{UserID},
+                        Key    => $Key,
+                        Value  => $Param{$Key},
+                    );
+                }
 
-            # update SessionID
-            if ( $Param{UserData}->{UserID} eq $Self->{UserID} ) {
-                $SessionObject->UpdateSessionID(
-                    SessionID => $Self->{SessionID},
-                    Key       => $Key,
-                    Value     => $Param{$Key},
-                );
+                # update SessionID
+                if ( $Param{UserData}->{UserID} eq $Self->{UserID} ) {
+                    $SessionObject->UpdateSessionID(
+                        SessionID => $Self->{SessionID},
+                        Key       => $Key,
+                        Value     => $Param{$Key},
+                    );
+                }
             }
         }
+
+        # also update the lastname to remove out of office message
+        if ( $Param{UserData}->{UserID} eq $Self->{UserID} ) {
+            my %User = $UserObject->GetUserData( UserID => $Self->{UserID} );
+
+            $SessionObject->UpdateSessionID(
+                SessionID => $Self->{SessionID},
+                Key       => 'UserLastname',
+                Value     => $User{UserLastname},
+            );
+        }
+
+        $Self->{Message} = Translatable('Preferences updated successfully!');
+    }
+    else {
+        $Self->{Error} = $LanguageObject->Translate('Please specify an end date that is after the start date.');
+        return;
     }
 
-    # also update the lastname to remove out of office message
-    if ( $Param{UserData}->{UserID} eq $Self->{UserID} ) {
-        my %User = $UserObject->GetUserData( UserID => $Self->{UserID} );
-
-        $SessionObject->UpdateSessionID(
-            SessionID => $Self->{SessionID},
-            Key       => 'UserLastname',
-            Value     => $User{UserLastname},
-        );
-    }
-
-    $Self->{Message} = 'Preferences updated successfully!';
     return 1;
 }
 
@@ -145,6 +159,28 @@ sub Message {
     my ( $Self, %Param ) = @_;
 
     return $Self->{Message} || '';
+}
+
+sub _GetOutOfOfficeDateTimeObject {
+    my ( $Self, %Param ) = @_;
+
+    my $Type = $Param{Type};
+    my $Data = $Param{Data};
+
+    my $DTString = sprintf(
+        '%s-%s-%s %s',
+        $Data->{"OutOfOffice${Type}Year"},
+        $Data->{"OutOfOffice${Type}Month"},
+        $Data->{"OutOfOffice${Type}Day"},
+        ( $Type eq 'End' ? '23:59:59' : '00:00:00' ),
+    );
+
+    return $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $DTString,
+        },
+    );
 }
 
 1;

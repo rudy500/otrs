@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -95,10 +96,12 @@ sub Run {
 
         if ( $ColumnName eq 'CustomerID' ) {
             push @{ $ColumnFilter{$ColumnName} }, $FilterValue;
+            push @{ $ColumnFilter{ $ColumnName . 'Raw' } }, $FilterValue;
             $GetColumnFilter{$ColumnName} = $FilterValue;
         }
         elsif ( $ColumnName eq 'CustomerUserID' ) {
-            push @{ $ColumnFilter{CustomerUserLogin} }, $FilterValue;
+            push @{ $ColumnFilter{CustomerUserLogin} },    $FilterValue;
+            push @{ $ColumnFilter{CustomerUserLoginRaw} }, $FilterValue;
             $GetColumnFilter{$ColumnName} = $FilterValue;
         }
         else {
@@ -155,23 +158,25 @@ sub Run {
         $Output .= $LayoutObject->NavigationBar();
     }
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $CreateEndOfDayDateTimeObject = sub {
+        my %Param = @_;
 
-    my ( $Sec, $Min, $Hour, $Day, $Month, $Year ) = $TimeObject->SystemTime2Date(
-        SystemTime => $TimeObject->SystemTime() + 60 * 60 * 24 * 7,
-    );
-    my $TimeStampNextWeek = "$Year-$Month-$Day 23:59:59";
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        if ( $Param{AddDays} ) {
+            $DateTimeObject->Add( Days => $Param{AddDays} );
+        }
 
-    ( $Sec, $Min, $Hour, $Day, $Month, $Year ) = $TimeObject->SystemTime2Date(
-        SystemTime => $TimeObject->SystemTime() + 60 * 60 * 24,
-    );
-    my $TimeStampTomorrow = "$Year-$Month-$Day 23:59:59";
+        $DateTimeObject->Set(
+            Hour   => 23,
+            Minute => 59,
+            Second => 59
+        );
+        return $DateTimeObject;
+    };
 
-    ( $Sec, $Min, $Hour, $Day, $Month, $Year ) = $TimeObject->SystemTime2Date(
-        SystemTime => $TimeObject->SystemTime(),
-    );
-    my $TimeStampToday = "$Year-$Month-$Day 23:59:59";
+    my $NextWeekDateTimeObject = $CreateEndOfDayDateTimeObject->( AddDays => 7 );
+    my $TomorrowDateTimeObject = $CreateEndOfDayDateTimeObject->( AddDays => 1 );
+    my $TodayDateTimeObject    = $CreateEndOfDayDateTimeObject->();
 
     # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -187,10 +192,10 @@ sub Run {
 
     my %Filters = (
         Today => {
-            Name   => 'Today',
+            Name   => Translatable('Today'),
             Prio   => 1000,
             Search => {
-                TicketEscalationTimeOlderDate => $TimeStampToday,
+                TicketEscalationTimeOlderDate => $TodayDateTimeObject->ToString(),
                 OrderBy                       => $OrderBy,
                 SortBy                        => $SortBy,
                 UserID                        => $Self->{UserID},
@@ -198,10 +203,10 @@ sub Run {
             },
         },
         Tomorrow => {
-            Name   => 'Tomorrow',
+            Name   => Translatable('Tomorrow'),
             Prio   => 2000,
             Search => {
-                TicketEscalationTimeOlderDate => $TimeStampTomorrow,
+                TicketEscalationTimeOlderDate => $TomorrowDateTimeObject->ToString(),
                 OrderBy                       => $OrderBy,
                 SortBy                        => $SortBy,
                 UserID                        => $Self->{UserID},
@@ -209,10 +214,10 @@ sub Run {
             },
         },
         NextWeek => {
-            Name   => 'Next week',
+            Name   => Translatable('Next week'),
             Prio   => 3000,
             Search => {
-                TicketEscalationTimeOlderDate => $TimeStampNextWeek,
+                TicketEscalationTimeOlderDate => $NextWeekDateTimeObject->ToString(),
                 OrderBy                       => $OrderBy,
                 SortBy                        => $SortBy,
                 UserID                        => $Self->{UserID},
@@ -225,7 +230,9 @@ sub Run {
 
     # check if filter is valid
     if ( !$Filters{$Filter} ) {
-        $LayoutObject->FatalError( Message => "Invalid Filter: $Filter!" );
+        $LayoutObject->FatalError(
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Invalid Filter: %s!', $Filter ),
+        );
     }
 
     # do shown tickets lookup
@@ -287,7 +294,8 @@ sub Run {
 
         if ( !$FilterContent ) {
             $LayoutObject->FatalError(
-                Message => "Can't get filter content data of $HeaderColumn!",
+                Message => $LayoutObject->{LanguageObject}
+                    ->Translate( 'Can\'t get filter content data of %s!', $HeaderColumn ),
             );
         }
 
@@ -378,7 +386,7 @@ sub Run {
         Filters    => \%NavBarFilter,
         FilterLink => $LinkFilter,
 
-        TitleName  => 'Ticket Escalation View',
+        TitleName  => Translatable('Ticket Escalation View'),
         TitleValue => $Filters{$Filter}->{Name},
         Bulk       => 1,
 

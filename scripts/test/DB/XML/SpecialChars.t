@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,6 +18,14 @@ use Encode;
 my $DBObject     = $Kernel::OM->Get('Kernel::System::DB');
 my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 my $XMLObject    = $Kernel::OM->Get('Kernel::System::XML');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # ------------------------------------------------------------ #
 # XML test 5 - INSERT special characters test
@@ -250,13 +258,6 @@ my @UTF8Tests = (
     },
     {
 
-        # decomposed UTF8 char (german umlaut a)
-        InsertData => Encode::encode( 'UTF8', "\x{61}\x{308}" ),
-        SelectData => Encode::encode( 'UTF8', "\x{E4}" ),
-        ResultData => undef,
-    },
-    {
-
         # composed UTF8 char (lowercase a with grave)
         InsertData => Encode::encode( 'UTF8', "\x{E0}" ),
         SelectData => Encode::encode( 'UTF8', "\x{E0}" ),
@@ -268,13 +269,6 @@ my @UTF8Tests = (
         InsertData => Encode::encode( 'UTF8', "\x{61}\x{300}" ),
         SelectData => Encode::encode( 'UTF8', "\x{61}\x{300}" ),
         ResultData => "\x{61}\x{300}",
-    },
-    {
-
-        # decomposed UTF8 char (lowercase a with grave)
-        InsertData => Encode::encode( 'UTF8', "\x{61}\x{300}" ),
-        SelectData => Encode::encode( 'UTF8', "\x{E0}" ),
-        ResultData => undef,
     },
 );
 
@@ -341,5 +335,7 @@ for my $SQL (@SQL) {
         "Do() DROP TABLE ($SQL)",
     );
 }
+
+# cleanup cache is done by RestoreDatabase.
 
 1;

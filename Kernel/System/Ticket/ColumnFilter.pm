@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,22 +24,16 @@ our @ObjectDependencies = (
 
 Kernel::System::Ticket::ColumnFilter - Column Filter library
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All functions for Column Filters.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $TicketColumnFilterObject = $Kernel::OM->Get('Kernel::System::Ticket::ColumnFilter');
 
 =cut
@@ -54,7 +48,7 @@ sub new {
     return $Self;
 }
 
-=item StateFilterValuesGet()
+=head2 StateFilterValuesGet()
 
 get a list of states within the given ticket is list
 
@@ -119,7 +113,7 @@ sub StateFilterValuesGet {
     return \%Data;
 }
 
-=item QueueFilterValuesGet()
+=head2 QueueFilterValuesGet()
 
 get a list of queues within the given ticket is list
 
@@ -186,7 +180,7 @@ sub QueueFilterValuesGet {
     return \%Data;
 }
 
-=item PriorityFilterValuesGet()
+=head2 PriorityFilterValuesGet()
 
 get a list of priorities within the given ticket is list
 
@@ -251,7 +245,7 @@ sub PriorityFilterValuesGet {
     return \%Data;
 }
 
-=item TypeFilterValuesGet()
+=head2 TypeFilterValuesGet()
 
 get a list of ticket types within the given ticket is list
 
@@ -316,7 +310,7 @@ sub TypeFilterValuesGet {
     return \%Data;
 }
 
-=item LockFilterValuesGet()
+=head2 LockFilterValuesGet()
 
 get a list of ticket lock values within the given ticket is list
 
@@ -382,7 +376,7 @@ sub LockFilterValuesGet {
     return \%Data;
 }
 
-=item ServiceFilterValuesGet()
+=head2 ServiceFilterValuesGet()
 
 get a list of services within the given ticket is list
 
@@ -447,7 +441,7 @@ sub ServiceFilterValuesGet {
     return \%Data;
 }
 
-=item SLAFilterValuesGet()
+=head2 SLAFilterValuesGet()
 
 get a list of service level agreements within the given ticket is list
 
@@ -512,7 +506,7 @@ sub SLAFilterValuesGet {
     return \%Data;
 }
 
-=item CustomerFilterValuesGet()
+=head2 CustomerFilterValuesGet()
 
 get a list of customer ids within the given ticket is list
 
@@ -581,7 +575,7 @@ sub CustomerFilterValuesGet {
     return \%Data;
 }
 
-=item CustomerUserIDFilterValuesGet()
+=head2 CustomerUserIDFilterValuesGet()
 
 get a list of customer users within the given ticket is list
 
@@ -650,7 +644,7 @@ sub CustomerUserIDFilterValuesGet {
     return \%Data;
 }
 
-=item OwnerFilterValuesGet()
+=head2 OwnerFilterValuesGet()
 
 get a list of ticket owners within the given ticket is list
 
@@ -730,7 +724,7 @@ sub OwnerFilterValuesGet {
                 UserID => $UserID,
             );
             if (%User) {
-                $Data{$UserID} = $User{UserFirstname} . ' ' . $User{UserLastname};
+                $Data{$UserID} = $User{UserFullname};
             }
         }
     }
@@ -738,9 +732,9 @@ sub OwnerFilterValuesGet {
     return \%Data;
 }
 
-=item ResponsibleFilterValuesGet()
+=head2 ResponsibleFilterValuesGet()
 
-get a list of ticket responsibles within the given ticket is list
+get a list of agents responsible for the tickets within the given ticket list
 
     my $Values = $ColumnFilterObject->ResponsibleFilterValuesGet(
         TicketIDs => [23, 1, 56, 74],                    # array ref list of ticket IDs
@@ -818,7 +812,7 @@ sub ResponsibleFilterValuesGet {
                 UserID => $UserID,
             );
             if (%User) {
-                $Data{$UserID} = $User{UserFirstname} . ' ' . $User{UserLastname};
+                $Data{$UserID} = $User{UserFullname};
             }
         }
     }
@@ -826,7 +820,7 @@ sub ResponsibleFilterValuesGet {
     return \%Data;
 }
 
-=item DynamicFieldFilterValuesGet()
+=head2 DynamicFieldFilterValuesGet()
 
 get a list of a specific ticket dynamic field values within the given tickets list
 
@@ -926,7 +920,7 @@ sub DynamicFieldFilterValuesGet {
 
 =begin Internal:
 
-=item _GeneralDataGet()
+=head2 _GeneralDataGet()
 
 get data list
 
@@ -960,7 +954,7 @@ sub _GeneralDataGet {
         }
     }
 
-    my $FuctionName = $Param{FunctionName};
+    my $FunctionName = $Param{FunctionName};
 
     # set the backend file
     my $BackendModule = $Param{ModuleName};
@@ -994,7 +988,7 @@ sub _GeneralDataGet {
     }
 
     # get data list
-    my %DataList = $BackendObject->$FuctionName(
+    my %DataList = $BackendObject->$FunctionName(
         Valid  => 1,
         UserID => $Param{UserID},
     );
@@ -1009,45 +1003,45 @@ sub _TicketIDStringGet {
 
     my $ColumnName = $Param{ColumnName} || 't.id';
 
+    if ( !$Param{TicketIDs} || ref $Param{TicketIDs} ne 'ARRAY' || !@{ $Param{TicketIDs} } ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need TicketIDs.",
+        );
+        return;
+    }
+
+    # sort ids to cache the SQL query
+    my @SortedIDs = sort { $a <=> $b } @{ $Param{TicketIDs} };
+
+    # Error out if some values were not integers.
+    @SortedIDs = map { $Kernel::OM->Get('Kernel::System::DB')->Quote( $_, 'Integer' ) } @SortedIDs;
+    return if scalar @SortedIDs != scalar @{ $Param{TicketIDs} };
+
     my $TicketIDString = '';
-    if ( IsArrayRefWithData( $Param{TicketIDs} ) ) {
 
-        # get database object
-        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+    # split IN statement with more than 900 elements in more statements bombined with OR
+    # because Oracle doesn't support more than 1000 elements in one IN statement.
+    my @SQLStrings;
+    while ( scalar @SortedIDs ) {
 
-        # sort ids to cache the SQL query
-        my @SortedIDs = sort { $a <=> $b } @{ $Param{TicketIDs} };
+        # remove section in the array
+        my @SortedIDsPart = splice @SortedIDs, 0, 900;
 
-        # quote values
-        SORTEDID:
-        for my $TicketID (@SortedIDs) {
-            next SORTEDID if !defined $DBObject->Quote( $TicketID, 'Integer' );
-        }
+        # link together IDs
+        my $IDString = join ', ', @SortedIDsPart;
 
-        # split IN statement with more than 900 elements in more statements bombined with OR
-        # because Oracle doesn't support more than 1000 elements in one IN statement.
-        my @SQLStrings;
-        while ( scalar @SortedIDs ) {
+        # add new statement
+        push @SQLStrings, " $ColumnName IN ($IDString) ";
+    }
 
-            # remove section in the array
-            my @SortedIDsPart = splice @SortedIDs, 0, 900;
+    my $SQLString = join ' OR ', @SQLStrings;
 
-            # link together IDs
-            my $IDString = join ',', @SortedIDsPart;
-
-            # add new statement
-            push @SQLStrings, " $ColumnName IN ($IDString) ";
-        }
-
-        my $SQLString = join ' OR ', @SQLStrings;
-
-        if ( $Param{IncludeAdd} ) {
-            $TicketIDString .= ' AND ( ' . $SQLString . ' ) ';
-        }
-        else {
-            $TicketIDString = $SQLString
-        }
-
+    if ( $Param{IncludeAdd} ) {
+        $TicketIDString .= ' AND ( ' . $SQLString . ' ) ';
+    }
+    else {
+        $TicketIDString = $SQLString
     }
 
     return $TicketIDString;
@@ -1056,8 +1050,6 @@ sub _TicketIDStringGet {
 1;
 
 =end Internal:
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

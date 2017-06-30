@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -34,9 +35,15 @@ sub Run {
         = int( $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'WebserviceID' ) || 0 );
     if ( !$WebserviceID ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need WebserviceID!",
+            Message => Translatable('Need WebserviceID!'),
         );
     }
+
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'WebserviceID',
+        Value => $WebserviceID
+    );
 
     my $WebserviceData = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice')->WebserviceGet(
         ID => $WebserviceID,
@@ -44,7 +51,8 @@ sub Run {
 
     if ( !IsHashRefWithData($WebserviceData) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get data for WebserviceID $WebserviceID",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not get data for WebserviceID %s', $WebserviceID ),
         );
     }
 
@@ -133,12 +141,12 @@ sub _Add {
 
     if ( !$InvokerType ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need InvokerType",
+            Message => Translatable('Need InvokerType'),
         );
     }
     if ( !$Self->_InvokerTypeCheck( InvokerType => $InvokerType ) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Invoker $InvokerType is not registered",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Invoker %s is not registered', $InvokerType ),
         );
     }
 
@@ -182,12 +190,13 @@ sub _AddAction {
     # uncorrectable errors
     if ( !$GetParam{InvokerType} ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need InvokerType",
+            Message => Translatable('Need InvokerType'),
         );
     }
     if ( !$Self->_InvokerTypeCheck( InvokerType => $GetParam{InvokerType} ) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "InvokerType $GetParam{InvokerType} is not registered",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'InvokerType %s is not registered', $GetParam{InvokerType} ),
         );
     }
 
@@ -266,7 +275,7 @@ sub _Change {
 
     if ( !$Invoker ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need Invoker",
+            Message => Translatable('Need Invoker'),
         );
     }
 
@@ -278,7 +287,8 @@ sub _Change {
         )
     {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not determine config for invoker $Invoker",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not determine config for invoker %s', $Invoker ),
         );
     }
 
@@ -316,7 +326,7 @@ sub _ChangeAction {
 
         if ( !$GetParam{$Needed} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need $Needed",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Need %s', $Needed ),
             );
         }
     }
@@ -331,7 +341,8 @@ sub _ChangeAction {
         )
     {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not determine config for invoker $GetParam{OldInvoker}",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'Could not determine config for invoker %s', $GetParam{OldInvoker} ),
         );
     }
 
@@ -485,13 +496,10 @@ sub _ShowScreen {
     my $Output = $LayoutObject->Header();
     $Output .= $LayoutObject->NavigationBar();
 
-    $LayoutObject->Block(
-        Name => 'Title' . $Param{Mode},
-        Data => \%Param
-    );
-    $LayoutObject->Block(
-        Name => 'Navigation' . $Param{Mode},
-        Data => \%Param
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'Invoker',
+        Value => $Param{Invoker}
     );
 
     my %TemplateData;
@@ -591,6 +599,7 @@ sub _ShowScreen {
     my %InvokerEventLookup;
 
     # create the event triggers table
+    my @Events;
     for my $Event ( @{$InvokerEvents} ) {
 
         # to store the events that are already assigned to this invoker
@@ -614,6 +623,8 @@ sub _ShowScreen {
             }
         }
 
+        push @Events, $Event->{Event};
+
         # paint each event row in event triggers table
         $LayoutObject->Block(
             Name => 'EventRow',
@@ -625,10 +636,16 @@ sub _ShowScreen {
         );
     }
 
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'Events',
+        Value => \@Events
+    );
+
     my @EventTypeList;
 
-    my $SelectedEventType
-        = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'EventType' ) || 'Ticket';
+    my $SelectedEventType = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'EventType' )
+        || 'Ticket';
 
     # create event trigger selectors (one for each type)
     TYPE:
@@ -710,7 +727,7 @@ sub _AddEvent {
 
         if ( !$GetParam{$Needed} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need $Needed",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Need %s', $Needed ),
             );
         }
     }
@@ -725,7 +742,8 @@ sub _AddEvent {
         )
     {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not determine config for invoker $GetParam{Invoker}",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'Could not determine config for invoker %s', $GetParam{Invoker} ),
         );
     }
 
@@ -788,7 +806,7 @@ sub _DeleteEvent {
 
         if ( !$GetParam{$Needed} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need $Needed",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Need %s', $Needed ),
             );
         }
     }
@@ -803,7 +821,8 @@ sub _DeleteEvent {
         )
     {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not determine config for invoker $GetParam{Invoker}",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'Could not determine config for invoker %s', $GetParam{Invoker} ),
         );
     }
 
@@ -856,11 +875,11 @@ sub _DeleteEvent {
     );
 }
 
-=item _InvokerTypeCheck()
-
-checks if a given InvokerType is registered in the system.
-
-=cut
+# =item _InvokerTypeCheck()
+#
+# checks if a given InvokerType is registered in the system.
+#
+# =cut
 
 sub _InvokerTypeCheck {
     my ( $Self, %Param ) = @_;
@@ -873,11 +892,11 @@ sub _InvokerTypeCheck {
     return ref $Invokers->{ $Param{InvokerType} } eq 'HASH' ? 1 : 0;
 }
 
-=item _MappingTypeCheck()
-
-checks if a given MappingType is registered in the system.
-
-=cut
+# =item _MappingTypeCheck()
+#
+# checks if a given MappingType is registered in the system.
+#
+# =cut
 
 sub _MappingTypeCheck {
     my ( $Self, %Param ) = @_;

@@ -1,25 +1,34 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
 
 use vars (qw($Self));
 
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 # get needed objects
-my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
 my $BackendObject      = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 my $TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
 
-my $RandomID = int rand 1_000_000_000;
+# define needed variable
+my $RandomID = $Helper->GetRandomNumber();
 
 # create a ticket
 my $TicketID = $TicketObject->TicketCreate(
@@ -41,11 +50,12 @@ $Self->True(
 );
 
 # create a dynamic field
-my $FieldID = $DynamicFieldObject->DynamicFieldAdd(
-    Name       => "dynamicfieldtest$RandomID",
+my $DynamicFieldName = "dynamicfieldtest$RandomID";
+my $FieldID          = $DynamicFieldObject->DynamicFieldAdd(
+    Name       => $DynamicFieldName,
     Label      => 'a description',
     FieldOrder => 9991,
-    FieldType  => 'Text',                        # mandatory, selects the DF backend to use for this field
+    FieldType  => 'Text',
     ObjectType => 'Ticket',
     Config     => {
         DefaultValue => 'a value',
@@ -60,19 +70,43 @@ $Self->True(
     "DynamicFieldAdd() successful for Field ID $FieldID",
 );
 
+# create a customer user
+my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate();
+
+# create a dynamic field for customer user (ObjectName instead of ObjectID)
+my $DynamicFieldName2 = "dynamicfieldtest2$RandomID";
+my $FieldID2          = $DynamicFieldObject->DynamicFieldAdd(
+    Name       => $DynamicFieldName2,
+    Label      => 'a description',
+    FieldOrder => 9991,
+    FieldType  => 'Text',
+    ObjectType => 'CustomerUser',
+    Config     => {
+        DefaultValue => 'a value',
+    },
+    ValidID => 1,
+    UserID  => 1,
+);
+
+# sanity check
+$Self->True(
+    $FieldID2,
+    "DynamicFieldAdd() successful for Field ID $FieldID2",
+);
+
 # get the Dynamic Fields configuration
-my $DynamicFieldsConfig = $ConfigObject->Get('DynamicFields::Driver');
+my $DynamicFieldsConfig = $Kernel::OM->Get('Kernel::Config')->Get('DynamicFields::Driver');
 
 # sanity check
 $Self->Is(
     ref $DynamicFieldsConfig,
     'HASH',
-    'Dynamic Field confguration',
+    'Dynamic Field configuration',
 );
 $Self->IsNotDeeply(
     $DynamicFieldsConfig,
     {},
-    'Dynamic Field confguration is not empty',
+    'Dynamic Field configuration is not empty',
 );
 
 $Self->True(
@@ -83,7 +117,7 @@ $Self->True(
 $Self->Is(
     ref $BackendObject,
     'Kernel::System::DynamicField::Backend',
-    'Backend object was created successfuly',
+    'Backend object was created successfully',
 );
 
 # check all registered backend delegates
@@ -96,7 +130,7 @@ for my $FieldType ( sort keys %{$DynamicFieldsConfig} ) {
     $Self->Is(
         ref $BackendObject->{ 'DynamicField' . $FieldType . 'Object' },
         $DynamicFieldsConfig->{$FieldType}->{Module},
-        "Backend delegate for field type $FieldType was created successfuly",
+        "Backend delegate for field type $FieldType was created successfully",
     );
 }
 
@@ -236,6 +270,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Text',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 'a text',
@@ -244,12 +281,32 @@ my @Tests = (
         ShouldGet => 1,
     },
     {
+        Name               => 'Set text value via an object name instead of ID',
+        DynamicFieldConfig => {
+            ID         => $FieldID,
+            Name       => "dynamicfieldtest$RandomID",
+            ObjectType => 'CustomerUser',
+            FieldType  => 'Text',
+            Config     => {
+                DefaultValue => '',
+            },
+        },
+        ObjectName => $TestCustomerUserLogin,
+        Value      => 'a text',
+        UserID     => 1,
+        Success    => 1,
+        ShouldGet  => 1,
+    },
+    {
         Name               => 'Set Text Value - empty',
         DynamicFieldConfig => {
             ID         => $FieldID,
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Text',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => '',
@@ -264,6 +321,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Text',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 'äöüßÄÖÜ€ис',
@@ -278,6 +338,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'TextArea',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 'a text',
@@ -292,6 +355,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'TextArea',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => '',
@@ -306,6 +372,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'TextArea',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 'äöüßÄÖÜ€ис',
@@ -320,6 +389,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'DateTime',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => '2011-01-01 01:01:01',
@@ -453,6 +525,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Checkbox',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => -1,
@@ -467,6 +542,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Checkbox',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 'a',
@@ -481,6 +559,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Checkbox',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 5,
@@ -495,6 +576,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Checkbox',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 1,
@@ -509,6 +593,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Checkbox',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => 0,
@@ -523,6 +610,9 @@ my @Tests = (
             Name       => "dynamicfieldtest$RandomID",
             ObjectType => 'Ticket',
             FieldType  => 'Checkbox',
+            Config     => {
+                DefaultValue => '',
+            },
         },
         ObjectID  => $TicketID,
         Value     => undef,
@@ -631,12 +721,22 @@ my @Tests = (
 
 );
 
+# execute tests
 for my $Test (@Tests) {
+
+    my %ObjectIDOrNameParam;
+    if ( defined $Test->{ObjectName} ) {
+        $ObjectIDOrNameParam{ObjectName} = $Test->{ObjectName};
+    }
+    else {
+        $ObjectIDOrNameParam{ObjectID} = $Test->{ObjectID};
+    }
+
     my $Success = $BackendObject->ValueSet(
         DynamicFieldConfig => $Test->{DynamicFieldConfig},
-        ObjectID           => $Test->{ObjectID},
         Value              => $Test->{Value},
         UserID             => $Test->{UserID},
+        %ObjectIDOrNameParam,
     );
 
     if ( !$Test->{Success} ) {
@@ -648,7 +748,9 @@ for my $Test (@Tests) {
         # Try to get the value with ValueGet()
         my $Value = $BackendObject->ValueGet(
             DynamicFieldConfig => $Test->{DynamicFieldConfig},
-            ObjectID           => $Test->{ObjectID},
+
+            # ObjectID           => $Test->{ObjectID},
+            %ObjectIDOrNameParam,
         );
 
         # fix Value if it's an array ref
@@ -683,7 +785,7 @@ for my $Test (@Tests) {
         # get the value with ValueGet()
         my $Value = $BackendObject->ValueGet(
             DynamicFieldConfig => $Test->{DynamicFieldConfig},
-            ObjectID           => $Test->{ObjectID},
+            %ObjectIDOrNameParam,
         );
 
         # workaround for oracle
@@ -770,27 +872,59 @@ for my $Test (@Tests) {
 
 }
 
+my $DynamicFieldConfig = $DynamicFieldObject->DynamicFieldGet(
+    ID => $FieldID,
+);
+
 # specific tests for TicketDelete, it must clean up the dynamic field values()
 my $Value = 123;
 
 $BackendObject->ValueSet(
-    DynamicFieldConfig => {
-        ID         => $FieldID,
-        ObjectType => 'Ticket',
-        FieldType  => 'Text',
-    },
-    ObjectID => $TicketID,
-    Value    => $Value,
-    UserID   => 1,
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    Value              => $Value,
+    UserID             => 1,
+);
+
+my %TicketValueDeleteData = $TicketObject->TicketGet(
+    TicketID      => $TicketID,
+    DynamicFields => 1,
+    UserID        => 1,
+);
+
+$Self->Is(
+    $TicketValueDeleteData{ 'DynamicField_' . $DynamicFieldName },
+    $Value,
+    "Should have value '$Value' set.",
+);
+
+$BackendObject->ValueDelete(
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    UserID             => 1,
+);
+
+%TicketValueDeleteData = $TicketObject->TicketGet(
+    TicketID      => $TicketID,
+    DynamicFields => 1,
+    UserID        => 1,
+);
+
+$Self->False(
+    $TicketValueDeleteData{ 'DynamicField_' . $DynamicFieldName },
+    "Ticket shouldn't have a value.",
+);
+
+$BackendObject->ValueSet(
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    Value              => $Value,
+    UserID             => 1,
 );
 my $ReturnValue1 = $BackendObject->ValueGet(
-    DynamicFieldConfig => {
-        ID         => $FieldID,
-        ObjectType => 'Ticket',
-        FieldType  => 'Text',
-    },
-    ObjectID => $TicketID,
-    UserID   => 1,
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    UserID             => 1,
 );
 
 $Self->Is(
@@ -812,13 +946,9 @@ $Self->True(
 );
 
 my $ReturnValue2 = $BackendObject->ValueGet(
-    DynamicFieldConfig => {
-        ID         => $FieldID,
-        ObjectType => 'Ticket',
-        FieldType  => 'Text',
-    },
-    ObjectID => $TicketID,
-    UserID   => 1,
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    UserID             => 1,
 );
 
 $Self->Is(
@@ -828,12 +958,8 @@ $Self->Is(
 );
 
 my $ValuesDelete = $BackendObject->AllValuesDelete(
-    DynamicFieldConfig => {
-        ID         => $FieldID,
-        ObjectType => 'Ticket',
-        FieldType  => 'Text',
-    },
-    UserID => 1,
+    DynamicFieldConfig => $DynamicFieldConfig,
+    UserID             => 1,
 );
 
 # sanity check
@@ -842,16 +968,6 @@ $Self->True(
     "AllValuesDelete() successful for Field ID $FieldID",
 );
 
-# delete the dynamic field
-my $FieldDelete = $DynamicFieldObject->DynamicFieldDelete(
-    ID     => $FieldID,
-    UserID => 1,
-);
-
-# sanity check
-$Self->True(
-    $FieldDelete,
-    "DynamicFieldDelete() successful for Field ID $FieldID",
-);
+# cleanup is done by RestoreDatabase
 
 1;

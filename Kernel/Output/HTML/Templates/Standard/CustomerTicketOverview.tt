@@ -1,21 +1,29 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
-<div id="MainBox" class="TicketView ARIARoleMain [% Config("Ticket::Frontend::CustomerTicketOverviewSortable") %]">
+<!-- TODO move before the merge the JS in the JS file -->
+## nofilter(TidyAll::Plugin::OTRS::TT::ScriptUsage)
+
+<div id="MainBox" class="TicketView ARIARoleMain [% Config("Ticket::Frontend::CustomerTicketOverviewSortable") %] ">
 [% RenderBlockStart("Filled") %]
     <div class="ActionRow">
         <ul class="Filter Tabs">
 [% RenderBlockStart("FilterHeader") %]
             <li>
-                <a class="[% Data.ClassA | html %]" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=[% Env("Subaction") %];Filter=[% Data.Filter | uri %];SortBy=[% Data.SortBy | uri %];OrderBy=[% Data.OrderBy | uri %];">
+                <a class="[% Data.ClassA | html %]" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=[% Env("Subaction") %];Filter=[% Data.Filter | uri %];SortBy=[% Data.SortBy | uri %];OrderBy=[% Data.OrderBy | uri %][% Data.CustomerIDs %];">
                     [% Translate(Data.Name) | html %] ([% Data.Count | html %])
                 </a>
             </li>
 [% RenderBlockEnd("FilterHeader") %]
+        [% IF Data.CustomerIDStrg %]
+            <li>
+                [% Data.CustomerIDStrg %]
+            </li>
+        [% END %]
         </ul>
         <div class="Tabs Pagination">
             [% Data.SiteNavBar %]
@@ -42,8 +50,10 @@
                         </a>
                     </th>
 [% RenderBlockStart("OverviewNavBarPageOwner") %]
-                    <th class="Owner">
-                        <span>[% Translate("Owner") | html %]</span>
+                    <th class="Owner [% Data.OwnerSort | uri %]">
+                        <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=[% Env("Subaction") %];SortBy=Owner;OrderBy=[% Data.OrderBy | uri %];Filter=[% Data.Filter | uri %]">
+                            [% Translate("Owner") | html %]
+                        </a>
                     </th>
 [% RenderBlockEnd("OverviewNavBarPageOwner") %]
 [% RenderBlockStart("OverviewNavBarPageQueue") %]
@@ -154,18 +164,6 @@
                     <td class="Age" title="[% Data.Created | Localize("TimeShort") | html %]">[% Data.CustomerAge | truncate(20) | html %]</td>
                 </tr>
 [% RenderBlockEnd("Record") %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    $('.MasterAction').bind('click', function (Event) {
-        var $MasterActionLink = $(this).find('.MasterActionLink');
-        // only act if the link was not clicked directly
-        if (Event.target !== $MasterActionLink.get(0)) {
-            window.location = $MasterActionLink.attr('href');
-            return false;
-        }
-    });
-//]]></script>
-[% END %]
             </tbody>
         </table>
     </div>
@@ -187,16 +185,35 @@
         <div class="Clear"></div>
     </div>
 [% RenderBlockEnd("FilterFooter") %]
+[% WRAPPER JSOnDocumentComplete %]
+<script type="text/javascript">
+    $('#CustomerIDs').on('change.CustomerIDs', function (Event) {
+        var QueryString = '[% Env("Baselink") %]Action=[% Env("Action") %];[% Data.Link %]';
+
+        // Include customer selection
+        if ($(this).val()) {
+            $.each($(this).val(), function (Key, Value) {
+                QueryString += 'CustomerIDs=' + encodeURIComponent(Value) + ';';
+            })
+        }
+
+        // Redirect
+        window.location.href = QueryString;
+
+        return false;
+    });
+</script>
+[% END %]
 [% RenderBlockEnd("Filled") %]
 
 [% RenderBlockStart("Empty") %]
     <div class="Placeholder">
 [% RenderBlockStart("EmptyDefault") %]
         <h2>[% Translate("Welcome!") | html %]</h2>
+[% RenderBlockStart("EmptyDefaultButton") %]
         <p>
             [% Translate("Please click the button below to create your first ticket.") | html %]
         </p>
-[% RenderBlockStart("EmptyDefaultButton") %]
         <a class="Button" href="[% Env("Baselink") %]Action=CustomerTicketMessage">[% Translate("Create your first ticket") | html %]</a>
 [% RenderBlockEnd("EmptyDefaultButton") %]
 [% RenderBlockEnd("EmptyDefault") %]

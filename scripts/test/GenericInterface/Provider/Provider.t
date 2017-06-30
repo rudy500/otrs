@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,23 +12,19 @@ use utf8;
 
 use vars (qw($Self));
 
-use CGI ();
-use URI::Escape();
-use LWP::UserAgent;
-
-# get needed objects
+# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 
-# helper object
+# get helper object
 # skip SSL certificate verification
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
     },
 );
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-my $RandomID = $Kernel::OM->Get('Kernel::System::UnitTest::Helper')->GetRandomID();
+my $RandomID = $Helper->GetRandomID();
 
 my @Tests = (
     {
@@ -191,28 +187,12 @@ my $CreateQueryString = sub {
         }
     }
 
-    $EncodeObject->EncodeOutput( \$QueryString );
+    $Kernel::OM->Get('Kernel::System::Encode')->EncodeOutput( \$QueryString );
     return $QueryString;
 };
 
 # get remote host with some precautions for certain unit test systems
-my $Host;
-my $FQDN = $ConfigObject->Get('FQDN');
-
-# try to resolve FQDN host
-if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
-    $Host = $FQDN;
-}
-
-# try to resolve localhost instead
-if ( !$Host && gethostbyname('localhost') ) {
-    $Host = 'localhost';
-}
-
-# use hard coded localhost IP address
-if ( !$Host ) {
-    $Host = '127.0.0.1';
-}
+my $Host = $Helper->GetTestHTTPHostname();
 
 # create URL
 my $ScriptAlias   = $ConfigObject->Get('ScriptAlias');
@@ -304,7 +284,7 @@ for my $Test (@Tests) {
 
                 # reset CGI object from previous runs
                 CGI::initialize_globals();
-                $Kernel::OM->ObjectsDiscard('Kernel::System::Web::Request');
+                $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
 
                 $ProviderObject->Run();
             }
@@ -405,15 +385,14 @@ for my $Test (@Tests) {
                     $Self->Is(
                         $Response->code(),
                         500,
-                        "$Test->{Name} $WebserviceAccess real HTTP $RequestMethod request (needs configured and running webserver) result error status ($URL)"
-                        ,
+                        "$Test->{Name} $WebserviceAccess real HTTP $RequestMethod request (needs configured and running webserver) result error status ($URL)",
                     );
                 }
             }
         }
     }
 
-    # delete config
+    # delete webservice
     my $Success = $WebserviceObject->WebserviceDelete(
         ID     => $WebserviceID,
         UserID => 1,
@@ -442,5 +421,8 @@ for my $RequestMethod (qw(get post)) {
         "Non existing Webservice real HTTP $RequestMethod request result error status ($URL)",
     );
 }
+
+# cleanup cache
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
 
 1;

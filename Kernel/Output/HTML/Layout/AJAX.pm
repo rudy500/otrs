@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,17 +19,15 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::Output::HTML::Layout::AJAX - all AJAX-related HTML functions
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All AJAX-related HTML functions
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 BuildSelectionJSON()
 
-=item BuildSelectionJSON()
-
-build a JSON output js witch can be used for e. g. data for pull downs
+build a JSON output which can be used for e. g. data for pull downs
 
     my $JSON = $LayoutObject->BuildSelectionJSON(
         [
@@ -147,8 +145,6 @@ sub BuildSelectionJSON {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

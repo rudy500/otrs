@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -45,18 +45,19 @@ Core.UI.RichTextEditor = (function (TargetNS) {
      * @memberof Core.UI.RichTextEditor
      * @function
      * @returns {jQueryObject} FormID element.
+     * @param {jQueryObject} $EditorArea - The jQuery object of the element that has become a rich text editor.
      * @description
      *      Check in the window which hidden element has a name same to 'FormID' and return it like a JQuery object.
      */
-    function CheckFormID() {
+    function CheckFormID($EditorArea) {
         if (typeof $FormID === 'undefined') {
-            $FormID = $('input:hidden[name=FormID]');
+            $FormID = $EditorArea.closest('form').find('input:hidden[name=FormID]');
         }
         return $FormID;
     }
 
     /**
-     * @name Init
+     * @name InitEditor
      * @memberof Core.UI.RichTextEditor
      * @function
      * @returns {Boolean} Returns false on error.
@@ -64,10 +65,15 @@ Core.UI.RichTextEditor = (function (TargetNS) {
      * @description
      *      This function initializes the application and executes the needed functions.
      */
-    TargetNS.Init = function ($EditorArea) {
+    TargetNS.InitEditor = function ($EditorArea) {
         var EditorID = '',
+            Editor,
             UserLanguage,
             UploadURL = '';
+
+        if (typeof CKEDITOR === 'undefined') {
+            return false;
+        }
 
         if (isJQueryObject($EditorArea) && $EditorArea.hasClass('HasCKEInstance')) {
             return false;
@@ -95,15 +101,6 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                 }, 250);
             });
 
-            // if spell checker is used on paste new content should spell check again
-            Editor.editor.on('paste', function() {
-                Core.Config.Set('TextIsSpellChecked', false);
-            });
-            // if spell checker is used on any key new content should spell check again
-            Editor.editor.on('key', function() {
-                Core.Config.Set('TextIsSpellChecked', false);
-            });
-
             Core.App.Publish('Event.UI.RichTextEditor.InstanceCreated', [Editor]);
         });
 
@@ -116,18 +113,19 @@ Core.UI.RichTextEditor = (function (TargetNS) {
         UserLanguage = Core.Config.Get('UserLanguage').replace(/_/, "-");
 
         // build URL for image upload
-        if (CheckFormID().length) {
+        if (CheckFormID($EditorArea).length) {
+
             UploadURL = Core.Config.Get('Baselink')
                     + 'Action='
                     + Core.Config.Get('RichText.PictureUploadAction', 'PictureUpload')
                     + '&FormID='
-                    + CheckFormID().val()
+                    + CheckFormID($EditorArea).val()
                     + '&' + Core.Config.Get('SessionName')
                     + '=' + Core.Config.Get('SessionID');
         }
 
         /*eslint-disable camelcase */
-        CKEDITOR.replace(EditorID,
+        Editor = CKEDITOR.replace(EditorID,
         {
             customConfig: '', // avoid loading external config files
             defaultLanguage: UserLanguage,
@@ -135,25 +133,22 @@ Core.UI.RichTextEditor = (function (TargetNS) {
             width: Core.Config.Get('RichText.Width', 620),
             resize_minWidth: Core.Config.Get('RichText.Width', 620),
             height: Core.Config.Get('RichText.Height', 320),
-            removePlugins: CheckFormID().length ? 'elementspath,scayt,menubutton' : 'elementspath,scayt,menubutton,image2,uploadimage',
+            removePlugins: CheckFormID($EditorArea).length ? '' : 'image2,uploadimage',
             forcePasteAsPlainText: false,
             format_tags: 'p;h1;h2;h3;h4;h5;h6;pre',
             fontSize_sizes: '8px;10px;12px;16px;18px;20px;22px;24px;26px;28px;30px;',
-            extraAllowedContent: 'div table tr td th colgroup col img figure figcaption style[*]{*}',
+            extraAllowedContent: 'div[type]{*}; img[*]; col[width]; style[*]{*}; *[id](*)',
             enterMode: CKEDITOR.ENTER_BR,
             shiftEnterMode: CKEDITOR.ENTER_BR,
             contentsLangDirection: Core.Config.Get('RichText.TextDir', 'ltr'),
-            disableNativeSpellChecker: false,
-            toolbar: CheckFormID().length ? Core.Config.Get('RichText.Toolbar') : Core.Config.Get('RichText.ToolbarWithoutImage'),
+            toolbar: CheckFormID($EditorArea).length ? Core.Config.Get('RichText.Toolbar') : Core.Config.Get('RichText.ToolbarWithoutImage'),
             filebrowserBrowseUrl: '',
             filebrowserUploadUrl: UploadURL,
-            extraPlugins: Core.Config.Get('RichText.SpellChecker') ? 'aspell,splitquote' : 'splitquote',
+            extraPlugins: 'splitquote,preventimagepaste',
             entities: false,
-            skin: 'bootstrapck'
+            skin: 'moono-lisa'
         });
         /*eslint-enable camelcase */
-
-        CKEDITOR.config.spellerPagesServerScript = Core.Config.Get('Baselink');
 
         // check if creating CKEditor was successful
         // might be a problem on mobile devices e.g.
@@ -184,6 +179,23 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                 }
             };
 
+            // Redefine 'writeCssText' function because of unnecessary sorting of CSS properties (bug#12848).
+            /* eslint-disable no-unused-vars */
+            CKEDITOR.tools.writeCssText = function (styles, sort) {
+                var name,
+                stylesArr = [];
+
+                for (name in styles)
+                    stylesArr.push(name + ':' + styles[name]);
+
+                // This block sorts CSS properties which can make a wrong CSS style sent to CKEditor.
+                // if ( sort )
+                //     stylesArr.sort();
+
+                return stylesArr.join('; ');
+            };
+            /* eslint-enable no-unused-vars */
+
             // Needed for clientside validation of RTE
             CKEDITOR.instances[EditorID].on('blur', function () {
                 CKEDITOR.instances[EditorID].updateElement();
@@ -192,6 +204,9 @@ Core.UI.RichTextEditor = (function (TargetNS) {
 
             // needed for client-side validation
             CKEDITOR.instances[EditorID].on('focus', function () {
+
+                Core.App.Publish('Event.UI.RichTextEditor.Focus', [Editor]);
+
                 if ($EditorArea.attr('class').match(/Error/)) {
                     window.setTimeout(function () {
                         CKEDITOR.instances[EditorID].updateElement();
@@ -209,16 +224,35 @@ Core.UI.RichTextEditor = (function (TargetNS) {
     };
 
     /**
-     * @name InitAll
+     * @name InitAllEditors
      * @memberof Core.UI.RichTextEditor
      * @function
      * @description
      *      This function initializes as a rich text editor every textarea element that containing the RichText class.
      */
-    TargetNS.InitAll = function () {
+    TargetNS.InitAllEditors = function () {
+        if (typeof CKEDITOR === 'undefined') {
+            return;
+        }
+
         $('textarea.RichText').each(function () {
-            TargetNS.Init($(this));
+            TargetNS.InitEditor($(this));
         });
+    };
+
+    /**
+     * @name Init
+     * @memberof Core.UI.RichTextEditor
+     * @function
+     * @description
+     *      This function initializes JS functionality.
+     */
+    TargetNS.Init = function () {
+        if (typeof CKEDITOR === 'undefined') {
+            return;
+        }
+
+        TargetNS.InitAllEditors();
     };
 
     /**
@@ -317,6 +351,8 @@ Core.UI.RichTextEditor = (function (TargetNS) {
             $EditorArea.focus();
         }
     };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.UI.RichTextEditor || {}));

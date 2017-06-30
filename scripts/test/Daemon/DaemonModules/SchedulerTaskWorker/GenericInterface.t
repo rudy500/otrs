@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,6 +18,18 @@ $Kernel::OM->Get('Kernel::Config')->Set(
     Key   => 'SendmailModule',
     Value => 'Kernel::System::Email::DoNotSendEmail',
 );
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper   = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $RandomID = $Helper->GetRandomID();
+
+# freeze time
+$Helper->FixedTimeSet();
 
 # web service config
 my $WebserviceConfig = {
@@ -39,13 +51,6 @@ my $WebserviceConfig = {
         },
     },
 };
-
-# get helper object
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-my $RandomID     = $HelperObject->GetRandomID();
-
-# freeze time
-$HelperObject->FixedTimeSet();
 
 # get web service object
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
@@ -263,7 +268,6 @@ my @Test = (
 my $TaskHandlerObject
     = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::GenericInterface');
 my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
-my $TimeObject        = $Kernel::OM->Get('Kernel::System::Time');
 
 TEST:
 for my $Test (@Test) {
@@ -301,13 +305,12 @@ for my $Test (@Test) {
 
         my $ExecutionTime = $Test->{RescheculeExecutionTime};
         if ( !$ExecutionTime ) {
-
-            $ExecutionTime = $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $TimeObject->SystemTime() + $Test->{RescheculeTimeDiff},
-            );
+            $ExecutionTime = $Kernel::OM->Create('Kernel::System::DateTime');
+            $ExecutionTime->Add( Seconds => $Test->{RescheculeTimeDiff} );
+            $ExecutionTime = $ExecutionTime->ToString();
         }
 
-        my $TimeStamp = $TimeObject->CurrentTimestamp();
+        my $TimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
         $Self->IsDeeply(
             \%Task,
@@ -337,15 +340,6 @@ for my $Test (@Test) {
     }
 }
 
-# delete web service config
-my $Success = $WebserviceObject->WebserviceDelete(
-    ID     => $WebserviceID,
-    UserID => 1,
-);
-
-$Self->True(
-    $Success,
-    "WebserviceDelete()",
-);
+# cleanup is done by RestoreDatabase.
 
 1;

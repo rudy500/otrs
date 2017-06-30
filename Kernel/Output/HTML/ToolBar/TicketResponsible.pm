@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,8 +8,12 @@
 
 package Kernel::Output::HTML::ToolBar::TicketResponsible;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -17,19 +21,6 @@ our @ObjectDependencies = (
     'Kernel::System::Ticket',
     'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -57,7 +48,7 @@ sub Run {
         ResponsibleIDs => [ $Self->{UserID} ],
         UserID         => 1,
         Permission     => 'ro',
-    );
+    ) || 0;
     my $CountNew = $TicketObject->TicketSearch(
         Result         => 'COUNT',
         StateType      => 'Open',
@@ -68,7 +59,7 @@ sub Run {
         TicketFlagUserID => $Self->{UserID},
         UserID           => 1,
         Permission       => 'ro',
-    );
+    ) || 0;
     $CountNew = $Count - $CountNew;
 
     my $CountReached = $TicketObject->TicketSearch(
@@ -78,7 +69,7 @@ sub Run {
         TicketPendingTimeOlderMinutes => 1,
         UserID                        => 1,
         Permission                    => 'ro',
-    );
+    ) || 0;
 
     my $Class        = $Param{Config}->{CssClass};
     my $ClassNew     = $Param{Config}->{CssClassNew};
@@ -94,7 +85,7 @@ sub Run {
     if ($CountNew) {
         $Return{ $Priority++ } = {
             Block       => 'ToolBarItem',
-            Description => 'Responsible Tickets New',
+            Description => Translatable('Responsible Tickets New'),
             Count       => $CountNew,
             Class       => $ClassNew,
             Icon        => $IconNew,
@@ -105,7 +96,7 @@ sub Run {
     if ($CountReached) {
         $Return{ $Priority++ } = {
             Block       => 'ToolBarItem',
-            Description => 'Responsible Tickets Reminder Reached',
+            Description => Translatable('Responsible Tickets Reminder Reached'),
             Count       => $CountReached,
             Class       => $ClassReached,
             Icon        => $IconReached,
@@ -116,7 +107,7 @@ sub Run {
     if ($Count) {
         $Return{ $Priority++ } = {
             Block       => 'ToolBarItem',
-            Description => 'Responsible Tickets Total',
+            Description => Translatable('Responsible Tickets Total'),
             Count       => $Count,
             Class       => $Class,
             Icon        => $Icon,

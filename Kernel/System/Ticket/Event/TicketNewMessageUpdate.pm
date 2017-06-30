@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,7 @@ our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Log',
     'Kernel::System::Ticket',
+    'Kernel::System::Ticket::Article',
 );
 
 sub new {
@@ -53,37 +54,26 @@ sub Run {
     # update ticket new message flag
     if ( $Param{Event} eq 'ArticleCreate' ) {
 
-        # get ticket object
-        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-
-        $TicketObject->TicketFlagDelete(
+        $Kernel::OM->Get('Kernel::System::Ticket')->TicketFlagDelete(
             TicketID => $Param{Data}->{TicketID},
             Key      => 'Seen',
             AllUsers => 1,
         );
 
-        my %Article = $TicketObject->ArticleGet(
-            ArticleID     => $Param{Data}->{ArticleID},
-            DynamicFields => 0,
+        # Set the seen flag to 1 for the agent who created the article.
+        #   This must also be done for articles with SenderType other than agent because
+        #   it could be still coming from an agent (see bug#11565).
+        $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleFlagSet(
+            TicketID  => $Param{Data}->{TicketID},
+            ArticleID => $Param{Data}->{ArticleID},
+            Key       => 'Seen',
+            Value     => 1,
+            UserID    => $Param{UserID},
         );
-
-        if ( %Article && $Article{SenderType} eq 'agent' ) {
-
-            # set the seen flag to 1 for the agent who created the article
-            $TicketObject->ArticleFlagSet(
-                ArticleID => $Param{Data}->{ArticleID},
-                Key       => 'Seen',
-                Value     => 1,
-                UserID    => $Param{UserID},
-            );
-        }
 
         return 1;
     }
     elsif ( $Param{Event} eq 'ArticleFlagSet' ) {
-
-        # get ticket object
-        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
         my @ArticleList;
         my @SenderTypes = (qw(customer agent system));
@@ -93,24 +83,32 @@ sub Run {
             @SenderTypes = (qw(customer agent));
         }
 
+        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
         for my $SenderType (@SenderTypes) {
-            push @ArticleList, $TicketObject->ArticleIndex(
+            my @Articles = $ArticleObject->ArticleList(
                 TicketID   => $Param{Data}->{TicketID},
                 SenderType => $SenderType,
             );
+
+            for my $Article (@Articles) {
+                push @ArticleList, $Article->{ArticleID};
+            }
         }
 
         # check if ticket needs to be marked as seen
         my $ArticleAllSeen = 1;
+
+        my %Flags = $ArticleObject->ArticleFlagsOfTicketGet(
+            TicketID => $Param{Data}->{TicketID},
+            UserID   => $Param{Data}->{UserID},
+        );
+
         ARTICLE:
         for my $ArticleID (@ArticleList) {
-            my %ArticleFlag = $TicketObject->ArticleFlagGet(
-                ArticleID => $ArticleID,
-                UserID    => $Param{Data}->{UserID},
-            );
 
             # last ARTICLE if article was not shown
-            if ( !$ArticleFlag{Seen} ) {
+            if ( !$Flags{$ArticleID}->{Seen} ) {
                 $ArticleAllSeen = 0;
                 last ARTICLE;
             }
@@ -118,7 +116,7 @@ sub Run {
 
         # mark ticket as seen if all articles have been seen
         if ($ArticleAllSeen) {
-            $TicketObject->TicketFlagSet(
+            $Kernel::OM->Get('Kernel::System::Ticket')->TicketFlagSet(
                 TicketID => $Param{Data}->{TicketID},
                 Key      => 'Seen',
                 Value    => 1,

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -40,37 +40,21 @@ Core.Agent.TicketAction = (function (TargetNS) {
 
     /**
      * @private
-     * @name OpenSpellChecker
+     * @name OpenCustomerUserAddressBook
      * @memberof Core.Agent.TicketAction
      * @function
+     * @param {String} RecipientField - The recipient field name to add the selected recipients in the correct field.
      * @description
-     *      Open the spellchecker screen.
+     *      Open the AgentCustomerUserAddressBook screen.
      */
-    function OpenSpellChecker() {
-        var SpellCheckIFrame, SpellCheckIFrameURL;
-        SpellCheckIFrameURL = Core.Config.Get('CGIHandle') + '?Action=AgentSpelling;Field=RichText;Body=' + encodeURIComponent($('#RichText').val());
-        SpellCheckIFrameURL += SerializeData(Core.App.GetSessionInformation());
-        SpellCheckIFrame = '<iframe class="TextOption SpellCheck" src="' + SpellCheckIFrameURL + '"></iframe>';
-        Core.UI.Dialog.ShowContentDialog(SpellCheckIFrame, '', '10px', 'Center', true);
-    }
+    function OpenCustomerUserAddressBook(RecipientField) {
+        var CustomerUserAddressBookIFrameURL, CustomerUserAddressBookIFrame;
 
-    /**
-     * @private
-     * @name OpenAddressBook
-     * @memberof Core.Agent.TicketAction
-     * @function
-     * @description
-     *      Open the AddressBook screen.
-     */
-    function OpenAddressBook() {
-        var AddressBookIFrameURL, AddressBookIFrame;
-        AddressBookIFrameURL = Core.Config.Get('CGIHandle') +
-            '?Action=AgentBook;ToCustomer=' + encodeURIComponent($('#CustomerAutoComplete, #ToCustomer').val()) +
-            ';CcCustomer=' + encodeURIComponent($('#Cc, #CcCustomer').val()) +
-            ';BccCustomer=' + encodeURIComponent($('#Bcc, #BccCustomer').val());
-        AddressBookIFrameURL += SerializeData(Core.App.GetSessionInformation());
-        AddressBookIFrame = '<iframe class="TextOption" src="' + AddressBookIFrameURL + '"></iframe>';
-        Core.UI.Dialog.ShowContentDialog(AddressBookIFrame, '', '10px', 'Center', true);
+        CustomerUserAddressBookIFrameURL = Core.Config.Get('CGIHandle') + '?Action=AgentCustomerUserAddressBook;RecipientField=' + RecipientField
+        CustomerUserAddressBookIFrameURL += SerializeData(Core.App.GetSessionInformation());
+
+        CustomerUserAddressBookIFrame = '<iframe class="TextOption CustomerUserAddressBook" src="' + CustomerUserAddressBookIFrameURL + '"></iframe>';
+        Core.UI.Dialog.ShowContentDialog(CustomerUserAddressBookIFrame, '', '10px', 'Center', true);
     }
 
     /**
@@ -93,49 +77,68 @@ Core.Agent.TicketAction = (function (TargetNS) {
 
     /**
      * @private
-     * @name AddMailAddress
+     * @name OpenCustomerIDSelection
      * @memberof Core.Agent.TicketAction
      * @function
-     * @param {Object} $Link - Element link type that will receive the new email adrress in its value attribute
      * @description
-     *      Add email address.
+     *      Open the CustomerIDSelectionDialog screen.
      */
-    function AddMailAddress($Link) {
-        var $Element = $('#' + $Link.attr('rel')),
-            NewValue = $Element.val(), NewData, NewDataItem, Length;
+    function OpenCustomerIDSelection() {
+        var Data = {
+            Action: 'AgentCustomerSearch',
+            Subaction: 'AssignedCustomerIDs',
+            CustomerUserID: $('#SelectedCustomerUser').val(),
+        };
 
-        if (NewValue.length) {
-            NewValue = NewValue + ', ';
-        }
-        NewValue = NewValue +
-            Core.Data.Get($Link.closest('tr'), 'Email')
-            .replace(/&quot;/g, '"')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>');
-        $Element.val(NewValue);
+        $('#SelectionCustomerIDAssigned').empty();
 
-        Length = $Element.val().length;
-        $Element.focus();
-        $Element[0].setSelectionRange(Length, Length);
+        Core.AJAX.FunctionCall(Core.Config.Get('Baselink'), Data, function (Response) {
+            $.each(Response, function(Index, CustomerID) {
+                var CustomerIDOption = new Option(CustomerID, CustomerID);
 
-        // set customer data for customer user information (AgentTicketEmail) in the compose screen
-        if ($Link.attr('rel') === 'ToCustomer' && Core.Config.Get('CustomerInfoSet')){
+                // Overwrite option text, because of wrong html quoting of text content.
+                // (This is needed for IE.)
+                CustomerIDOption.innerHTML = CustomerID;
+                $('#SelectionCustomerIDAssigned').append(CustomerIDOption);
+            });
 
-            NewData = $('#CustomerData').val();
-            NewDataItem = Core.Data.Get($Link.closest('a'), 'customerdatajson');
-
-            if(NewData){
-                NewData = Core.JSON.Parse(NewData);
-                $.each(NewDataItem, function(CustomerMail, CustomerKey) {
-                    NewData[CustomerMail] = CustomerKey;
-                });
-                $('#CustomerData').val(Core.JSON.Stringify(NewData));
+            if (!$('#SelectionCustomerIDAssigned > option').length) {
+                $('#TemplateSelectionCustomerID fieldset:last').addClass('Hidden');
             }
-            else
-            {
-                $('#CustomerData').val(Core.JSON.Stringify(NewDataItem));
+            else {
+                $('#TemplateSelectionCustomerID fieldset:last').removeClass('Hidden');
             }
-        }
+
+            Core.UI.Dialog.ShowContentDialog($('#TemplateSelectionCustomerID'), Core.Language.Translate('Select a customer ID to assign to this ticket'), '10px', 'Center', true);
+
+            Core.Agent.CustomerSearch.InitSimple($('#SelectionCustomerIDAll'));
+
+            $('#SelectionCustomerIDAssigned').val($('#CustomerID').val()).trigger('redraw.InputField').trigger('change');
+
+            $('#SelectionCustomerIDAll').on('select.Autocomplete', function() {
+                CloseCustomerIDSelection($(this).val());
+            });
+
+            $('#SelectionCustomerIDAssigned').on('change', function() {
+                CloseCustomerIDSelection($(this).val());
+            });
+        });
+    }
+
+    /**
+     * @private
+     * @name CloseCustomerIDSelection
+     * @memberof Core.Agent.TicketAction
+     * @function
+     * @param {String} CustomerID - The selected customer ID value.
+     * @description
+     *      Close the customer ID selection dialog.
+     */
+    function CloseCustomerIDSelection(CustomerID) {
+        $('#CustomerID').val(CustomerID);
+        $('#ShowCustomerID').html(CustomerID);
+
+        Core.UI.Dialog.CloseDialog($('.Dialog'));
     }
 
     /**
@@ -169,59 +172,25 @@ Core.Agent.TicketAction = (function (TargetNS) {
      */
     TargetNS.Init = function () {
 
-        // Register event for spell checker dialog
-        $('#OptionSpellCheck').bind('click', function () {
-            OpenSpellChecker();
-            return false;
-        });
-
-        // Register event for addressbook dialog
-        $('#OptionAddressBook').bind('click', function () {
-            OpenAddressBook();
+        $('.OptionCustomerUserAddressBook').on('click', function () {
+            OpenCustomerUserAddressBook($(this).data('recipient-field'));
             return false;
         });
 
         // Register event for customer dialog
-        $('#OptionCustomer').bind('click', function () {
+        $('#OptionCustomer').on('click', function () {
             OpenCustomerDialog();
             return false;
         });
 
-        // check if spell check is being used
-        if (parseInt(Core.Config.Get('SpellChecker'), 10) === 1 && parseInt(Core.Config.Get('NeedSpellCheck'), 10) === 1) {
+        // Register the event for customer id selection dialog.
+        $('#SelectionCustomerID').on('click', function () {
+            OpenCustomerIDSelection();
+            return false;
+        });
 
-            Core.Config.Set('TextIsSpellChecked', false);
-            $('#RichTextField, .RichTextField').on('click', '.cke_button__spellcheck', function() {
-                Core.Config.Set('TextIsSpellChecked', true);
-            });
-            $('#OptionSpellCheck').bind('click', function() {
-                Core.Config.Set('TextIsSpellChecked', true);
-            });
-
-            if (parseInt(Core.Config.Get('RichTextSet'), 10) === 0) {
-                $('#RichTextField, .RichTextField').on('change', '#RichText', function() {
-                    Core.Config.Set('TextIsSpellChecked', false);
-                });
-            }
-
-            Core.Form.Validate.SetSubmitFunction($('form[name=compose]'), function() {
-                if ($('#RichText').val() && !$('#RichText').hasClass('ValidationIgnore') && !Core.Config.Get('TextIsSpellChecked')) {
-                    Core.App.Publish('Event.Agent.TicketAction.NeedSpellCheck', [$('#RichText')]);
-                    Core.UI.Dialog.ShowContentDialog('<p>' + Core.Config.Get('SpellCheckNeededMsg') + '</p>', '', '150px', 'Center', true, [
-                        {
-                            Label: '<span>' + Core.Config.Get('DialogCloseMsg') + '</span>',
-                            Function: function () {
-                                Core.UI.Dialog.CloseDialog($('.Dialog:visible'));
-                                Core.Form.EnableForm($('#RichText').closest('form'));
-                            },
-                            Class: 'Primary CallForAction'
-                        }
-                    ]);
-                    return false;
-                }
-                $('#RichText').closest('form').get(0).submit();
-            });
-        }
+        // Deactivate the fields in the template.
+        Core.UI.InputFields.Deactivate($('#TemplateSelectionCustomerID'));
 
         // Subscribe to the reloading of the CustomerInfo box to
         // specially mark the primary customer
@@ -255,136 +224,10 @@ Core.Agent.TicketAction = (function (TargetNS) {
                 return;
             }
 
+            // If widget is being expanded, activate checkbox to create article.
             if ($WidgetElement.hasClass('Expanded')) {
-                // if widget is being opened, add checbkox to create article
                 $('#CreateArticle').prop('checked', true);
             }
-        });
-
-        // Subscribe to NeedSpellCheck event to open RTE widget if collapsed, if spellcheck is needed on submit
-        Core.App.Subscribe('Event.Agent.TicketAction.NeedSpellCheck', function ($TextElement) {
-            var $Widget = $TextElement.closest('div.WidgetSimple');
-
-            if ($Widget.attr('id') !== 'WidgetArticle' || $Widget.hasClass('Expanded')) {
-                return;
-            }
-
-            $Widget.find('div.WidgetAction.Toggle > a').trigger('click');
-        });
-
-    };
-
-    /**
-     * @name InitAddressBook
-     * @memberof Core.Agent.TicketAction
-     * @function
-     * @description
-     *      This function initializes the necessary stuff for address book link in TicketAction screens.
-     */
-    TargetNS.InitAddressBook = function () {
-        // Register event for copying mail address to input field
-        $('#SearchResult a').bind('click', function () {
-            AddMailAddress($(this));
-            return false;
-        });
-
-        // Register Apply button event
-        $('#Apply').bind('click', function () {
-            // Update ticket action popup fields
-            var $To, $Cc, $Bcc, CustomerData;
-
-            // Because we are in an iframe, we need to call the parent frames javascript function
-            // with a jQuery object which is in the parent frames context
-
-            // check if the multi selection feature is present
-            if ($('#CustomerAutoComplete', parent.document).length) {
-                // no multi select (AgentTicketForward)
-                $To = $('#CustomerAutoComplete', parent.document);
-                $Cc = $('#Cc', parent.document);
-                $Bcc = $('#Bcc', parent.document);
-
-                $To.val($('#ToCustomer').val());
-                $Cc.val($('#CcCustomer').val());
-                $Bcc.val($('#BccCustomer').val());
-            }
-            else {
-                // multi select is present
-                $To = $('#ToCustomer', parent.document);
-                $Cc = $('#CcCustomer', parent.document);
-                $Bcc = $('#BccCustomer', parent.document);
-
-                // check is set customer data for customer user information
-                // it will not be set if it is used CustomerAutoComplete ( e.g for forwrad, reply ticket )
-                if ($('#CustomerData').val()) {
-                    CustomerData = Core.JSON.Parse($('#CustomerData').val());
-                    $.each(CustomerData, function(CustomerMail, CustomerKey) {
-                        $To.val(CustomerMail);
-                        parent.Core.Agent.CustomerSearch.AddTicketCustomer('ToCustomer', CustomerMail, CustomerKey);
-
-                    });
-                }
-                else{
-                    $.each($('#ToCustomer').val().split(/, ?/), function(Index, Value){
-                        $To.val(Value);
-                        parent.Core.Agent.CustomerSearch.AddTicketCustomer('ToCustomer', Value);
-                    });
-                }
-
-                $.each($('#CcCustomer').val().split(/, ?/), function(Index, Value){
-                    $Cc.val(Value);
-                    parent.Core.Agent.CustomerSearch.AddTicketCustomer('CcCustomer', Value);
-                });
-
-                $.each($('#BccCustomer').val().split(/, ?/), function(Index, Value){
-                    $Bcc.val(Value);
-                    parent.Core.Agent.CustomerSearch.AddTicketCustomer('BccCustomer', Value);
-                });
-            }
-
-            parent.Core.UI.Dialog.CloseDialog($('.Dialog', parent.document));
-        });
-
-        // Register Cancel button event
-        $('#Cancel').bind('click', function () {
-            // Because we are in an iframe, we need to call the parent frames javascript function
-            // with a jQuery object which is in the parent frames context
-            parent.Core.UI.Dialog.CloseDialog($('.Dialog', parent.document));
-        });
-    };
-
-    /**
-     * @name InitSpellCheck
-     * @memberof Core.Agent.TicketAction
-     * @function
-     * @description
-     *      This function initializes the necessary stuff for spell check link  in TicketAction screens.
-     */
-    TargetNS.InitSpellCheck = function () {
-        // Register onchange event for dropdown and input field to change the radiobutton
-        $('#SpellCheck select, #SpellCheck input[type="text"]').bind('change', function () {
-            var $Row = $(this).closest('tr'),
-                RowCount = parseInt($Row.attr('id').replace(/Row/, ''), 10);
-            $Row.find('input[type="radio"][id=ChangeWord' + RowCount + ']').prop('checked', true);
-        });
-
-        // Register Apply button event
-        $('#Apply').bind('click', function () {
-            // Update ticket action popup fields
-            var FieldName = $('#Field').val(),
-                $Body = $('#' + FieldName, parent.document);
-
-            $Body.val($('#Body').val());
-
-            // Because we are in an iframe, we need to call the parent frames javascript function
-            // with a jQuery object which is in the parent frames context
-            parent.Core.UI.Dialog.CloseDialog($('.Dialog', parent.document));
-        });
-
-        // Register Cancel button event
-        $('#Cancel').bind('click', function () {
-            // Because we are in an iframe, we need to call the parent frames javascript function
-            // with a jQuery object which is in the parent frames context
-            parent.Core.UI.Dialog.CloseDialog($('.Dialog', parent.document));
         });
     };
 
@@ -424,6 +267,46 @@ Core.Agent.TicketAction = (function (TargetNS) {
     TargetNS.SelectRadioButton = function (Value, Name) {
         $('input[type="radio"][name=' + Name + '][value=' + Value + ']').prop('checked', true);
     };
+
+    /**
+     * @name ConfirmTemplateOverwrite
+     * @memberof Core.Agent.TicketAction
+     * @function
+     * @param {String} FieldName - The ID of the content field (textarea or RTE). ID without selector (#).
+     * @param {jQueryObject} $TemplateSelect - Selector of the dropdown element for the template selection.
+     * @param {Function} Callback - Callback function to execute if overwriting is confirmed.
+     * @description
+     *      After a template was selected, this function lets the user confirm that all already existing content
+     *      in the textarea or RTE will be overwritten with the template content.
+     */
+    TargetNS.ConfirmTemplateOverwrite = function (FieldName, $TemplateSelect, Callback) {
+        var Content = '',
+            LastValue = $TemplateSelect.data('LastValue') || '';
+
+        // Fallback for non-richtext content
+        Content = $('#' + FieldName).val();
+
+        // get RTE content
+        if (typeof CKEDITOR !== 'undefined' && CKEDITOR.instances[FieldName]) {
+            Content = CKEDITOR.instances[FieldName].getData();
+        }
+
+        // if content already exists let user confirm to really overwrite that content with a template
+        if (
+            Content.length &&
+            !window.confirm(Core.Language.Translate('Setting a template will overwrite any text or attachment.') + ' ' + Core.Language.Translate('Do you really want to continue?')))
+            {
+                // if user cancels confirmation, reset template selection
+                $TemplateSelect.val(LastValue).trigger('redraw');
+
+        }
+        else if ($.isFunction(Callback)) {
+            Callback();
+            $TemplateSelect.data('LastValue', $TemplateSelect.val());
+        }
+    }
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.Agent.TicketAction || {}));

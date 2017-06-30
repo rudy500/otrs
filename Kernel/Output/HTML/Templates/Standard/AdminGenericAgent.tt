@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,6 +8,30 @@
 <!-- start form -->
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Generic Agent") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Generic Agent'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% SWITCH Data.Subaction %]
+        [% CASE 'Update' %]
+            [% IF Data.Profile %]
+                [% USE EditJob = String(Translate("Edit job")) %]
+                [% BreadcrumbPath.push({ Name => EditJob.append( ': ', Data.Profile ) }) %]
+            [% ELSE %]
+                [% BreadcrumbPath.push({ Name => Translate("Add job"),}) %]
+            [% END %]
+        [% CASE 'Run' %]
+            [% USE RunJob = String(Translate("Run job")) %]
+            [% BreadcrumbPath.push({ Name => RunJob.append( ': ', Data.Profile ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
     <div class="SidebarColumn">
 [% RenderBlockStart("ActionList") %]
         <div class="WidgetSimple">
@@ -30,6 +54,16 @@
             </div>
         </div>
 [% RenderBlockEnd("ActionList") %]
+[% RenderBlockStart("Filter") %]
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterGenericAgentJobs">[% Translate("Filter for Generic Agent Jobs") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterGenericAgentJobs" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterGenericAgentJobs" value="" title="[% Translate("Filter for generic agent jobs") | html %]">
+            </div>
+        </div>
+[% RenderBlockEnd("Filter") %]
     </div>
 
     <div class="ContentColumn">
@@ -40,7 +74,7 @@
                 <h2>[% Translate("List") | html %]</h2>
             </div>
             <div class="Content">
-                <table class="DataTable">
+                <table class="DataTable" id="GenericAgentJobs">
                     <thead>
                         <tr>
                             <th>[% Translate("Name") | html %]</th>
@@ -50,15 +84,15 @@
                             <th>[% Translate("Run Now!") | html %]</th>
                         </tr>
                     </thead>
+                    <tbody>
 [% RenderBlockStart("NoDataFoundMsg") %]
-                    <tr>
-                        <td colspan="5">
-                            [% Translate("No data found.") | html %]
-                        </td>
-                    </tr>
+                        <tr>
+                            <td colspan="5">
+                                [% Translate("No data found.") | html %]
+                            </td>
+                        </tr>
 [% RenderBlockEnd("NoDataFoundMsg") %]
 [% RenderBlockStart("Row") %]
-                    <tbody>
                         <tr [% IF Data.Valid != 1%]class="Invalid"[% END %]>
                             <td>
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Update;Profile=[% Data.Name | uri %]">
@@ -80,14 +114,14 @@
                                 [% END %]
                             </td>
                         </tr>
-                    </tbody>
 [% RenderBlockEnd("Row") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="5">[% Translate("No matches found.") | html %]</td>
+                        </tr>
+                    </tbody>
                 </table>
-            </div>
         </div>
 [% RenderBlockEnd("Overview") %]
-
-
 [% RenderBlockStart("Edit") %]
         <form action="[% Env("CGIHandle") %]" method="post" name="compose" class="Validate PreventMultipleSubmits">
             <div class="WidgetSimple">
@@ -99,6 +133,9 @@
                     <input type="hidden" name="Subaction" value="UpdateAction"/>
                     <input type="hidden" name="ScheduleLastRun" value="[% Data.ScheduleLastRun | html %]"/>
                     <input type="hidden" name="OldProfile" value="[% Data.Profile | html %]"/>
+                    [% IF Data.Profile %]
+                        <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
+                    [% END %]
                     <fieldset class="TableLike">
                         <label for="Profile" class="Mandatory"><span class="Marker">*</span> [% Translate("Job name") | html %]:</label>
                         <div class="Field">
@@ -129,7 +166,7 @@
                     <div class="WidgetAction Toggle">
                         <a href="#" title="[% Translate("Toggle this widget") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
                     </div>
-                    <h2>[% Translate("Automatic execution (multiple tickets)") | html %]</h2>
+                    <h2>[% Translate("Automatic Execution (Multiple Tickets)") | html %]</h2>
                 </div>
                 <div class="Content">
                     <fieldset class="TableLike">
@@ -172,7 +209,7 @@
                     <div class="WidgetAction Toggle">
                         <a href="#" title="[% Translate("Toggle this widget") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
                     </div>
-                    <h2>[% Translate("Event based execution (single ticket)") | html %]</h2>
+                    <h2>[% Translate("Event Based Execution (Single Ticket)") | html %]</h2>
                 </div>
                 <div class="Content">
                     <fieldset class="TableLike">
@@ -253,22 +290,6 @@
                             </p>
                         </div>
                         <div class="Clear"></div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Agent.Admin.GenericAgent.Init({
-    Localization: {
-        DuplicateEventTitle: [% Translate("Duplicate event.") | JSON %],
-        DuplicateEventMsg: [% Translate("This event is already attached to the job, Please use a different one.") | JSON %],
-        DeleteEventMsg: [% Translate("Delete this Event Trigger") | JSON %],
-        DeleteMsg: [% Translate("Delete") | JSON %],
-        CancelMsg: [% Translate("Cancel") | JSON %],
-        RemoveSelection: [% Translate("Remove selection") | JSON %]
-    }
-});
-//]]></script>
-[% END %]
-
                     </fieldset>
                 </div>
             </div>
@@ -297,7 +318,7 @@ Core.Agent.Admin.GenericAgent.Init({
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="CustomerID">[% Translate("CustomerID") | html %]:</label>
+                        <label for="CustomerID">[% Translate("Customer ID") | html %]:</label>
                         <div class="Field">
                             <input type="text" name="CustomerID" id="CustomerID" class="W33pc" value="[% Data.CustomerID | html %]"/>
                             <p class="FieldExplanation">
@@ -306,7 +327,7 @@ Core.Agent.Admin.GenericAgent.Init({
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="CustomerUserLogin">[% Translate("Customer login") | html %]:</label>
+                        <label for="CustomerUserLogin">[% Translate("Customer user") | html %]:</label>
                         <div class="Field">
                             <input type="text" name="CustomerUserLogin" id="CustomerUserLogin" class="W33pc" value="[% Data.CustomerUserLogin | html %]"/>
                             <p class="FieldExplanation">
@@ -321,62 +342,62 @@ Core.Agent.Admin.GenericAgent.Init({
                         </div>
                         <div class="Clear"></div>
 [% RenderBlockEnd("TicketType") %]
-                        <label for="From">[% Translate("From") | html %]:</label>
+                        <label for="MIMEBase_From">[% Translate("From") | html %]:</label>
                         <div class="Field">
-                            <input type="text" name="From" id="From" class="W30pc [% Data.FromInvalid | html %]" value="[% Data.From | html %]"/>
+                            <input type="text" name="MIMEBase_From" id="MIMEBase_From" class="W30pc [% Data.MIMEBase_FromInvalid | html %]" value="[% Data.MIMEBase_From | html %]"/>
                             <p class="FieldExplanation">
                                 [% Translate("Fulltext-search in article (e. g. \"Mar*in\" or \"Baue*\").") | html %]
                             </p>
-                            <div id="FromServerError" class="TooltipErrorMessage">
-                                <p>[% Data.FromInvalidTooltip | html %]</p>
+                            <div id="MIMEBase_FromServerError" class="TooltipErrorMessage">
+                                <p>[% Data.MIMEBase_FromInvalidTooltip | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="To">[% Translate("To") | html %]:</label>
+                        <label for="MIMEBase_To">[% Translate("To") | html %]:</label>
                         <div class="Field">
-                            <input type="text" name="To" id="To" class="W33pc [% Data.ToInvalid | html %]" value="[% Data.To | html %]"/>
+                            <input type="text" name="MIMEBase_To" id="MIMEBase_To" class="W33pc [% Data.MIMEBase_ToInvalid | html %]" value="[% Data.MIMEBase_To | html %]"/>
                             <p class="FieldExplanation">
                                 [% Translate("Fulltext-search in article (e. g. \"Mar*in\" or \"Baue*\").") | html %]
                             </p>
-                            <div id="ToServerError" class="TooltipErrorMessage">
-                                <p>[% Data.ToInvalidTooltip | html %]</p>
+                            <div id="MIMEBase_ToServerError" class="TooltipErrorMessage">
+                                <p>[% Data.MIMEBase_ToInvalidTooltip | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="Cc">[% Translate("Cc") | html %]:</label>
+                        <label for="MIMEBase_Cc">[% Translate("Cc") | html %]:</label>
                         <div class="Field">
-                            <input type="text" name="Cc" id="Cc" class="W33pc [% Data.CcInvalid | html %]" value="[% Data.Cc | html %]"/>
+                            <input type="text" name="MIMEBase_Cc" id="MIMEBase_Cc" class="W33pc [% Data.MIMEBase_CcInvalid | html %]" value="[% Data.MIMEBase_Cc | html %]"/>
                             <p class="FieldExplanation">
                                 [% Translate("Fulltext-search in article (e. g. \"Mar*in\" or \"Baue*\").") | html %]
                             </p>
-                            <div id="CcServerError" class="TooltipErrorMessage">
-                                <p>[% Data.CcInvalidTooltip | html %]</p>
+                            <div id="MIMEBase_CcServerError" class="TooltipErrorMessage">
+                                <p>[% Data.MIMEBase_CcInvalidTooltip | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="Subject">[% Translate("Subject") | html %]:</label>
+                        <label for="MIMEBase_Subject">[% Translate("Subject") | html %]:</label>
                         <div class="Field">
-                            <input type="text" name="Subject" id="Subject" class="W33pc [% Data.SubjectInvalid | html %]" value="[% Data.Subject | html %]"/>
+                            <input type="text" name="MIMEBase_Subject" id="MIMEBase_Subject" class="W33pc [% Data.MIMEBase_SubjectInvalid | html %]" value="[% Data.MIMEBase_Subject | html %]"/>
                             <p class="FieldExplanation">
                                 [% Translate("Fulltext-search in article (e. g. \"Mar*in\" or \"Baue*\").") | html %]
                             </p>
-                            <div id="SubjectServerError" class="TooltipErrorMessage">
-                                <p>[% Data.SubjectInvalidTooltip | html %]</p>
+                            <div id="MIMEBase_SubjectServerError" class="TooltipErrorMessage">
+                                <p>[% Data.MIMEBase_SubjectInvalidTooltip | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="Body">[% Translate("Text") | html %]:</label>
+                        <label for="MIMEBase_Body">[% Translate("Text") | html %]:</label>
                         <div class="Field">
-                            <input type="text" name="Body" id="Body" class="W33pc [% Data.BodyInvalid | html %]" value="[% Data.Body | html %]"/>
+                            <input type="text" name="MIMEBase_Body" id="MIMEBase_Body" class="W33pc [% Data.MIMEBase_BodyInvalid | html %]" value="[% Data.MIMEBase_Body | html %]"/>
                             <p class="FieldExplanation">
                                 [% Translate("Fulltext-search in article (e. g. \"Mar*in\" or \"Baue*\").") | html %]
                             </p>
-                            <div id="BodyServerError" class="TooltipErrorMessage">
-                                <p>[% Data.BodyInvalidTooltip | html %]</p>
+                            <div id="MIMEBase_BodyServerError" class="TooltipErrorMessage">
+                                <p>[% Data.MIMEBase_BodyInvalidTooltip | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
@@ -689,7 +710,7 @@ Core.Agent.Admin.GenericAgent.Init({
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="NewCustomerUserLogin">[% Translate("New customer") | html %]:</label>
+                        <label for="NewCustomerUserLogin">[% Translate("New customer user") | html %]:</label>
                         <div class="Field">
                             <input type="text" name="NewCustomerUserLogin" id="NewCustomerUserLogin" value="[% Data.NewCustomerUserLogin | html %]" class="W33pc"/>
                         </div>
@@ -758,6 +779,13 @@ Core.Agent.Admin.GenericAgent.Init({
                         <label for="NewNoteBody">[% Translate("Text") | html %]:</label>
                         <div class="Field">
                             <textarea name="NewNoteBody" id="NewNoteBody" rows="7" cols="60">[% Data.NewNoteBody | html %]</textarea>
+                        </div>
+                        <div class="Clear"></div>
+
+                        <label for="NewNoteIsVisibleForCustomer">[% Translate("Visible for customer") | html %]:</label>
+                        <div class="Field">
+                            <input name="NewNoteIsVisibleForCustomer" id="NewNoteIsVisibleForCustomer" type="checkbox"
+                                [% IF Data.NewNoteIsVisibleForCustomer %] checked="checked"[% END %] />
                         </div>
                         <div class="Clear"></div>
 
@@ -877,10 +905,16 @@ Core.Agent.Admin.GenericAgent.Init({
                 </div>
                 <div class="Content">
                     <fieldset class="TableLike">
-                        <div class="Field SpacingTop">
-                            <button class="Primary CallForAction" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") |  html %]</span></button>
+                        <div class="Field SpacingTop SaveButtons">
+                            [% IF Data.Profile %]
+                                <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                                [% Translate("or") | html %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            [% ELSE %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% END %]
                             [% Translate("or") | html %]
-                            <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
+                            <a href="[% Env("Baselink") %]Action=[% Env("Action") %]"><span>[% Translate("Cancel") | html %]</span></a>
                         </div>
                         <div class="Clear"></div>
                     </fieldset>
@@ -903,6 +937,12 @@ Core.Agent.Admin.GenericAgent.Init({
                     [% Translate("Warning: You used the DELETE option. All deleted tickets will be lost!") | html %]
                 </p>
 [% RenderBlockEnd("DeleteWarning") %]
+
+[% RenderBlockStart("RunLimit") %]
+                <p class="Error">
+                    [% Translate("Warning: There are %s tickets affected but only %s may be modified during one job execution!", Data.Counter, Data.RunLimit) | html %]
+                </p>
+[% RenderBlockEnd("RunLimit") %]
 
                 <div class="SpacingTop">
                     <a class="CallForAction" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Update;Profile=[% Data.Name | uri %]">
@@ -933,7 +973,7 @@ Core.Agent.Admin.GenericAgent.Init({
                             <th>[% Translate("State") | html %]</th>
                             <th>[% Translate("Queue") | html %]</th>
                             <th>[% Translate("Owner") | html %]</th>
-                            <th>[% Translate("CustomerID") | html %]</th>
+                            <th>[% Translate("Customer ID") | html %]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -948,7 +988,7 @@ Core.Agent.Admin.GenericAgent.Init({
                             <td>[% Data.From | truncate(30) | html %][% Data.Subject | truncate(30) | html %]</td>
                             <td>[% Translate(Data.State) | html %]</td>
                             <td>[% Data.Queue | truncate(30) | html %]</td>
-                            <td>[% Data.Owner | truncate(30) | html %] ([% Data.UserFirstname | html %] [% Data.UserLastname | html %])</td>
+                            <td>[% Data.Owner | truncate(30) | html %] ([% Data.UserFullname | html %])</td>
                             <td>
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=AgentTicketCustomer;TicketID=[% Data.TicketID | uri %]">
                                     [% Data.CustomerID | truncate(15) | html %]
@@ -962,7 +1002,6 @@ Core.Agent.Admin.GenericAgent.Init({
         </div>
 [% RenderBlockEnd("ResultBlock") %]
 [% RenderBlockEnd("Result") %]
-
     </div>
     <div class="Clear"></div>
 </div>

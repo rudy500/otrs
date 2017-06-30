@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,32 +11,30 @@ package Kernel::System::AuthSession;
 use strict;
 use warnings;
 
+use Kernel::Language qw(Translatable);
+
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::Cache',
     'Kernel::System::Log',
     'Kernel::System::Main',
+    'Kernel::System::SystemData',
 );
 
 =head1 NAME
 
 Kernel::System::AuthSession - global session interface
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All session functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $SessionObject = $Kernel::OM->Get('Kernel::System::AuthSession');
 
 =cut
@@ -62,10 +60,19 @@ sub new {
 
     $Self->{Backend} = $GenericModule->new();
 
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+    for my $SessionLimitConfigKey (
+        qw(AgentSessionLimitPriorWarning AgentSessionLimit AgentSessionPerUserLimit CustomerSessionLimit CustomerSessionPerUserLimit)
+        )
+    {
+        $Self->{$SessionLimitConfigKey} = $ConfigObject->Get($SessionLimitConfigKey);
+    }
+
     return $Self;
 }
 
-=item CheckSessionID()
+=head2 CheckSessionID()
 
 checks a session, returns true (session ok) or false (session invalid)
 
@@ -81,7 +88,76 @@ sub CheckSessionID {
     return $Self->{Backend}->CheckSessionID(%Param);
 }
 
-=item SessionIDErrorMessage()
+=head2 CheckAgentSessionLimitPriorWarning()
+
+Get the agent session limit prior warning message, if the limit is reached.
+
+    my $PriorMessage = $SessionObject->CheckAgentSessionLimitPriorWarning();
+
+ returns the prior warning message (AgentSessionLimitPriorWarning reached) or false (AgentSessionLimitPriorWarning not reached)
+
+=cut
+
+sub CheckAgentSessionLimitPriorWarning {
+    my ( $Self, %Param ) = @_;
+
+    my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
+    my $Cache       = $CacheObject->Get(
+        Type => 'AuthSession',
+        Key  => 'AgentSessionLimitPriorWarningMessage',
+    );
+    return $Cache if defined $Cache;
+
+    my %OTRSBusinessSystemData = $Kernel::OM->Get('Kernel::System::SystemData')->SystemDataGroupGet(
+        Group => 'OTRSBusiness',
+    );
+
+    my $SessionLimitPriorWarning = $OTRSBusinessSystemData{AgentSessionLimitPriorWarning};
+    if (
+        !$SessionLimitPriorWarning
+        || (
+            $Self->{AgentSessionLimitPriorWarning}
+            && $Self->{AgentSessionLimitPriorWarning} < $SessionLimitPriorWarning
+        )
+        )
+    {
+        $SessionLimitPriorWarning = $Self->{AgentSessionLimitPriorWarning};
+    }
+
+    my $PriorWarningMessage = '';
+    if ($SessionLimitPriorWarning) {
+
+        my %ActiveSessions = $Self->GetActiveSessions(
+            UserType => 'User',
+        );
+
+        if ( defined $ActiveSessions{Total} && $ActiveSessions{Total} > $SessionLimitPriorWarning ) {
+
+            if (
+                $OTRSBusinessSystemData{AgentSessionLimitPriorWarning}
+                && $OTRSBusinessSystemData{AgentSessionLimitPriorWarning} == $SessionLimitPriorWarning
+                )
+            {
+                $PriorWarningMessage
+                    = Translatable('You have exceeded the number of concurrent agents - contact sales@otrs.com.');
+            }
+            else {
+                $PriorWarningMessage = Translatable('Please note that the session limit is almost reached.');
+            }
+        }
+    }
+
+    $CacheObject->Set(
+        Type  => 'AuthSession',
+        TTL   => 60 * 15,
+        Key   => 'AgentSessionLimitPriorWarningMessage',
+        Value => $PriorWarningMessage,
+    );
+
+    return $PriorWarningMessage;
+}
+
+=head2 SessionIDErrorMessage()
 
 returns an error in the session handling
 
@@ -92,10 +168,10 @@ returns an error in the session handling
 sub SessionIDErrorMessage {
     my ( $Self, %Param ) = @_;
 
-    return $Self->{Backend}->SessionIDErrorMessage(%Param);
+    return $Self->{SessionIDErrorMessage} || $Self->{Backend}->SessionIDErrorMessage(%Param);
 }
 
-=item GetSessionIDData()
+=head2 GetSessionIDData()
 
 get session data in a hash
 
@@ -122,7 +198,7 @@ sub GetSessionIDData {
     return $Self->{Backend}->GetSessionIDData(%Param);
 }
 
-=item CreateSessionID()
+=head2 CreateSessionID()
 
 create a new session with given data
 
@@ -136,10 +212,92 @@ create a new session with given data
 sub CreateSessionID {
     my ( $Self, %Param ) = @_;
 
+    if ( !$Param{UserType} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Got no UserType!'
+        );
+        return;
+    }
+
+    if ( $Param{UserType} ne 'User' && $Param{UserType} ne 'Customer' ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Got wrong UserType!'
+        );
+        return;
+    }
+
+    my %OTRSBusinessSystemData = $Kernel::OM->Get('Kernel::System::SystemData')->SystemDataGroupGet(
+        Group => 'OTRSBusiness',
+    );
+
+    my $SessionLimit;
+    if ( $Param{UserType} eq 'User' ) {
+
+        $SessionLimit = $OTRSBusinessSystemData{AgentSessionLimit};
+        if ( !$SessionLimit || ( $Self->{AgentSessionLimit} && $Self->{AgentSessionLimit} < $SessionLimit ) ) {
+            $SessionLimit = $Self->{AgentSessionLimit};
+        }
+    }
+    elsif ( $Param{UserType} eq 'Customer' && $Self->{CustomerSessionLimit} ) {
+        $SessionLimit = $Self->{CustomerSessionLimit};
+    }
+
+    # get session per user limit config
+    my $SessionPerUserLimit;
+    if ( $Param{UserType} eq 'User' && $Self->{AgentSessionPerUserLimit} ) {
+        $SessionPerUserLimit = $Self->{AgentSessionPerUserLimit};
+    }
+    elsif ( $Param{UserType} eq 'Customer' && $Self->{CustomerSessionPerUserLimit} ) {
+        $SessionPerUserLimit = $Self->{CustomerSessionPerUserLimit};
+    }
+
+    if ( $SessionLimit || $SessionPerUserLimit ) {
+
+        my %ActiveSessions = $Self->GetActiveSessions(%Param);
+
+        if ( $SessionLimit && defined $ActiveSessions{Total} && $ActiveSessions{Total} >= $SessionLimit ) {
+
+            if (
+                $Param{UserType} eq 'User'
+                && $OTRSBusinessSystemData{AgentSessionLimit}
+                && $OTRSBusinessSystemData{AgentSessionLimit} == $SessionLimit
+                )
+            {
+                $Self->{SessionIDErrorMessage} = Translatable(
+                    'Login rejected! You have exceeded the maximum number of concurrent Agents! Contact sales@otrs.com immediately!'
+                );
+            }
+            else {
+                $Self->{SessionIDErrorMessage} = Translatable('Session limit reached! Please try again later.');
+            }
+            return;
+        }
+
+        if (
+            $SessionPerUserLimit
+            && $Param{UserLogin}
+            && defined $ActiveSessions{PerUser}->{ $Param{UserLogin} }
+            && $ActiveSessions{PerUser}->{ $Param{UserLogin} } >= $SessionPerUserLimit
+            )
+        {
+
+            $Self->{SessionIDErrorMessage} = Translatable('Session per user limit reached!');
+
+            return;
+        }
+    }
+
+    $Kernel::OM->Get('Kernel::System::Cache')->Delete(
+        Type => 'AuthSession',
+        Key  => 'AgentSessionLimitPriorWarningMessage',
+    );
+
     return $Self->{Backend}->CreateSessionID(%Param);
 }
 
-=item RemoveSessionID()
+=head2 RemoveSessionID()
 
 removes a session and returns true (session deleted), false (if
 session can't get deleted)
@@ -151,10 +309,15 @@ session can't get deleted)
 sub RemoveSessionID {
     my ( $Self, %Param ) = @_;
 
+    $Kernel::OM->Get('Kernel::System::Cache')->Delete(
+        Type => 'AuthSession',
+        Key  => 'AgentSessionLimitPriorWarningMessage',
+    );
+
     return $Self->{Backend}->RemoveSessionID(%Param);
 }
 
-=item UpdateSessionID()
+=head2 UpdateSessionID()
 
 update session info by key and value, returns true (if ok) and
 false (if can't update)
@@ -186,7 +349,7 @@ sub UpdateSessionID {
     return $Self->{Backend}->UpdateSessionID(%Param);
 }
 
-=item GetExpiredSessionIDs()
+=head2 GetExpiredSessionIDs()
 
 returns a array of an array of session ids that have expired,
 and one array of session ids that have been idle for too long.
@@ -204,7 +367,7 @@ sub GetExpiredSessionIDs {
     return $Self->{Backend}->GetExpiredSessionIDs(%Param);
 }
 
-=item GetAllSessionIDs()
+=head2 GetAllSessionIDs()
 
 returns an array with all session ids
 
@@ -218,9 +381,51 @@ sub GetAllSessionIDs {
     return $Self->{Backend}->GetAllSessionIDs(%Param);
 }
 
-=item CleanUp()
+=head2 GetActiveSessions()
 
-cleanup of sessions in your system
+Get the current active sessions for the given UserType.
+
+    my %Result = $SessionObject->GetActiveSessions(
+        UserType => '(User|Customer)',
+    );
+
+returns
+
+    %Result = (
+        Total => 8,
+        PerUser => {
+            UserID1 => 2,
+            UserID2 => 1,
+        },
+    );
+
+=cut
+
+sub GetActiveSessions {
+    my ( $Self, %Param ) = @_;
+
+    if ( !$Param{UserType} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Got no UserType!'
+        );
+        return;
+    }
+
+    if ( $Param{UserType} ne 'User' && $Param{UserType} ne 'Customer' ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Got wrong UserType!'
+        );
+        return;
+    }
+
+    return $Self->{Backend}->GetActiveSessions(%Param);
+}
+
+=head2 CleanUp()
+
+clean-up of sessions in your system
 
     $SessionObject->CleanUp();
 
@@ -229,12 +434,15 @@ cleanup of sessions in your system
 sub CleanUp {
     my ( $Self, %Param ) = @_;
 
+    $Kernel::OM->Get('Kernel::System::Cache')->Delete(
+        Type => 'AuthSession',
+        Key  => 'AgentSessionLimitPriorWarningMessage',
+    );
+
     return $Self->{Backend}->CleanUp(%Param);
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

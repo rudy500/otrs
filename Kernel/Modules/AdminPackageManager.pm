@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,6 +13,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -22,6 +23,9 @@ sub new {
     # allocate new hash for object
     my $Self = {%Param};
     bless( $Self, $Type );
+
+    # check if cloud services are disabled
+    $Self->{CloudServicesDisabled} = $Kernel::OM->Get('Kernel::Config')->Get('CloudServices::Disabled') || 0;
 
     return $Self;
 }
@@ -53,12 +57,9 @@ sub Run {
                 }
                 if ( !$ApacheReload ) {
                     return $LayoutObject->ErrorScreen(
-                        Message =>
-                            'Sorry, Apache::Reload is needed as PerlModule and '
-                            .
-                            'PerlInitHandler in Apache config file. See also scripts/apache2-httpd.include.conf. '
-                            .
-                            'Alternatively, you can use the commandline tool bin/otrs.Console.pl to install packages!'
+                        Message => Translatable(
+                            'Sorry, Apache::Reload is needed as PerlModule and PerlInitHandler in Apache config file. See also scripts/apache2-httpd.include.conf. Alternatively, you can use the command line tool bin/otrs.Console.pl to install packages!'
+                        ),
                     );
                 }
             }
@@ -91,7 +92,9 @@ sub Run {
             Result  => 'SCALAR',
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
         my %Structure = $PackageObject->PackageParse( String => $Package );
         my $File = '';
@@ -113,7 +116,7 @@ sub Run {
                     Location => $Location,
                     Name     => $Name,
                     Version  => $Version,
-                    Diff     => "No such file $LocalFile in package!",
+                    Diff     => $LayoutObject->{LanguageObject}->Translate( 'No such file %s in package!', $LocalFile ),
                 },
             );
         }
@@ -124,7 +127,8 @@ sub Run {
                     Location => $Location,
                     Name     => $Name,
                     Version  => $Version,
-                    Diff     => "No such file $LocalFile in local file system!",
+                    Diff     => $LayoutObject->{LanguageObject}
+                        ->Translate( 'No such file %s in local file system!', $LocalFile ),
                 },
             );
         }
@@ -153,7 +157,7 @@ sub Run {
                         Location => $Location,
                         Name     => $Name,
                         Version  => $Version,
-                        Diff     => "Can't read $LocalFile!",
+                        Diff     => $LayoutObject->{LanguageObject}->Translate( 'Can\'t read %s!', $LocalFile ),
                     },
                 );
             }
@@ -185,7 +189,9 @@ sub Run {
             Result  => 'SCALAR',
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
 
         # parse package
@@ -231,7 +237,9 @@ sub Run {
             && !$Structure{PackageIsVisible}->{Content}
             )
         {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
 
         PACKAGEACTION:
@@ -399,20 +407,12 @@ sub Run {
                     elsif ( $Hash->{Tag} =~ /^(File)$/ ) {
 
                         # add human readable file size
-                        if ( $Hash->{Size} ) {
-
-                            # remove meta data in files
-                            if ( $Hash->{Size} > ( 1024 * 1024 ) ) {
-                                $Hash->{Size} = sprintf "%.1f MBytes",
-                                    ( $Hash->{Size} / ( 1024 * 1024 ) );
-                            }
-                            elsif ( $Hash->{Size} > 1024 ) {
-                                $Hash->{Size} = sprintf "%.1f KBytes", ( ( $Hash->{Size} / 1024 ) );
-                            }
-                            else {
-                                $Hash->{Size} = $Hash->{Size} . ' Bytes';
-                            }
+                        if ( defined $Hash->{Size} ) {
+                            $Hash->{Size} = $LayoutObject->HumanReadableDataSize(
+                                Size => $Hash->{Size},
+                            );
                         }
+
                         $LayoutObject->Block(
                             Name => "PackageItemFilelistFile",
                             Data => {
@@ -474,7 +474,7 @@ sub Run {
                                     Name    => $Name,
                                     Version => $Version,
                                     %{$Hash},
-                                    Message => 'ok',
+                                    Message => Translatable('File is OK'),
                                     Icon    => 'IconReady',
                                 },
                             );
@@ -495,12 +495,18 @@ sub Run {
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
         if ( !$Deployed ) {
+            my $Priority = 'Error';
+            my $Message  = $LayoutObject->{LanguageObject}
+                ->Translate("Package not correctly deployed! Please reinstall the package.");
+            if ( $Kernel::OM->Get('Kernel::Config')->Get('Package::AllowLocalModifications') ) {
+                $Priority = 'Notice';
+                $Message  = $LayoutObject->{LanguageObject}->Translate("Package has locally modified files.");
+            }
+
             $Output .= $LayoutObject->Notify(
-                Priority => 'Error',
-                Data     => "$Name $Version - "
-                    . $LayoutObject->{LanguageObject}
-                    ->Translate("Package not correctly deployed! Please reinstall the package."),
-                Link => $LayoutObject->{Baselink}
+                Priority => $Priority,
+                Data     => "$Name $Version - $Message",
+                Link     => $LayoutObject->{Baselink}
                     . 'Action=AdminPackageManager;Subaction=View;Name='
                     . $Name
                     . ';Version='
@@ -549,6 +555,9 @@ sub Run {
             return $LayoutObject->ErrorScreen( Message => $Package );
         }
         my %Structure = $PackageObject->PackageParse( String => $Package );
+
+        $Frontend{Name} = $Structure{Name}->{Content};
+
         $LayoutObject->Block(
             Name => 'Package',
             Data => { %Param, %Frontend, },
@@ -696,20 +705,12 @@ sub Run {
                     elsif ( $Hash->{Tag} =~ /^(File)$/ ) {
 
                         # add human readable file size
-                        if ( $Hash->{Size} ) {
-
-                            # remove meta data in files
-                            if ( $Hash->{Size} > ( 1024 * 1024 ) ) {
-                                $Hash->{Size} = sprintf "%.1f MBytes",
-                                    ( $Hash->{Size} / ( 1024 * 1024 ) );
-                            }
-                            elsif ( $Hash->{Size} > 1024 ) {
-                                $Hash->{Size} = sprintf "%.1f KBytes", ( ( $Hash->{Size} / 1024 ) );
-                            }
-                            else {
-                                $Hash->{Size} = $Hash->{Size} . ' Bytes';
-                            }
+                        if ( defined $Hash->{Size} ) {
+                            $Hash->{Size} = $LayoutObject->HumanReadableDataSize(
+                                Size => $Hash->{Size},
+                            );
                         }
+
                         $LayoutObject->Block(
                             Name => 'PackageItemFilelistFile',
                             Data => {
@@ -774,7 +775,9 @@ sub Run {
             Version => $Version,
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
         return $LayoutObject->Attachment(
             Content     => $Package,
@@ -798,7 +801,9 @@ sub Run {
 
         # check
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
         return $LayoutObject->Attachment(
             Content     => $Package,
@@ -912,7 +917,9 @@ sub Run {
             Result  => 'SCALAR',
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
 
         # check if we have to show reinstall intro pre
@@ -992,7 +999,9 @@ sub Run {
             Version => $Version,
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
 
         # check if we have to show reinstall intro pre
@@ -1056,7 +1065,9 @@ sub Run {
             Result  => 'SCALAR',
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
 
         # check if we have to show uninstall intro pre
@@ -1135,7 +1146,9 @@ sub Run {
             Version => $Version,
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
 
         # parse package
@@ -1257,7 +1270,9 @@ sub Run {
             Result  => 'SCALAR',
         );
         if ( !$Package ) {
-            return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+            return $LayoutObject->ErrorScreen(
+                Message => Translatable('No such package!'),
+            );
         }
         my %Structure = $PackageObject->PackageParse(
             String => $Package,
@@ -1291,7 +1306,7 @@ sub Run {
     my $RegistrationState = $Kernel::OM->Get('Kernel::System::SystemData')->SystemDataGet(
         Key => 'Registration::State',
     ) || '';
-    if ( $RegistrationState eq 'registered' ) {
+    if ( $RegistrationState eq 'registered' && !$Self->{CloudServicesDisabled} ) {
 
         $RepositoryCloudList =
             $PackageObject->RepositoryCloudList( NoCache => 1 );
@@ -1329,7 +1344,7 @@ sub Run {
             if ( !$OutputNotify ) {
                 $OutputNotify .= $LayoutObject->Notify(
                     Priority => 'Info',
-                    Info     => 'No packages, or no new packages, found in selected repository.',
+                    Info     => Translatable('No packages or no new packages found in selected repository.'),
                 );
             }
             $LayoutObject->Block(
@@ -1438,6 +1453,7 @@ sub Run {
         if (
             $VerificationData{ $Package->{Name}->{Content} }
             && $VerificationData{ $Package->{Name}->{Content} } eq 'verified'
+            && !$Self->{CloudServicesDisabled}
             )
         {
             $LayoutObject->Block(
@@ -1572,7 +1588,11 @@ sub Run {
 
     # FeatureAddons
     if ( $ConfigObject->Get('Package::ShowFeatureAddons') ) {
-        my $FeatureAddonData = $Self->_GetFeatureAddonData();
+
+        my $FeatureAddonData;
+        if ( !$Self->{CloudServicesDisabled} ) {
+            $FeatureAddonData = $Self->_GetFeatureAddonData();
+        }
 
         if ( ref $FeatureAddonData eq 'ARRAY' && scalar @{$FeatureAddonData} > 0 ) {
             $LayoutObject->Block(
@@ -1588,16 +1608,29 @@ sub Run {
         }
     }
 
+    if ( $Self->{CloudServicesDisabled} ) {
+        $LayoutObject->Block(
+            Name => 'CloudServicesWarning',
+        );
+    }
+
     my $Output = $LayoutObject->Header();
     $Output .= $LayoutObject->NavigationBar();
     $Output .= $OutputNotify;
     for my $ReinstallKey ( sort keys %NeedReinstall ) {
+
+        my $Priority = 'Error';
+        my $Message  = $LayoutObject->{LanguageObject}
+            ->Translate("Package not correctly deployed! Please reinstall the package.");
+        if ( $Kernel::OM->Get('Kernel::Config')->Get('Package::AllowLocalModifications') ) {
+            $Priority = 'Notice';
+            $Message  = $LayoutObject->{LanguageObject}->Translate("Package has locally modified files.");
+        }
+
         $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => "$ReinstallKey $NeedReinstall{$ReinstallKey} - "
-                . $LayoutObject->{LanguageObject}
-                ->Translate("Package not correctly deployed! Please reinstall the package."),
-            Link => $LayoutObject->{Baselink}
+            Priority => $Priority,
+            Data     => "$ReinstallKey $NeedReinstall{$ReinstallKey} - $Message",
+            Link     => $LayoutObject->{Baselink}
                 . 'Action=AdminPackageManager;Subaction=View;Name='
                 . $ReinstallKey
                 . ';Version='
@@ -1620,19 +1653,22 @@ sub Run {
         );
     }
 
-    VERIFICATION:
-    for my $Package ( sort keys %UnknownVerficationPackages ) {
+    if ( !$Self->{CloudServicesDisabled} ) {
 
-        next VERIFICATION if !$Package;
-        next VERIFICATION if !$UnknownVerficationPackages{$Package};
+        VERIFICATION:
+        for my $Package ( sort keys %UnknownVerficationPackages ) {
 
-        $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => "$Package $UnknownVerficationPackages{$Package} - "
-                . $LayoutObject->{LanguageObject}->Translate(
-                "Package not verified due a communication issue with verification server!"
-                ),
-        );
+            next VERIFICATION if !$Package;
+            next VERIFICATION if !$UnknownVerficationPackages{$Package};
+
+            $Output .= $LayoutObject->Notify(
+                Priority => 'Error',
+                Data     => "$Package $UnknownVerficationPackages{$Package} - "
+                    . $LayoutObject->{LanguageObject}->Translate(
+                    "Package not verified due a communication issue with verification server!"
+                    ),
+            );
+        }
     }
 
     $Output .= $LayoutObject->Output(
@@ -1764,7 +1800,9 @@ sub _InstallHandling {
 
     # check needed params
     if ( !$Param{Package} ) {
-        return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('No such package!'),
+        );
     }
 
     my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
@@ -1834,14 +1872,47 @@ sub _InstallHandling {
     }
 
     # get cloud repositories
-    my $RepositoryCloudList =
-        $PackageObject->RepositoryCloudList();
+    my $RepositoryCloudList;
+    if ( !$Self->{CloudServicesDisabled} ) {
+        $RepositoryCloudList = $PackageObject->RepositoryCloudList();
+    }
 
     # in case Source is present on repository cloud list
-    # the package shold be retrieved using the CloudService backend
+    # the package should be retrieved using the CloudService backend
     my $FromCloud = 0;
     if ( $Param{Source} && $RepositoryCloudList->{ $Param{Source} } ) {
         $FromCloud = 1;
+    }
+
+    my %Response = $PackageObject->AnalyzePackageFrameworkRequirements(
+        Framework => $Structure{Framework},
+        NoLog     => 1,
+    );
+
+    if ( !$Response{Success} ) {
+        $LayoutObject->Block(
+            Name => 'IncompatibleInfo',
+            Data => {
+                %Param,
+                %Data,
+                Subaction              => $Self->{Subaction},
+                Type                   => 'InstallIncompatible',
+                Name                   => $Structure{Name}->{Content},
+                Version                => $Structure{Version}->{Content},
+                RequiredMinimumVersion => $Response{RequiredFrameworkMinimum},
+                RequiredMaximumVersion => $Response{RequiredFrameworkMaximum},
+                RequiredFramework      => $Response{RequiredFramework},
+            },
+        );
+
+        my $Output = $LayoutObject->Header();
+        $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'AdminPackageManager',
+        );
+        $Output .= $LayoutObject->Footer();
+        return $Output;
+
     }
 
     # intro before installation
@@ -1859,7 +1930,7 @@ sub _InstallHandling {
             },
         );
 
-        if ( $Verified eq 'verified' ) {
+        if ( $Verified eq 'verified' && !$Self->{CloudServicesDisabled} ) {
             $LayoutObject->Block(
                 Name => 'OTRSVerifyLogo',
             );
@@ -1868,6 +1939,7 @@ sub _InstallHandling {
         $LayoutObject->Block(
             Name => 'IntroCancel',
         );
+
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
         $Output .= $LayoutObject->Output(
@@ -1936,7 +2008,9 @@ sub _UpgradeHandling {
 
     # check needed params
     if ( !$Param{Package} ) {
-        return $LayoutObject->ErrorScreen( Message => 'No such package!' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('No such package!'),
+        );
     }
 
     my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
@@ -1963,6 +2037,37 @@ sub _UpgradeHandling {
             Type => 'pre'
         );
     }
+
+    my %Response = $PackageObject->AnalyzePackageFrameworkRequirements(
+        Framework => $Structure{Framework},
+        NoLog     => 1,
+    );
+
+    if ( !$Response{Success} ) {
+        $LayoutObject->Block(
+            Name => 'IncompatibleInfo',
+            Data => {
+                %Param,
+                %Data,
+                Subaction              => $Self->{Subaction},
+                Type                   => 'UpgradeIncompatible',
+                Name                   => $Structure{Name}->{Content},
+                Version                => $Structure{Version}->{Content},
+                RequiredMinimumVersion => $Response{RequiredFrameworkMinimum},
+                RequiredMaximumVersion => $Response{RequiredFrameworkMaximum},
+                RequiredFramework      => $Response{RequiredFramework},
+            },
+        );
+
+        my $Output = $LayoutObject->Header();
+        $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'AdminPackageManager',
+        );
+        $Output .= $LayoutObject->Footer();
+        return $Output;
+    }
+
     if ( %Data && !$IntroUpgradePre ) {
         $LayoutObject->Block(
             Name => 'Intro',
@@ -1978,6 +2083,7 @@ sub _UpgradeHandling {
         $LayoutObject->Block(
             Name => 'IntroCancel',
         );
+
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
         $Output .= $LayoutObject->Output(
@@ -2071,7 +2177,7 @@ sub _GetFeatureAddonData {
     # as this is the only operation an unsuccessful request means that the operation was also
     # unsuccessful
     if ( !IsHashRefWithData($RequestResult) ) {
-        return "Can't connect to OTRS Feature Add-on list server!";
+        return Translatable('Can\'t connect to OTRS Feature Add-on list server!');
     }
 
     my $OperationResult = $CloudServiceObject->OperationResultGet(
@@ -2081,10 +2187,10 @@ sub _GetFeatureAddonData {
     );
 
     if ( !IsHashRefWithData($OperationResult) ) {
-        return "Can't get OTRS Feature Add-on list from server";
+        return Translatable('Can\'t get OTRS Feature Add-on list from server!');
     }
     elsif ( !$OperationResult->{Success} ) {
-        return $OperationResult->{ErrorMessage} || "Can't get OTRS Feature Add-on from server!";
+        return $OperationResult->{ErrorMessage} || Translatable('Can\'t get OTRS Feature Add-on from server!');
     }
 
     my $FAOFeed = $OperationResult->{Data}->{FAOs};

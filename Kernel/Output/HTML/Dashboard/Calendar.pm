@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -89,17 +89,17 @@ sub Run {
         ],
     );
 
+    if ( $Self->{Config}->{OwnerOnly} ) {
+        $Map{Escalation}->[1]->{OwnerIDs} = [ $Self->{UserID} ];
+        $Map{Pending}->[1]->{OwnerIDs}    = [ $Self->{UserID} ];
+    }
+
     # get needed objects
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
     my %Date;
     for my $Type ( sort keys %Map ) {
-
-        my $UID;
-        if ( $Self->{Config}->{OwnerOnly} ) {
-            $UID = $Self->{UserID};
-        }
 
         # search tickets
         my @TicketIDs = $TicketObject->TicketSearch(
@@ -110,7 +110,6 @@ sub Run {
             Result     => 'ARRAY',
             Permission => $Self->{Config}->{Permission} || 'ro',
             UserID     => $Self->{UserID},
-            OwnerID    => $UID,
             Limit      => 25,
         );
 
@@ -144,14 +143,21 @@ sub Run {
                     next TICKETID;
                 }
 
-                # get time object
-                my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+                # get current system datetime object
+                my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-                my $DestDate = $TimeObject->SystemTime() + $Ticket{UntilTime};
-                $TimeTill  = $Ticket{UntilTime};
-                $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $DestDate,
+                my $DestDate        = $CurSystemDateTimeObject->ToEpoch() + $Ticket{UntilTime};
+                my $TimeStampObject = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        Epoch => $DestDate,
+                    },
                 );
+                if ($TimeStampObject) {
+                    $TimeStamp = $TimeStampObject->ToString();
+                }
+
+                $TimeTill = $Ticket{UntilTime};
             }
 
             # remember attributes for content table

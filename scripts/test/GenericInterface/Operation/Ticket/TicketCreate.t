@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,92 +22,79 @@ use Kernel::GenericInterface::Operation::Session::SessionCreate;
 
 use Kernel::System::VariableCheck qw(IsArrayRefWithData IsHashRefWithData IsStringWithData);
 
-# get needed objects
-my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
-my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
-# helper object
-# skip SSL certificate verification
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
-        RestoreSystemConfiguration => 1,
-        SkipSSLVerify              => 1,
+        SkipSSLVerify     => 1,
+        DisableAsyncCalls => 1,
     },
 );
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+$Helper->{DestroyLog} = 1;
 
-my $RandomID = $HelperObject->GetRandomID();
+my $RandomID = $Helper->GetRandomID();
 
-$SysConfigObject->ConfigItemUpdate(
+$Helper->ConfigSettingChange(
     Valid => 1,
-    Key   => 'Ticket::Type',
-    Value => '1',
-);
-$ConfigObject->Set(
     Key   => 'Ticket::Type',
     Value => 1,
 );
-$SysConfigObject->ConfigItemUpdate(
+
+$Helper->ConfigSettingChange(
     Valid => 1,
-    Key   => 'Ticket::Frontend::AccountTime',
-    Value => '1',
-);
-$ConfigObject->Set(
     Key   => 'Ticket::Frontend::AccountTime',
     Value => 1,
 );
-$SysConfigObject->ConfigItemUpdate(
+
+$Helper->ConfigSettingChange(
     Valid => 1,
-    Key   => 'Ticket::Frontend::NeedAccountedTime',
-    Value => '1',
-);
-$ConfigObject->Set(
     Key   => 'Ticket::Frontend::NeedAccountedTime',
     Value => 1,
 );
 
 # disable DNS lookups
-$SysConfigObject->ConfigItemUpdate(
+$Helper->ConfigSettingChange(
     Valid => 1,
-    Key   => 'CheckMXRecord',
-    Value => '0',
-);
-$ConfigObject->Set(
     Key   => 'CheckMXRecord',
     Value => 0,
 );
-$SysConfigObject->ConfigItemUpdate(
+
+$Helper->ConfigSettingChange(
     Valid => 1,
-    Key   => 'CheckEmailAddresses',
-    Value => '1',
-);
-$ConfigObject->Set(
     Key   => 'CheckEmailAddresses',
     Value => 1,
 );
 
 # disable SessionCheckRemoteIP setting
-$ConfigObject->Set(
+$Helper->ConfigSettingChange(
+    Valid => 1,
     Key   => 'SessionCheckRemoteIP',
     Value => 0,
 );
 
 # enable customer groups support
-$ConfigObject->Set(
+$Helper->ConfigSettingChange(
+    Valid => 1,
     Key   => 'CustomerGroupSupport',
     Value => 1,
 );
+
+$Kernel::OM->ObjectsDiscard(
+    Objects            => ['Kernel::Config'],
+    ForcePackageReload => 1,
+);
+
+my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 # check if SSL Certificate verification is disabled
 $Self->Is(
     $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME},
     0,
-    'Disabled SSL certificates verification in environment',
+    'Disabled SSL certificates verification in environment'
 );
 
-my $TestOwnerLogin        = $HelperObject->TestUserCreate();
-my $TestResponsibleLogin  = $HelperObject->TestUserCreate();
-my $TestCustomerUserLogin = $HelperObject->TestCustomerUserCreate();
+my $TestOwnerLogin        = $Helper->TestUserCreate();
+my $TestResponsibleLogin  = $Helper->TestUserCreate();
+my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate();
 
 # create user object
 my $UserObject = $Kernel::OM->Get('Kernel::System::User');
@@ -128,35 +115,6 @@ $Self->IsNot(
     "ValidLookup() for 'invalid' should not be undef"
 );
 
-# create queue object
-my $QueueObject = $Kernel::OM->Get('Kernel::System::Queue');
-
-# create new queue
-my $QueueID = $QueueObject->QueueAdd(
-    Name            => 'TestQueue' . $RandomID,
-    ValidID         => 1,
-    GroupID         => 1,
-    SystemAddressID => 1,
-    SalutationID    => 1,
-    SignatureID     => 1,
-    Comment         => 'Some comment',
-    UserID          => 1,
-);
-
-# sanity check
-$Self->True(
-    $QueueID,
-    "QueueAdd() - create testing queue",
-);
-
-my %QueueData = $QueueObject->QueueGet( ID => $QueueID );
-
-# sanity check
-$Self->True(
-    IsHashRefWithData( \%QueueData ),
-    "QueueGet() - for testing queue",
-);
-
 # get group object
 my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
 
@@ -173,34 +131,46 @@ my %GroupData = $GroupObject->GroupGet( ID => $GroupID );
 # sanity check
 $Self->True(
     IsHashRefWithData( \%GroupData ),
-    "GroupGet() - for testing group",
+    "GroupGet() - for testing group"
 );
 
-# create new queue (Admin)
-my $QueueID2 = $QueueObject->QueueAdd(
-    Name            => 'TestQueue2' . $RandomID,
-    ValidID         => 1,
-    GroupID         => $GroupID,
-    SystemAddressID => 1,
-    SalutationID    => 1,
-    SignatureID     => 1,
-    Comment         => 'Some comment',
-    UserID          => 1,
+# create queue object
+my $QueueObject = $Kernel::OM->Get('Kernel::System::Queue');
+
+my @Queues;
+
+my @QueueProperties = (
+    {
+        Name    => 'queue1' . $RandomID,
+        GroupID => 1,
+    },
+    {
+        Name    => 'queue2' . $RandomID,
+        GroupID => $GroupID,
+    }
 );
 
-# sanity check
-$Self->True(
-    $QueueID2,
-    "QueueAdd() - create testing queue2",
-);
+# create queues
+for my $QueueProperty (@QueueProperties) {
+    my $QueueID = $QueueObject->QueueAdd(
+        %{$QueueProperty},
+        ValidID         => 1,
+        SystemAddressID => 1,
+        SalutationID    => 1,
+        SignatureID     => 1,
+        Comment         => 'Some comment',
+        UserID          => 1,
+    );
 
-my %QueueData2 = $QueueObject->QueueGet( ID => $QueueID2 );
+    # sanity check
+    $Self->True(
+        $QueueID,
+        "QueueAdd() - create testing queue"
+    );
+    my %QueueData = $QueueObject->QueueGet( ID => $QueueID );
 
-# sanity check
-$Self->True(
-    IsHashRefWithData( \%QueueData2 ),
-    "QueueGet() - for testing queue2",
-);
+    push @Queues, \%QueueData;
+}
 
 # get type object
 my $TypeObject = $Kernel::OM->Get('Kernel::System::Type');
@@ -215,7 +185,7 @@ my $TypeID = $TypeObject->TypeAdd(
 # sanity check
 $Self->True(
     $TypeID,
-    "TypeAdd() - create testing type",
+    "TypeAdd() - create testing type"
 );
 
 my %TypeData = $TypeObject->TypeGet(
@@ -225,7 +195,7 @@ my %TypeData = $TypeObject->TypeGet(
 # sanity check
 $Self->True(
     IsHashRefWithData( \%TypeData ),
-    "TypeGet() - for testing type",
+    "TypeGet() - for testing type"
 );
 
 # create service object
@@ -241,7 +211,7 @@ my $ServiceID = $ServiceObject->ServiceAdd(
 # sanity check
 $Self->True(
     $ServiceID,
-    "ServiceAdd() - create testing service",
+    "ServiceAdd() - create testing service"
 );
 
 my %ServiceData = $ServiceObject->ServiceGet(
@@ -252,7 +222,7 @@ my %ServiceData = $ServiceObject->ServiceGet(
 # sanity check
 $Self->True(
     IsHashRefWithData( \%ServiceData ),
-    "ServiceGet() - for testing service",
+    "ServiceGet() - for testing service"
 );
 
 # set service for the customer
@@ -277,7 +247,7 @@ my $SLAID = $SLAObject->SLAAdd(
 # sanity check
 $Self->True(
     $SLAID,
-    "SLAAdd() - create testing SLA",
+    "SLAAdd() - create testing SLA"
 );
 
 my %SLAData = $SLAObject->SLAGet(
@@ -288,7 +258,7 @@ my %SLAData = $SLAObject->SLAGet(
 # sanity check
 $Self->True(
     IsHashRefWithData( \%SLAData ),
-    "SLAGet() - for testing SLA",
+    "SLAGet() - for testing SLA"
 );
 
 # create state object
@@ -305,7 +275,7 @@ my $StateID = $StateObject->StateAdd(
 # sanity check
 $Self->True(
     $StateID,
-    "StateAdd() - create testing state",
+    "StateAdd() - create testing state"
 );
 
 my %StateData = $StateObject->StateGet(
@@ -315,7 +285,7 @@ my %StateData = $StateObject->StateGet(
 # sanity check
 $Self->True(
     IsHashRefWithData( \%StateData ),
-    "StateGet() - for testing state",
+    "StateGet() - for testing state"
 );
 
 # create priority object
@@ -342,19 +312,102 @@ my %PriorityData = $PriorityObject->PriorityGet(
 # sanity check
 $Self->True(
     IsHashRefWithData( \%PriorityData ),
-    "PriorityGet() - for testing priority",
+    "PriorityGet() - for testing priority"
 );
 
 # create dynamic field object
 my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
 
-# create new dynamic field
-my $DynamicFieldID = $DynamicFieldObject->DynamicFieldAdd(
-    Name       => 'TestDynamicFieldGI' . int rand(1000),
-    Label      => 'GI Test Field',
+# add text dynamic field
+my %DynamicFieldTextConfig = (
+    Name       => "Unittest1$RandomID",
     FieldOrder => 9991,
+    FieldType  => 'Text',
+    ObjectType => 'Ticket',
+    Label      => 'Description',
+    ValidID    => 1,
+    Config     => {
+        DefaultValue => '',
+    },
+);
+my $FieldTextID = $DynamicFieldObject->DynamicFieldAdd(
+    %DynamicFieldTextConfig,
+    UserID  => 1,
+    Reorder => 0,
+);
+$Self->True(
+    $FieldTextID,
+    "Dynamic Field $FieldTextID"
+);
+
+# add ID
+$DynamicFieldTextConfig{ID} = $FieldTextID;
+
+# add dropdown dynamic field
+my %DynamicFieldDropdownConfig = (
+    Name       => "Unittest2$RandomID",
+    FieldOrder => 9992,
+    FieldType  => 'Dropdown',
+    ObjectType => 'Ticket',
+    Label      => 'Description',
+    ValidID    => 1,
+    Config     => {
+        PossibleValues => [
+            1 => 'One',
+            2 => 'Two',
+            3 => 'Three',
+        ],
+    },
+);
+my $FieldDropdownID = $DynamicFieldObject->DynamicFieldAdd(
+    %DynamicFieldDropdownConfig,
+    UserID  => 1,
+    Reorder => 0,
+);
+$Self->True(
+    $FieldDropdownID,
+    "Dynamic Field $FieldDropdownID"
+);
+
+# add ID
+$DynamicFieldDropdownConfig{ID} = $FieldDropdownID;
+
+# add multiselect dynamic field
+my %DynamicFieldMultiselectConfig = (
+    Name       => "Unittest3$RandomID",
+    FieldOrder => 9993,
+    FieldType  => 'Multiselect',
+    ObjectType => 'Ticket',
+    Label      => 'Multiselect label',
+    ValidID    => 1,
+    Config     => {
+        PossibleValues => [
+            1 => 'Value9ßüß',
+            2 => 'DifferentValue',
+            3 => '1234567',
+        ],
+    },
+);
+my $FieldMultiselectID = $DynamicFieldObject->DynamicFieldAdd(
+    %DynamicFieldMultiselectConfig,
+    UserID  => 1,
+    Reorder => 0,
+);
+$Self->True(
+    $FieldMultiselectID,
+    "Dynamic Field $FieldMultiselectID"
+);
+
+# add ID
+$DynamicFieldMultiselectConfig{ID} = $FieldMultiselectID;
+
+# add date-time dynamic field
+my %DynamicFieldDateTimeConfig = (
+    Name       => "Unittest4$RandomID",
+    FieldOrder => 9994,
     FieldType  => 'DateTime',
     ObjectType => 'Ticket',
+    Label      => 'Description',
     Config     => {
         DefaultValue  => 0,
         YearsInFuture => 0,
@@ -362,31 +415,54 @@ my $DynamicFieldID = $DynamicFieldObject->DynamicFieldAdd(
         YearsPeriod   => 0,
     },
     ValidID => 1,
+);
+my $FieldDateTimeID = $DynamicFieldObject->DynamicFieldAdd(
+    %DynamicFieldDateTimeConfig,
     UserID  => 1,
+    Reorder => 0,
 );
-
-# sanity check
 $Self->True(
-    $DynamicFieldID,
-    "DynamicFieldAdd() - create testing dynamic field",
+    $FieldDateTimeID,
+    "Dynamic Field $FieldDateTimeID"
 );
 
-my $DynamicFieldData = $DynamicFieldObject->DynamicFieldGet(
-    ID => $DynamicFieldID,
-);
+# add ID
+$DynamicFieldDateTimeConfig{ID} = $FieldDateTimeID;
 
-# sanity check
+# add date-time dynamic field
+my %DynamicFieldDateConfig = (
+    Name       => "Unittest5$RandomID",
+    FieldOrder => 9995,
+    FieldType  => 'Date',
+    ObjectType => 'Ticket',
+    Label      => 'Description',
+    Config     => {
+        DefaultValue  => 0,
+        YearsInFuture => 0,
+        YearsInPast   => 0,
+        YearsPeriod   => 0,
+    },
+    ValidID => 1,
+);
+my $FieldDateID = $DynamicFieldObject->DynamicFieldAdd(
+    %DynamicFieldDateConfig,
+    UserID  => 1,
+    Reorder => 0,
+);
 $Self->True(
-    IsHashRefWithData($DynamicFieldData),
-    "DynamicFieldGet() - for testing dynamic field",
+    $FieldDateID,
+    "Dynamic Field $FieldDateID",
 );
+
+# add ID
+$DynamicFieldDateConfig{ID} = $FieldDateID;
 
 # create webservice object
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 $Self->Is(
     'Kernel::System::GenericInterface::Webservice',
     ref $WebserviceObject,
-    "Create webservice object",
+    'Create webservice object'
 );
 
 # set webservice name
@@ -413,23 +489,7 @@ $Self->True(
 );
 
 # get remote host with some precautions for certain unit test systems
-my $Host;
-my $FQDN = $ConfigObject->Get('FQDN');
-
-# try to resolve FQDN host
-if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
-    $Host = $FQDN;
-}
-
-# try to resolve localhost instead
-if ( !$Host && gethostbyname('localhost') ) {
-    $Host = 'localhost';
-}
-
-# use hard coded localhost IP address
-if ( !$Host ) {
-    $Host = '127.0.0.1';
-}
+my $Host = $Helper->GetTestHTTPHostname();
 
 # prepare webservice config
 my $RemoteSystem =
@@ -498,7 +558,7 @@ my $WebserviceUpdate = $WebserviceObject->WebserviceUpdate(
 );
 $Self->True(
     $WebserviceUpdate,
-    "Updated Webservice $WebserviceID - $WebserviceName",
+    "Updated Webservice $WebserviceID - $WebserviceName"
 );
 
 # Get SessionID
@@ -507,25 +567,25 @@ my $RequesterSessionObject = $Kernel::OM->Get('Kernel::GenericInterface::Request
 $Self->Is(
     'Kernel::GenericInterface::Requester',
     ref $RequesterSessionObject,
-    "SessionID - Create requester object",
+    'SessionID - Create requester object'
 );
 
 # create a new user for current test
-my $UserLogin = $HelperObject->TestUserCreate(
+my $UserLogin = $Helper->TestUserCreate(
     Groups => [ 'admin', 'users' ],
 );
 my $Password = $UserLogin;
 
 # create a new user without permissions for current test
-my $UserLogin2 = $HelperObject->TestUserCreate();
+my $UserLogin2 = $Helper->TestUserCreate();
 my $Password2  = $UserLogin2;
 
 # create a customer where a ticket will use and will have permissions
-my $CustomerUserLogin = $HelperObject->TestCustomerUserCreate();
+my $CustomerUserLogin = $Helper->TestCustomerUserCreate();
 my $CustomerPassword  = $CustomerUserLogin;
 
 # create a customer that will not have permissions
-my $CustomerUserLogin2 = $HelperObject->TestCustomerUserCreate();
+my $CustomerUserLogin2 = $Helper->TestCustomerUserCreate();
 my $CustomerPassword2  = $CustomerUserLogin2;
 
 # start requester with our webservice
@@ -549,7 +609,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -568,7 +628,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -588,7 +648,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -608,7 +668,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -631,7 +691,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -657,7 +717,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -685,7 +745,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -713,7 +773,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -742,7 +802,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -771,7 +831,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -801,7 +861,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -831,7 +891,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -845,7 +905,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 Lock         => 'Invalid' . $RandomID,
             },
             Article => {
@@ -862,7 +922,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -876,7 +936,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 LockID       => 'Invalid' . $RandomID,
             },
             Article => {
@@ -893,7 +953,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -907,7 +967,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
             },
             Article => {
                 Test => 1,
@@ -923,7 +983,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -937,7 +997,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 Type         => 'Invalid' . $RandomID,
             },
             Article => {
@@ -954,7 +1014,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -968,7 +1028,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => 'Invalid' . $RandomID,
             },
             Article => {
@@ -985,7 +1045,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -999,7 +1059,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 Service      => 'Invalid' . $RandomID,
             },
@@ -1017,7 +1077,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1031,7 +1091,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => 'Invalid' . $RandomID,
             },
@@ -1049,7 +1109,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1063,7 +1123,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLA          => 'Invalid' . $RandomID,
@@ -1082,7 +1142,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1096,7 +1156,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => 'Invalid' . $RandomID,
@@ -1115,7 +1175,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1129,7 +1189,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1148,7 +1208,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1162,7 +1222,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1182,7 +1242,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1196,7 +1256,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1216,7 +1276,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1230,7 +1290,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1250,7 +1310,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1264,7 +1324,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1285,7 +1345,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1299,7 +1359,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1320,7 +1380,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1334,7 +1394,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1356,7 +1416,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1370,7 +1430,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1392,7 +1452,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1406,7 +1466,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                QueueID      => $QueueID,
+                QueueID      => $Queues[0]->{QueueID},
                 TypeID       => $TypeID,
                 ServiceID    => $ServiceID,
                 SLAID        => $SLAID,
@@ -1429,7 +1489,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1443,7 +1503,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1466,7 +1526,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1480,7 +1540,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1510,7 +1570,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1524,7 +1584,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1550,7 +1610,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1564,7 +1624,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1595,7 +1655,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1609,7 +1669,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1639,7 +1699,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1653,7 +1713,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1683,7 +1743,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1697,7 +1757,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1728,7 +1788,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1742,7 +1802,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1774,101 +1834,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
-            },
-            Success => 1
-        },
-        Operation => 'TicketCreate',
-    },
-    {
-        Name           => 'Invalid ArticleType',
-        SuccessRequest => 1,
-        SuccessCreate  => 0,
-        RequestData    => {
-            Ticket => {
-                Title         => 'Ticket Title',
-                CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
-                TypeID        => $TypeID,
-                ServiceID     => $ServiceID,
-                SLAID         => $SLAID,
-                StateID       => $StateID,
-                PriorityID    => $PriorityID,
-                OwnerID       => $OwnerID,
-                ResponsibleID => $ResponsibleID,
-                PendingTime   => {
-                    Year   => 2012,
-                    Month  => 12,
-                    Day    => 16,
-                    Hour   => 20,
-                    Minute => 48,
                 },
-            },
-            Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleType      => 'Invalid' . $RandomID,
-            },
-            DynamicField => {
-                Test => 1,
-            },
-            Attachment => {
-                Test => 1,
-            },
-        },
-        ExpectedData => {
-            Data => {
-                Error => {
-                    ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
-            },
-            Success => 1
-        },
-        Operation => 'TicketCreate',
-    },
-    {
-        Name           => 'Invalid ArticleTypeID',
-        SuccessRequest => 1,
-        SuccessCreate  => 0,
-        RequestData    => {
-            Ticket => {
-                Title         => 'Ticket Title',
-                CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
-                TypeID        => $TypeID,
-                ServiceID     => $ServiceID,
-                SLAID         => $SLAID,
-                StateID       => $StateID,
-                PriorityID    => $PriorityID,
-                OwnerID       => $OwnerID,
-                ResponsibleID => $ResponsibleID,
-                PendingTime   => {
-                    Year   => 2012,
-                    Month  => 12,
-                    Day    => 16,
-                    Hour   => 20,
-                    Minute => 48,
-                },
-            },
-            Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 'Invalid' . $RandomID,
-            },
-            DynamicField => {
-                Test => 1,
-            },
-            Attachment => {
-                Test => 1,
-            },
-        },
-        ExpectedData => {
-            Data => {
-                Error => {
-                    ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
             },
             Success => 1
         },
@@ -1882,7 +1848,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1899,11 +1865,11 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderType       => 'Invalid' . $RandomID,
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderType           => 'Invalid' . $RandomID,
+                IsVisibleForCustomer => 1,
             },
             DynamicField => {
                 Test => 1,
@@ -1916,7 +1882,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1930,7 +1896,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1947,11 +1913,11 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 'Invalid' . $RandomID,
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                IsVisibleForCustomer => 1,
+                SenderTypeID         => 'Invalid' . $RandomID,
             },
             DynamicField => {
                 Test => 1,
@@ -1964,7 +1930,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -1978,7 +1944,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -1995,12 +1961,12 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'Invalid' . $RandomID,
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'Invalid' . $RandomID,
             },
             DynamicField => {
                 Test => 1,
@@ -2013,7 +1979,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2027,7 +1993,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2044,12 +2010,12 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'enjoy@otrs.com',
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'enjoy@otrs.com',
             },
             DynamicField => {
                 Test => 1,
@@ -2062,7 +2028,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2076,7 +2042,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2093,13 +2059,13 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'enjoy@otrs.com',
-                ContentType      => 'Invalid' . $RandomID,
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'enjoy@otrs.com',
+                ContentType          => 'Invalid' . $RandomID,
             },
             DynamicField => {
                 Test => 1,
@@ -2112,7 +2078,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2126,7 +2092,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2143,12 +2109,12 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'enjoy@otrs.com',
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'enjoy@otrs.com',
             },
             DynamicField => {
                 Test => 1,
@@ -2161,7 +2127,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2175,7 +2141,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2192,14 +2158,14 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'enjoy@otrs.com',
-                ContentType      => 'text/plain; charset=UTF8',
-                HistoryType      => 'Invalid' . $RandomID,
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'enjoy@otrs.com',
+                ContentType          => 'text/plain; charset=UTF8',
+                HistoryType          => 'Invalid' . $RandomID,
             },
             DynamicField => {
                 Test => 1,
@@ -2212,7 +2178,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2226,7 +2192,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2243,15 +2209,15 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'enjoy@otrs.com',
-                ContentType      => 'text/plain; charset=UTF8',
-                HistoryType      => 'NewTicket',
-                HistoryComment   => '% % ',
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'enjoy@otrs.com',
+                ContentType          => 'text/plain; charset=UTF8',
+                HistoryType          => 'NewTicket',
+                HistoryComment       => '% % ',
             },
             DynamicField => {
                 Test => 1,
@@ -2264,7 +2230,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2278,7 +2244,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2295,16 +2261,16 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject          => 'Article subject',
-                Body             => 'Article body',
-                AutoResponseType => 'auto reply',
-                ArticleTypeID    => 1,
-                SenderTypeID     => 1,
-                From             => 'enjoy@otrs.com',
-                ContentType      => 'text/plain; charset=UTF8',
-                HistoryType      => 'NewTicket',
-                HistoryComment   => '% % ',
-                TimeUnit         => 'Invalid' . $RandomID,
+                Subject              => 'Article subject',
+                Body                 => 'Article body',
+                AutoResponseType     => 'auto reply',
+                SenderTypeID         => 1,
+                IsVisibleForCustomer => 1,
+                From                 => 'enjoy@otrs.com',
+                ContentType          => 'text/plain; charset=UTF8',
+                HistoryType          => 'NewTicket',
+                HistoryComment       => '% % ',
+                TimeUnit             => 'Invalid' . $RandomID,
             },
             DynamicField => {
                 Test => 1,
@@ -2317,7 +2283,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2331,7 +2297,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2351,8 +2317,8 @@ my @Tests        = (
                 Subject                   => 'Article subject',
                 Body                      => 'Article body',
                 AutoResponseType          => 'auto reply',
-                ArticleTypeID             => 1,
                 SenderTypeID              => 1,
+                IsVisibleForCustomer      => 1,
                 From                      => 'enjoy@otrs.com',
                 ContentType               => 'text/plain; charset=UTF8',
                 HistoryType               => 'NewTicket',
@@ -2373,7 +2339,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2387,7 +2353,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2407,8 +2373,8 @@ my @Tests        = (
                 Subject                   => 'Article subject',
                 Body                      => 'Article body',
                 AutoResponseType          => 'auto reply',
-                ArticleTypeID             => 1,
                 SenderTypeID              => 1,
+                IsVisibleForCustomer      => 1,
                 From                      => 'enjoy@otrs.com',
                 ContentType               => 'text/plain; charset=UTF8',
                 HistoryType               => 'NewTicket',
@@ -2427,7 +2393,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2441,7 +2407,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2461,8 +2427,8 @@ my @Tests        = (
                 Subject                     => 'Article subject',
                 Body                        => 'Article body',
                 AutoResponseType            => 'auto reply',
-                ArticleTypeID               => 1,
                 SenderTypeID                => 1,
+                IsVisibleForCustomer        => 1,
                 From                        => 'enjoy@otrs.com',
                 ContentType                 => 'text/plain; charset=UTF8',
                 HistoryType                 => 'NewTicket',
@@ -2484,7 +2450,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2498,7 +2464,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2518,8 +2484,8 @@ my @Tests        = (
                 Subject                     => 'Article subject',
                 Body                        => 'Article body',
                 AutoResponseType            => 'auto reply',
-                ArticleTypeID               => 1,
                 SenderTypeID                => 1,
+                IsVisibleForCustomer        => 1,
                 From                        => 'enjoy@otrs.com',
                 ContentType                 => 'text/plain; charset=UTF8',
                 HistoryType                 => 'NewTicket',
@@ -2539,7 +2505,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2553,7 +2519,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2573,8 +2539,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2597,7 +2563,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2611,7 +2577,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2631,8 +2597,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2653,7 +2619,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2667,7 +2633,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2687,8 +2653,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2709,7 +2675,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2723,7 +2689,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2743,8 +2709,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2765,7 +2731,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2779,7 +2745,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2799,8 +2765,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2822,7 +2788,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2836,7 +2802,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2856,8 +2822,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2868,7 +2834,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => 'Invalid' . $RandomID,
             },
             Attachment => {
@@ -2879,7 +2845,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2893,7 +2859,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2913,8 +2879,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2925,7 +2891,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -2936,7 +2902,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -2950,7 +2916,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -2970,8 +2936,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -2982,7 +2948,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -2993,7 +2959,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -3007,7 +2973,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3027,8 +2993,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3039,7 +3005,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3051,7 +3017,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.MissingParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -3065,7 +3031,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3085,8 +3051,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3097,7 +3063,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3110,7 +3076,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.InvalidParameter',
-                    }
+                },
             },
             Success => 1
         },
@@ -3124,7 +3090,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3144,8 +3110,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3156,7 +3122,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3176,7 +3142,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3192,8 +3158,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3204,7 +3170,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3224,7 +3190,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3244,8 +3210,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3256,7 +3222,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3271,7 +3237,61 @@ my @Tests        = (
         },
         Operation => 'TicketCreate',
     },
-
+    {
+        Name           => 'Ticket with CDATA tags',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Test content <[[https://example.com/]]>',
+                AutoResponseType                => 'auto reply',
+                ArticleTypeID                   => 1,
+                SenderTypeID                    => 1,
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=UTF8',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=UTF8',
+                Disposition => 'attachment',
+                Filename    => 'Test.txt',
+            },
+        },
+        Auth => {
+            SessionID => $NewSessionID,
+        },
+        Operation => 'TicketCreate',
+    },
     {
         Name           => 'Ticket with Names',
         SuccessRequest => 1,
@@ -3280,7 +3300,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                Queue        => $QueueData{Name},
+                Queue        => $Queues[0]->{Name},
                 Type         => $TypeData{Name},
                 Service      => $ServiceData{Name},
                 SLA          => $SLAData{Name},
@@ -3297,11 +3317,11 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject                         => 'Article subject äöüßÄÖÜ€ис',
-                Body                            => 'Article body !"Â§$%&/()=?Ã*ÃÃL:L@,.-',
+                Subject => 'Article subject äöüßÄÖÜ€ис',
+                Body    => 'Article body ɟ ɠ ɡ ɢ ɣ ɤ ɥ ɦ ɧ ʀ ʁ ʂ ʃ ʄ ʅ ʆ ʇ ʈ ʉ ʊ ʋ ʌ ʍ ʎ',
                 AutoResponseType                => 'auto reply',
-                ArticleType                     => 'email-external',
                 SenderType                      => 'agent',
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3312,7 +3332,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3333,7 +3353,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => 'someone@somehots.com',
-                Queue        => $QueueData{Name},
+                Queue        => $Queues[0]->{Name},
                 Type         => $TypeData{Name},
                 State        => $StateData{Name},
                 Priority     => $PriorityData{Name},
@@ -3348,11 +3368,11 @@ my @Tests        = (
                 },
             },
             Article => {
-                Subject                         => 'Article subject äöüßÄÖÜ€ис',
-                Body                            => 'Article body !"Â§$%&/()=?Ã*ÃÃL:L@,.-',
+                Subject => 'Article subject äöüßÄÖÜ€ис',
+                Body    => 'Article body ɟ ɠ ɡ ɢ ɣ ɤ ɥ ɦ ɧ ʀ ʁ ʂ ʃ ʄ ʅ ʆ ʇ ʈ ʉ ʊ ʋ ʌ ʍ ʎ',
                 AutoResponseType                => 'auto reply',
-                ArticleType                     => 'email-external',
                 SenderType                      => 'agent',
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3363,7 +3383,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3383,7 +3403,7 @@ my @Tests        = (
             Ticket => {
                 Title        => 'Ticket Title',
                 CustomerUser => $TestCustomerUserLogin,
-                Queue        => $QueueData{Name},
+                Queue        => $Queues[0]->{Name},
                 Type         => $TypeData{Name},
                 Service      => $ServiceData{Name},
                 SLA          => $SLAData{Name},
@@ -3403,8 +3423,8 @@ my @Tests        = (
                 Subject                         => 'Article subject äöüßÄÖÜ€ис',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleType                     => 'email-external',
                 SenderType                      => 'agent',
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3415,7 +3435,59 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=UTF8',
+                Filename    => 'Test.txt',
+                Disposition => 'attachment',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+    {
+        Name           => 'Ticket with TimeUnits fractional',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title        => 'Ticket Title',
+                CustomerUser => $TestCustomerUserLogin,
+                Queue        => $Queues[0]->{Name},
+                Type         => $TypeData{Name},
+                Service      => $ServiceData{Name},
+                SLA          => $SLAData{Name},
+                State        => $StateData{Name},
+                Priority     => $PriorityData{Name},
+                Owner        => $TestOwnerLogin,
+                Responsible  => $TestResponsibleLogin,
+                PendingTime  => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject äöüßÄÖÜ€ис',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                SenderType                      => 'agent',
+                IsVisibleForCustomer            => 1,
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=UTF8',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25.5,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3435,7 +3507,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3455,8 +3527,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3467,7 +3539,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3484,7 +3556,7 @@ my @Tests        = (
             Data => {
                 Error => {
                     ErrorCode => 'TicketCreate.AccessDenied',
-                    }
+                },
             },
             Success => 1
         },
@@ -3499,7 +3571,7 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3519,8 +3591,8 @@ my @Tests        = (
                 Subject                         => 'Article subject',
                 Body                            => 'Article body',
                 AutoResponseType                => 'auto reply',
-                ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
                 From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
@@ -3531,7 +3603,7 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
@@ -3555,7 +3627,262 @@ my @Tests        = (
             Ticket => {
                 Title         => 'Ticket Title',
                 CustomerUser  => $TestCustomerUserLogin,
-                QueueID       => $QueueID2,
+                QueueID       => $Queues[1]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=UTF8',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=UTF8',
+                Filename    => 'Test.txt',
+            },
+        },
+        Auth => {
+            CustomerUserLogin => $CustomerUserLogin2,
+            Password          => $CustomerPassword2,
+        },
+        ExpectedData => {
+            Data => {
+                Error => {
+                    ErrorCode => 'TicketCreate.AccessDenied',
+                },
+            },
+            Success => 1
+        },
+        Operation => 'TicketCreate',
+    },
+    {
+        Name           => 'Create DynamicFields (with empty value)',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=UTF8',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => [
+                {
+                    Name  => "Unittest1$RandomID",
+                    Value => '',
+                },
+                {
+                    Name  => "Unittest2$RandomID",
+                    Value => '',
+                },
+                {
+                    Name  => "Unittest3$RandomID",
+                    Value => '',
+                },
+            ],
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=UTF8',
+                Disposition => 'attachment',
+                Filename    => 'Test.txt',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+
+    {
+        Name           => 'Create DynamicFields (with not empty value)',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=UTF8',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => [
+                {
+                    Name  => "Unittest1$RandomID",
+                    Value => 'Value9ßüß-カスタ1234',
+                },
+                {
+                    Name  => "Unittest2$RandomID",
+                    Value => '2',
+                },
+                {
+                    Name  => "Unittest3$RandomID",
+                    Value => [ 1, 2 ],
+                },
+            ],
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=UTF8',
+                Disposition => 'attachment',
+                Filename    => 'Test.txt',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+
+    {
+        Name           => 'Create DynamicFields (with wrong value)',
+        SuccessRequest => 1,
+        SuccessCreate  => 0,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=UTF8',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => [
+                {
+                    Name  => "Unittest1$RandomID",
+                    Value => { Wrong => 'Value' },    # value type depends on the dynamic field
+                },
+                {
+                    Name  => "Unittest2$RandomID",
+                    Value => { Wrong => 'Value' },    # value type depends on the dynamic field
+                },
+            ],
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=UTF8',
+                Disposition => 'attachment',
+                Filename    => 'Test.txt',
+            },
+        },
+        ExpectedData => {
+            Data => {
+                Error => {
+                    ErrorCode => 'TicketCreate.MissingParameter',
+                },
+            },
+            Success => 1
+        },
+        Operation => 'TicketCreate',
+    },
+    {
+        Name           => 'Ticket with Alias Charsets attachment',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
                 TypeID        => $TypeID,
                 ServiceID     => $ServiceID,
                 SLAID         => $SLAID,
@@ -3578,6 +3905,219 @@ my @Tests        = (
                 ArticleTypeID                   => 1,
                 SenderTypeID                    => 1,
                 From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=US-ASCII',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=US-ASCII',
+                Filename    => 'Test.txt',
+                Disposition => 'attachment',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+    {
+        Name           => 'Article with Email communication channel',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                ArticleTypeID                   => 1,
+                SenderTypeID                    => 1,
+                CommunicationChannel            => 'Email',
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=US-ASCII',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=US-ASCII',
+                Filename    => 'Test.txt',
+                Disposition => 'attachment',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+
+    {
+        Name           => 'Article with Internal communication channel',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                ArticleTypeID                   => 1,
+                SenderTypeID                    => 1,
+                CommunicationChannel            => 'Internal',
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=US-ASCII',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=US-ASCII',
+                Filename    => 'Test.txt',
+                Disposition => 'attachment',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+    {
+        Name           => 'Article with Phone communication channel',
+        SuccessRequest => 1,
+        SuccessCreate  => 1,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                ArticleTypeID                   => 1,
+                SenderTypeID                    => 1,
+                CommunicationChannel            => 'Phone',
+                From                            => 'enjoy@otrs.com',
+                ContentType                     => 'text/plain; charset=US-ASCII',
+                HistoryType                     => 'NewTicket',
+                HistoryComment                  => '% % ',
+                TimeUnit                        => 25,
+                ForceNotificationToUserID       => [1],
+                ExcludeNotificationToUserID     => [1],
+                ExcludeMuteNotificationToUserID => [1],
+            },
+            DynamicField => {
+                Name  => $DynamicFieldDateTimeConfig{Name},
+                Value => '2012-01-17 12:40:00',
+            },
+            Attachment => {
+                Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
+                ContentType => 'text/plain; charset=US-ASCII',
+                Filename    => 'Test.txt',
+                Disposition => 'attachment',
+            },
+        },
+        Operation => 'TicketCreate',
+    },
+    {
+        Name           => 'Article with wrong communication channel',
+        SuccessRequest => 1,
+        SuccessCreate  => 0,
+        RequestData    => {
+            Ticket => {
+                Title         => 'Ticket Title',
+                CustomerUser  => $TestCustomerUserLogin,
+                QueueID       => $Queues[0]->{QueueID},
+                TypeID        => $TypeID,
+                ServiceID     => $ServiceID,
+                SLAID         => $SLAID,
+                StateID       => $StateID,
+                PriorityID    => $PriorityID,
+                OwnerID       => $OwnerID,
+                ResponsibleID => $ResponsibleID,
+                PendingTime   => {
+                    Year   => 2012,
+                    Month  => 12,
+                    Day    => 16,
+                    Hour   => 20,
+                    Minute => 48,
+                },
+            },
+            Article => {
+                Subject                         => 'Article subject',
+                Body                            => 'Article body',
+                AutoResponseType                => 'auto reply',
+                SenderTypeID                    => 1,
+                IsVisibleForCustomer            => 1,
+                CommunicationChannel            => 'Test123',
+                From                            => 'enjoy@otrs.com',
                 ContentType                     => 'text/plain; charset=UTF8',
                 HistoryType                     => 'NewTicket',
                 HistoryComment                  => '% % ',
@@ -3587,24 +4127,21 @@ my @Tests        = (
                 ExcludeMuteNotificationToUserID => [1],
             },
             DynamicField => {
-                Name  => $DynamicFieldData->{Name},
+                Name  => $DynamicFieldDateTimeConfig{Name},
                 Value => '2012-01-17 12:40:00',
             },
             Attachment => {
                 Content     => 'VGhpcyBpcyBhIHRlc3QgdGV4dC4=',
-                ContentType => 'text/plain; charset=UTF8',
+                ContentType => 'text/plain; charset=US-ASCII',
                 Filename    => 'Test.txt',
+                Disposition => 'attachment',
             },
-        },
-        Auth => {
-            CustomerUserLogin => $CustomerUserLogin2,
-            Password          => $CustomerPassword2,
         },
         ExpectedData => {
             Data => {
                 Error => {
-                    ErrorCode => 'TicketCreate.AccessDenied',
-                    }
+                    ErrorCode => 'TicketCreate.InvalidParameter',
+                },
             },
             Success => 1
         },
@@ -3624,7 +4161,7 @@ my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
 $Self->Is(
     ref $DebuggerObject,
     'Kernel::GenericInterface::Debugger',
-    'DebuggerObject instantiate correctly',
+    'DebuggerObject instantiate correctly'
 );
 
 for my $Test (@Tests) {
@@ -3638,7 +4175,7 @@ for my $Test (@Tests) {
     $Self->Is(
         "Kernel::GenericInterface::Operation::Ticket::$Test->{Operation}",
         ref $LocalObject,
-        "$Test->{Name} - Create local object",
+        "$Test->{Name} - Create local object"
     );
 
     my %Auth = (
@@ -3663,7 +4200,7 @@ for my $Test (@Tests) {
     $Self->Is(
         'HASH',
         ref $LocalResult,
-        "$Test->{Name} - Local result structure is valid",
+        "$Test->{Name} - Local result structure is valid"
     );
 
     # create requester object
@@ -3671,7 +4208,7 @@ for my $Test (@Tests) {
     $Self->Is(
         'Kernel::GenericInterface::Requester',
         ref $RequesterObject,
-        "$Test->{Name} - Create requester object",
+        "$Test->{Name} - Create requester object"
     );
 
     # start requester with our webservice
@@ -3688,13 +4225,13 @@ for my $Test (@Tests) {
     $Self->Is(
         'HASH',
         ref $RequesterResult,
-        "$Test->{Name} - Requester result structure is valid",
+        "$Test->{Name} - Requester result structure is valid"
     );
 
     $Self->Is(
         $RequesterResult->{Success},
         $Test->{SuccessRequest},
-        "$Test->{Name} - Requester successful result",
+        "$Test->{Name} - Requester successful result"
     );
 
     # tests supposed to succeed
@@ -3703,39 +4240,39 @@ for my $Test (@Tests) {
         # local results
         $Self->True(
             $LocalResult->{Data}->{TicketID},
-            "$Test->{Name} - Local result TicketID with True.",
+            "$Test->{Name} - Local result TicketID with True."
         );
         $Self->True(
             $LocalResult->{Data}->{TicketNumber},
-            "$Test->{Name} - Local result TicketNumber with True.",
+            "$Test->{Name} - Local result TicketNumber with True."
         );
         $Self->True(
             $LocalResult->{Data}->{ArticleID},
-            "$Test->{Name} - Local result ArticleID with True.",
+            "$Test->{Name} - Local result ArticleID with True."
         );
-        $Self->Is(
+        $Self->IsDeeply(
             $LocalResult->{Data}->{Error},
             undef,
-            "$Test->{Name} - Local result Error is undefined.",
+            "$Test->{Name} - Local result Error is undefined."
         );
 
         # requester results
         $Self->True(
             $RequesterResult->{Data}->{TicketID},
-            "$Test->{Name} - Requester result TicketID with True.",
+            "$Test->{Name} - Requester result TicketID with True."
         );
         $Self->True(
             $RequesterResult->{Data}->{TicketNumber},
-            "$Test->{Name} - Requester result TicketNumber with True.",
+            "$Test->{Name} - Requester result TicketNumber with True."
         );
         $Self->True(
             $RequesterResult->{Data}->{ArticleID},
-            "$Test->{Name} - Requester result ArticleID with True.",
+            "$Test->{Name} - Requester result ArticleID with True."
         );
-        $Self->Is(
+        $Self->IsDeeply(
             $RequesterResult->{Data}->{Error},
             undef,
-            "$Test->{Name} - Requester result Error is undefined.",
+            "$Test->{Name} - Requester result Error is undefined."
         );
 
         # create ticket object
@@ -3749,8 +4286,8 @@ for my $Test (@Tests) {
         );
 
         $Self->True(
-            IsHashRefWithData( \%LocalTicketData ),
-            "$Test->{Name} - created local ticket structure with True.",
+            scalar %LocalTicketData,
+            "$Test->{Name} - created local ticket structure with True."
         );
 
         # get the Ticket entry (from requester result)
@@ -3761,15 +4298,15 @@ for my $Test (@Tests) {
         );
 
         $Self->True(
-            IsHashRefWithData( \%RequesterTicketData ),
-            "$Test->{Name} - created requester ticket structure with True.",
+            scalar %RequesterTicketData,
+            "$Test->{Name} - created requester ticket structure with True."
         );
 
         # check ticket attributes as defined in the test
         $Self->Is(
             $LocalTicketData{Title},
             $Test->{RequestData}->{Ticket}->{Title},
-            "$Test->{Name} - local Ticket->Title match test definition.",
+            "$Test->{Name} - local Ticket->Title match test definition."
 
         );
 
@@ -3779,14 +4316,14 @@ for my $Test (@Tests) {
             $Self->Is(
                 $LocalTicketData{CustomerUserID},
                 undef,
-                "$Test->{Name} - local Ticket->CustomerUser is empty.",
+                "$Test->{Name} - local Ticket->CustomerUser is empty."
             );
         }
         else {
             $Self->Is(
                 $LocalTicketData{CustomerUserID},
                 $Test->{RequestData}->{Ticket}->{CustomerUser},
-                "$Test->{Name} - local Ticket->CustomerUser match test definition.",
+                "$Test->{Name} - local Ticket->CustomerUser match test definition."
             );
         }
 
@@ -3802,20 +4339,34 @@ for my $Test (@Tests) {
                 $Self->Is(
                     $LocalTicketData{$Attribute},
                     $Test->{RequestData}->{Ticket}->{$Attribute},
-                    "$Test->{Name} - local Ticket->$Attribute match test definition.",
+                    "$Test->{Name} - local Ticket->$Attribute match test definition."
                 );
             }
         }
 
+        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+        my $LocalArticleBackendObject = $ArticleObject->BackendForArticle(
+            TicketID  => $LocalResult->{Data}->{TicketID},
+            ArticleID => $LocalResult->{Data}->{ArticleID},
+        );
+
         # get local article information
-        my %LocalArticleData = $TicketObject->ArticleGet(
+        my %LocalArticleData = $LocalArticleBackendObject->ArticleGet(
+            TicketID      => $LocalResult->{Data}->{TicketID},
             ArticleID     => $LocalResult->{Data}->{ArticleID},
             DynamicFields => 1,
             UserID        => 1,
         );
 
+        my $RequesterArticleBackendObject = $ArticleObject->BackendForArticle(
+            TicketID  => $RequesterResult->{Data}->{TicketID},
+            ArticleID => $RequesterResult->{Data}->{ArticleID},
+        );
+
         # get requester article information
-        my %RequesterArticleData = $TicketObject->ArticleGet(
+        my %RequesterArticleData = $RequesterArticleBackendObject->ArticleGet(
+            TicketID      => $RequesterResult->{Data}->{TicketID},
             ArticleID     => $RequesterResult->{Data}->{ArticleID},
             DynamicFields => 1,
             UserID        => 1,
@@ -3826,24 +4377,24 @@ for my $Test (@Tests) {
                 $Self->Is(
                     $LocalArticleData{$Attribute},
                     $Test->{RequestData}->{Article}->{$Attribute},
-                    "$Test->{Name} - local Article->$Attribute match test definition.",
+                    "$Test->{Name} - local Article->$Attribute match test definition."
                 );
             }
         }
 
-        for my $Attribute (qw(ArticleType SenderType)) {
+        for my $Attribute (qw(SenderType)) {
             if ( $Test->{RequestData}->{Article}->{ $Attribute . 'ID' } ) {
                 $Self->Is(
                     $LocalArticleData{ $Attribute . 'ID' },
                     $Test->{RequestData}->{Article}->{ $Attribute . 'ID' },
-                    "$Test->{Name} - local Article->$Attribute" . 'ID' . " match test definition.",
+                    "$Test->{Name} - local Article->$Attribute" . 'ID' . " match test definition."
                 );
             }
             else {
                 $Self->Is(
                     $LocalArticleData{$Attribute},
                     $Test->{RequestData}->{Article}->{$Attribute},
-                    "$Test->{Name} - local Article->$Attribute match test definition.",
+                    "$Test->{Name} - local Article->$Attribute match test definition."
                 );
             }
         }
@@ -3857,28 +4408,33 @@ for my $Test (@Tests) {
             @RequestedDynamicFields = @{ $Test->{RequestData}->{DynamicField} };
         }
         for my $DynamicField (@RequestedDynamicFields) {
-            $Self->Is(
-                $LocalTicketData{ 'DynamicField_' . $DynamicField->{Name} },
+
+            if ( $DynamicField->{FieldType} eq 'Date' && $DynamicField->{Value} =~ m{ \A \d{4}-\d{2}-\d{2} \z }xms ) {
+                $DynamicField->{Value} .= ' 00:00:00';
+            }
+
+            $Self->IsDeeply(
+                $LocalTicketData{ 'DynamicField_' . $DynamicField->{Name} } // '',
                 $DynamicField->{Value},
                 "$Test->{Name} - local Ticket->DynamicField_"
                     . $DynamicField->{Name}
-                    . " match test definition.",
+                    . " match test definition."
             );
         }
 
         # check attachments
-        my %AttachmentIndex = $TicketObject->ArticleAttachmentIndex(
-            ArticleID                  => $LocalResult->{Data}->{ArticleID},
-            StripPlainBodyAsAttachment => 3,
-            Article                    => \%LocalArticleData,
-            UserID                     => 1,
+        my %AttachmentIndex = $LocalArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID        => $LocalResult->{Data}->{ArticleID},
+            UserID           => 1,
+            ExcludePlainText => 1,
+            ExcludeHTMLBody  => 1,
         );
 
         my @Attachments;
         ATTACHMENT:
         for my $FileID ( sort keys %AttachmentIndex ) {
             next ATTACHMENT if !$FileID;
-            my %Attachment = $TicketObject->ArticleAttachment(
+            my %Attachment = $LocalArticleBackendObject->ArticleAttachment(
                 ArticleID => $LocalResult->{Data}->{ArticleID},
                 FileID    => $FileID,
                 UserID    => 1,
@@ -3907,7 +4463,7 @@ for my $Test (@Tests) {
         $Self->IsDeeply(
             \@Attachments,
             \@RequestedAttachments,
-            "$Test->{Name} - local Ticket->Attachment match test definition.",
+            "$Test->{Name} - local Ticket->Attachment match test definition."
         );
 
         # remove attributes that might be different from local and requester responses
@@ -3922,12 +4478,12 @@ for my $Test (@Tests) {
         $Self->IsDeeply(
             \%LocalTicketData,
             \%RequesterTicketData,
-            "$Test->{Name} - Local ticket result matched with remote result.",
+            "$Test->{Name} - Local ticket result matched with remote result."
         );
 
         # remove attributes that might be different from local and requester responses
         for my $Attribute (
-            qw( Age AgeTimeUnix ArticleID TicketID Created Changed IncomingTime TicketNumber
+            qw( Age AgeTimeUnix ArticleID TicketID CreateTime ChangeTime IncomingTime TicketNumber
             CreateTimeUnix
             )
             )
@@ -3939,7 +4495,7 @@ for my $Test (@Tests) {
         $Self->IsDeeply(
             \%LocalArticleData,
             \%RequesterArticleData,
-            "$Test->{Name} - Local article result matched with remote result.",
+            "$Test->{Name} - Local article result matched with remote result."
         );
 
         # delete the tickets
@@ -3961,7 +4517,7 @@ for my $Test (@Tests) {
             # sanity check
             $Self->True(
                 $TicketDelete,
-                "TicketDelete() successful for Ticket ID $TicketID",
+                "TicketDelete() successful for Ticket ID $TicketID"
             );
         }
     }
@@ -3970,29 +4526,29 @@ for my $Test (@Tests) {
     else {
         $Self->False(
             $LocalResult->{TicketID},
-            "$Test->{Name} - Local result TicketID with false.",
+            "$Test->{Name} - Local result TicketID with false."
         );
         $Self->False(
             $LocalResult->{TicketNumber},
-            "$Test->{Name} - Local result TicketNumber with false.",
+            "$Test->{Name} - Local result TicketNumber with false."
         );
         $Self->False(
             $LocalResult->{ArticleID},
-            "$Test->{Name} - Local result ArticleID with false.",
+            "$Test->{Name} - Local result ArticleID with false."
         );
         $Self->Is(
             $LocalResult->{Data}->{Error}->{ErrorCode},
             $Test->{ExpectedData}->{Data}->{Error}->{ErrorCode},
-            "$Test->{Name} - Local result ErrorCode matched with expected local call result.",
+            "$Test->{Name} - Local result ErrorCode matched with expected local call result."
         );
         $Self->True(
             $LocalResult->{Data}->{Error}->{ErrorMessage},
-            "$Test->{Name} - Local result ErrorMessage with true.",
+            "$Test->{Name} - Local result ErrorMessage with true."
         );
         $Self->IsNot(
             $LocalResult->{Data}->{Error}->{ErrorMessage},
             '',
-            "$Test->{Name} - Local result ErrorMessage is not empty.",
+            "$Test->{Name} - Local result ErrorMessage is not empty."
         );
         $Self->Is(
             $LocalResult->{ErrorMessage},
@@ -4000,7 +4556,7 @@ for my $Test (@Tests) {
                 . ': '
                 . $LocalResult->{Data}->{Error}->{ErrorMessage},
             "$Test->{Name} - Local result ErrorMessage (outside Data hash) matched with concatenation"
-                . " of ErrorCode and ErrorMessage within Data hash.",
+                . " of ErrorCode and ErrorMessage within Data hash."
         );
 
         # remove ErrorMessage parameter from direct call
@@ -4013,18 +4569,18 @@ for my $Test (@Tests) {
         $Self->False(
             $LocalResult->{ErrorMessage},
             "$Test->{Name} - Local result ErrorMessage (outside Data hash) got removed to compare"
-                . " local and remote tests.",
+                . " local and remote tests."
         );
 
         $Self->IsDeeply(
             $LocalResult,
             $RequesterResult,
-            "$Test->{Name} - Local result matched with remote result.",
+            "$Test->{Name} - Local result matched with remote result."
         );
     }
 }
 
-# clean up webservice
+# delete webservice
 my $WebserviceDelete = $WebserviceObject->WebserviceDelete(
     ID     => $WebserviceID,
     UserID => 1,
@@ -4034,137 +4590,132 @@ $Self->True(
     "Deleted Webservice $WebserviceID",
 );
 
-# invalidate queues
-{
-    my $Success = $QueueObject->QueueUpdate(
-        %QueueData,
-        ValidID => $InvalidID,
-        UserID  => 1,
-    );
+# get DB object
+my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+$Self->Is(
+    ref $DBObject,
+    'Kernel::System::DB',
+    "DBObject created correctly",
+);
+my $Success;
 
-    # sanity check
+# delete queues
+for my $QueueData (@Queues) {
+    $Success = $DBObject->Do(
+        SQL => "DELETE FROM queue WHERE id = $QueueData->{QueueID}",
+    );
     $Self->True(
         $Success,
-        "QueueUpdate() set queue $QueueData{Name} to invalid",
-    );
-
-    $Success = $QueueObject->QueueUpdate(
-        %QueueData2,
-        ValidID => $InvalidID,
-        UserID  => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $Success,
-        "QueueUpdate() set queue $QueueData2{Name} to invalid",
-    );
-
-}
-
-# invalidate group
-{
-    my $Success = $GroupObject->GroupUpdate(
-        %GroupData,
-        ValidID => $InvalidID,
-        UserID  => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $Success,
-        "GroupUpdate() set type $GroupData{Name} to invalid",
+        "Queue with ID $QueueData->{QueueID} is deleted!"
     );
 }
 
-# invalidate type
-{
-    my $Success = $TypeObject->TypeUpdate(
-        %TypeData,
-        ValidID => $InvalidID,
-        UserID  => 1,
+# delete group
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM groups WHERE id = $GroupID",
+);
+$Self->True(
+    $Success,
+    "Group with ID $GroupID is deleted!"
+);
+
+# delete type
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM ticket_type WHERE id = $TypeID",
+);
+$Self->True(
+    $Success,
+    "Type with ID $TypeID is deleted!"
+);
+
+# delete service_customer_user and service
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM service_customer_user WHERE service_id = $ServiceID",
+);
+$Self->True(
+    $Success,
+    "Service user referenced to service ID $ServiceID is deleted!"
+);
+
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM service_sla WHERE service_id = $ServiceID OR sla_id = $SLAID",
+);
+$Self->True(
+    $Success,
+    "Service SLA referenced to service ID $ServiceID is deleted!"
+);
+
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM service WHERE id = $ServiceID",
+);
+$Self->True(
+    $Success,
+    "Service with ID $ServiceID is deleted!"
+);
+
+# delete SLA
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM sla WHERE id = $SLAID",
+);
+$Self->True(
+    $Success,
+    "SLA with ID $SLAID is deleted!",
+);
+
+# delete state
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM ticket_state WHERE id = $StateID",
+);
+$Self->True(
+    $Success,
+    "State with ID $StateID is deleted!"
+);
+
+# delete priority
+$Success = $DBObject->Do(
+    SQL => "DELETE FROM ticket_priority WHERE id = $PriorityID",
+);
+$Self->True(
+    $Success,
+    "Priority with ID $PriorityID is deleted!"
+);
+
+# delete dynamic fields
+my $DeleteFieldList = $DynamicFieldObject->DynamicFieldList(
+    ResultType => 'HASH',
+    ObjectType => 'Ticket',
+);
+
+my $BackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+
+DYNAMICFIELD:
+for my $DynamicFieldID ( sort keys %{$DeleteFieldList} ) {
+
+    next DYNAMICFIELD if !$DynamicFieldID;
+    next DYNAMICFIELD if !$DeleteFieldList->{$DynamicFieldID};
+
+    next DYNAMICFIELD if $DeleteFieldList->{$DynamicFieldID} !~ m{ ^Unittest }xms;
+
+    my $DynamicFieldConfig = $DynamicFieldObject->DynamicFieldGet(
+        ID => $DynamicFieldID,
+    );
+    my $ValuesDeleteSuccess = $BackendObject->AllValuesDelete(
+        DynamicFieldConfig => $DynamicFieldConfig,
+        UserID             => 1,
     );
 
-    # sanity check
-    $Self->True(
-        $Success,
-        "TypeUpdate() set type $TypeData{Name} to invalid",
-    );
-}
-
-# invalidate service
-{
-    my $Success = $ServiceObject->ServiceUpdate(
-        %ServiceData,
-        ValidID => $InvalidID,
-        UserID  => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $Success,
-        "ServiceUpdate() set service $ServiceData{Name} to invalid",
-    );
-}
-
-# invalidate SLA
-{
-    my $Success = $SLAObject->SLAUpdate(
-        %SLAData,
-        ValidID => $InvalidID,
-        UserID  => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $Success,
-        "SLAUpdate() set SLA $SLAData{Name} to invalid",
-    );
-}
-
-# invalidate state
-{
-    my $Success = $StateObject->StateUpdate(
-        %StateData,
-        ValidID => $InvalidID,
-        UserID  => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $Success,
-        "StateUpdate() set state $StateData{Name} to invalid",
-    );
-}
-
-# invalidate type
-{
-    my $Success = $PriorityObject->PriorityUpdate(
-        %PriorityData,
-        PriorityID => $PriorityID,
-        ValidID    => $InvalidID,
-        UserID     => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $Success,
-        "PriorityUpdate() set priority $PriorityData{Name} to invalid",
-    );
-}
-
-# remove DynamicFields
-{
     my $Success = $DynamicFieldObject->DynamicFieldDelete(
         ID     => $DynamicFieldID,
         UserID => 1,
     );
 
-    # sanity check
     $Self->True(
         $Success,
-        "DynamicFieldDelete() for DynamicField $DynamicFieldData->{Name}"
+        "DynamicFieldDelete() for $DeleteFieldList->{$DynamicFieldID} with true"
     );
 }
+
+# cleanup cache
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
 
 1;

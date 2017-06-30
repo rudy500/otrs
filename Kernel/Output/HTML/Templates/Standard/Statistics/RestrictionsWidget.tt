@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,6 +20,7 @@
         <div class="Field">
             [% Data.SelectField %]
         </div>
+        <div class="Clear"></div>
 [% RenderBlockEnd("MultiSelectField") %]
 [% RenderBlockStart("SelectField") %]
         <label></label>
@@ -27,15 +28,17 @@
             [% Data.SelectField %]
             <p class="FieldExplanation">[% Translate("Please select only one element or turn off the button 'Fixed'.") | html %]</p>
         </div>
+        <div class="Clear"></div>
 [% RenderBlockEnd("SelectField") %]
 [% RenderBlockStart("InputField") %]
         <label></label>
         <div class="Field">
-            <input type="text" name="[% Data.Element | html %]" id="[% Data.Element| html %]" value="[% Data.SelectedValue | html %]" class="W50pc [% Data.Invalid | html %]"/>
+            <input type="text" name="[% Data.Element | html %]" id="[% Data.Element| html %]" value="[% Data.SelectedValue | html %]" class="W50pc [% Data.Invalid | html %] [% Data.CSSClass | html %]"[% FOR DataAttribute IN Data.HTMLDataAttributes.keys.sort %] data-[% DataAttribute | html %]="[% Data.HTMLDataAttributes.$DataAttribute | html %]"[% END %]/>
             <div id="[% Data.Element| html %]ServerError" class="TooltipErrorMessage">
                 <p>[% Data.InvalidTooltip | html %]</p>
             </div>
         </div>
+        <div class="Clear"></div>
 [% RenderBlockEnd("InputField") %]
 [% RenderBlockStart("Time") %]
         <label>
@@ -43,7 +46,7 @@
             [% Translate("Absolute period") | html %]:
         </label>
         <div class="Field">
-            [% Translate("Between") | html %] [% Data.TimeStart %] [% Translate("and") | html %] [% Data.TimeStop %]
+            [% Translate("Between %s and %s", Data.TimeStart, Data.TimeStop) %]
         </div>
         <div class="Clear"></div>
 
@@ -63,13 +66,6 @@
         </label>
         <div class="Clear"></div>
     </fieldset>
-[% IF Data.Checked %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">
-    Core.Agent.Statistics.ElementAdd('Restrictions', '[% Data.Element | html %]');
-</script>
-[% END %]
-[% END %]
 [% RenderBlockEnd("Attribute") %]
 
 </div>

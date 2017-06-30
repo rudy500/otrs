@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,6 +11,14 @@
     <div class="SidebarColumn">
         <div class="WidgetSimple">
             <div class="Header">
+                <h2><label for="FilterLogEntries">[% Translate("Filter for Log Entries") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterLogEntries" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterLogEntries" value="" title="[% Translate("Filter for log entries") | html %]">
+            </div>
+        </div>
+        <div class="WidgetSimple">
+            <div class="Header">
                 <h2>[% Translate("Hint") | html %]</h2>
             </div>
             <div class="Content">
@@ -20,13 +28,6 @@
                 <p class="FieldExplanation">
                     <a id="HideHint" href="#" class="CallForAction Fullsize Center"><span><i class="fa fa-times-circle"></i> [% Translate("Hide this message") | html %]</span></a>
                 </p>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('#HideHint').bind('click', function(){
-   $(this).parents('.SidebarColumn').hide();
-});
-//]]></script>
-[% END %]
             </div>
         </div>
     </div>
@@ -37,7 +38,7 @@ $('#HideHint').bind('click', function(){
                 <h2>[% Translate("Recent Log Entries") | html %]</h2>
             </div>
             <div class="Content">
-                <table class="DataTable">
+                <table class="DataTable" id="LogEntries">
                     <thead>
                         <tr>
                             <th class="W25pc">[% Translate("Time") | html %]</th>
@@ -55,6 +56,9 @@ $('#HideHint').bind('click', function(){
                             <td>[% Data.Message | html %]</td>
                         </tr>
 [% RenderBlockEnd("Row") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="4">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>

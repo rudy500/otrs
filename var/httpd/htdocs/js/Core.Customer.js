@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -60,43 +60,38 @@ Core.Customer = (function (TargetNS) {
      *      This function initializes the application and executes the needed functions.
      */
     TargetNS.Init = function () {
-        var $TableElements = $('table.Overview tbody tr');
-
         TargetNS.SupportedBrowser = Core.App.BrowserCheck('Customer');
         TargetNS.IECompatibilityMode = Core.App.BrowserCheckIECompatibilityMode();
 
         if (TargetNS.IECompatibilityMode) {
             TargetNS.SupportedBrowser = false;
-            alert(Core.Config.Get('TurnOffCompatibilityModeMsg'));
+            alert(Core.Language.Translate('Please turn off Compatibility Mode in Internet Explorer!'));
         }
 
         if (!TargetNS.SupportedBrowser) {
             alert(
-                Core.Config.Get('BrowserTooOldMsg')
+                Core.Language.Translate('The browser you are using is too old.')
                 + ' '
-                + Core.Config.Get('BrowserListMsg')
+                + Core.Language.Translate('This software runs with a huge lists of browsers, please upgrade to one of these.')
                 + ' '
-                + Core.Config.Get('BrowserDocumentationMsg')
+                + Core.Language.Translate('Please see the documentation or ask your admin for further information.')
             );
         }
 
-        Core.Exception.Init();
+        // check if we're on a touch device and on the regular resolution (non-mobile). If that's the case,
+        // don't allow triggering the link on "parent" elements directly, they should only expand the sub menu
+        Core.App.Responsive.CheckIfTouchDevice();
+        $('#Navigation > ul > li > a').on('click', function(Event) {
+            if (Core.App.Responsive.IsTouchDevice() && $(this).next('ul:visible').length && Core.App.Responsive.GetScreenSize() === 'ScreenXL') {
+                Event.preventDefault();
+                Event.stopPropagation();
+            }
+        });
 
-        Core.Form.Validate.Init();
-        Core.UI.Popup.Init();
-        // Add table functions here (because of performance reasons only do this if table has not more than 200 rows)
-        if ($TableElements.length < 200) {
-            $TableElements.filter(':nth-child(even)').addClass('Even');
-        }
-        // late execution of accessibility code
-        Core.UI.Accessibility.Init();
-
-        // Modernize input fields
-        Core.UI.InputFields.Init();
-
-        // Init tree selection/tree view for dynamic fields
-        Core.UI.TreeSelection.InitTreeSelection();
-        Core.UI.TreeSelection.InitDynamicFieldTreeViewRestore();
+        // unveil full error details only on click
+        $('.TriggerFullErrorDetails').on('click', function() {
+            $('.Content.ErrorDetails').toggle();
+        });
     };
 
     /**
@@ -123,6 +118,8 @@ Core.Customer = (function (TargetNS) {
     TargetNS.Enhance = function(){
         $('body').removeClass('NoJavaScript').addClass('JavaScriptAvailable');
     };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_GLOBAL_EARLY');
 
     return TargetNS;
 }(Core.Customer || {}));

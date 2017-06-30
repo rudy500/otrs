@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,12 +19,26 @@ use Time::HiRes ();
 use Kernel::System::SupportDataCollector::PluginBase;
 
 # get needed objects
-my $HelperObject               = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $CacheObject                = $Kernel::OM->Get('Kernel::System::Cache');
 my $MainObject                 = $Kernel::OM->Get('Kernel::System::Main');
 my $SupportDataCollectorObject = $Kernel::OM->Get('Kernel::System::SupportDataCollector');
+my $Helper                     = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # test the support data collect asynchronous function
+$Helper->ConfigSettingChange(
+    Valid => 1,
+    Key   => 'SupportDataCollector::DisablePlugins',
+    Value => [
+        'Kernel::System::SupportDataCollector::Plugin::OTRS::PackageDeployment',
+    ],
+);
+$Helper->ConfigSettingChange(
+    Valid => 1,
+    Key   => 'SupportDataCollector::IdentifierFilterBlacklist',
+    Value => [
+        'Kernel::System::SupportDataCollector::Plugin::OTRS::TimeSettings::UserDefaultTimeZone',
+    ],
+);
 
 my $TimeStart = [ Time::HiRes::gettimeofday() ];
 
@@ -75,7 +89,6 @@ $Self->True(
 );
 
 # test the support data collect function
-
 $CacheObject->CleanUp(
     Type => 'SupportDataCollector',
 );
@@ -83,7 +96,8 @@ $CacheObject->CleanUp(
 $TimeStart = [ Time::HiRes::gettimeofday() ];
 
 %Result = $SupportDataCollectorObject->Collect(
-    WebTimeout => 40,
+    WebTimeout => 60,
+    Hostname   => $Helper->GetTestHTTPHostname(),
 );
 
 $TimeElapsed = Time::HiRes::tv_interval($TimeStart);
@@ -132,6 +146,23 @@ for my $ResultEntry ( @{ $Result{Result} || [] } ) {
     );
 }
 
+# Check if the identifier from the disabled plugions are not present.
+for my $DisabledPluginsIdentifier (
+    qw(Kernel::System::SupportDataCollector::Plugin::OTRS::PackageDeployment Kernel::System::SupportDataCollector::Plugin::OTRS::PackageDeployment::Verification Kernel::System::SupportDataCollector::Plugin::OTRS::PackageDeployment::FrameworkVersion)
+    )
+{
+    $Self->False(
+        $SeenIdentifier{$DisabledPluginsIdentifier},
+        "Collect() - SupportDataCollector::DisablePlugins - $DisabledPluginsIdentifier should not be present"
+    );
+}
+
+# Check if the identifiers from the identifier filter blacklist are not present.
+$Self->False(
+    $SeenIdentifier{'Kernel::System::SupportDataCollector::Plugin::OTRS::TimeSettings::UserDefaultTimeZone'},
+    "Collect() - SupportDataCollector::IdentifierFilterBlacklist - Kernel::System::SupportDataCollector::Plugin::OTRS::TimeSettings::UserDefaultTimeZone should not be present"
+);
+
 # cache tests
 my $CacheResult = $CacheObject->Get(
     Type => 'SupportDataCollector',
@@ -144,8 +175,8 @@ $Self->IsDeeply(
 );
 
 $Self->True(
-    $TimeElapsed < 30,
-    "Collect() - Should take less than 30 seconds, it took $TimeElapsed"
+    $TimeElapsed < 60,
+    "Collect() - Should take less than 60 seconds, it took $TimeElapsed"
 );
 
 my $TimeStartCache = [ Time::HiRes::gettimeofday() ];
@@ -168,5 +199,8 @@ $Self->True(
     $TimeElapsedCache < $TimeElapsed,
     "Collect() - Should take less than $TimeElapsed seconds, it took $TimeElapsedCache",
 );
+
+# cleanup cache
+$CacheObject->CleanUp();
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,8 +16,8 @@ use Digest::HMAC qw(hmac_hex);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Log',
-    'Kernel::System::Time',
     'Kernel::System::User',
 );
 
@@ -94,14 +94,24 @@ sub Auth {
     if ( $Param{TwoFactorToken} ne $OTP ) {
 
         # check if previous token is also to be accepted
-        return if !$ConfigObject->Get("AuthTwoFactorModule$Self->{Count}::AllowPreviousToken");
+        if ( $ConfigObject->Get("AuthTwoFactorModule$Self->{Count}::AllowPreviousToken") ) {
 
-        # try again with previous otp (from 30 seconds ago)
-        $OTP = $Self->_GenerateOTP(
-            Secret   => $UserPreferences{$SecretPreferencesKey},
-            Previous => 1,
-        );
-        return if $Param{TwoFactorToken} ne $OTP;
+            # try again with previous otp (from 30 seconds ago)
+            $OTP = $Self->_GenerateOTP(
+                Secret   => $UserPreferences{$SecretPreferencesKey},
+                Previous => 1,
+            );
+        }
+
+        if ( $Param{TwoFactorToken} ne $OTP ) {
+
+            # log failure
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'notice',
+                Message  => "User: $Param{User} two factor authentication failed (non-matching otp).",
+            );
+            return;
+        }
     }
 
     # log success
@@ -118,8 +128,11 @@ sub _GenerateOTP {
 
     # algorithm based on RfC 6238
 
+    #
     # get unix timestamp divided by 30
-    my $TimeStamp = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    #
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $TimeStamp      = $DateTimeObject->ToEpoch();
     $TimeStamp = int( $TimeStamp / 30 );
 
     # on request use previous 30-second time period

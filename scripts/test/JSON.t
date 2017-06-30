@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,8 +11,6 @@ use warnings;
 use utf8;
 
 use vars qw( $Self %Param );
-
-use Kernel::System::ObjectManager;
 
 # get needed objects
 my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
@@ -81,13 +79,70 @@ my @Tests = (
             '[[1,2,"Foo","Bar"],{"Key1":"Something","Key2":["Foo","Bar"],"Key3":{"Foo":"Bar"},"Key4":{"Bar":["f","o","o"]}}]',
         Name => 'JSON - complex structure'
     },
+    {
+        Input  => "Some Text with Unicode Characters that  are not allowed\x{2029} in JavaScript",
+        Result => '"Some Text with Unicode Characters that\u2028 are not allowed\u2029 in JavaScript"',
+        Name   => 'JSON - Unicode Line Terminators are not allowed in JavaScript',
+    },
+    {
+        Input => [
+            [ 1, 2, "Foo", "Bar" ],
+            {
+                Key1 => 'Something',
+                Key2 => [ "Foo", "Bar" ],
+                Key3 => {
+                    Foo => 'Bar',
+                },
+                Key4 => {
+                    Bar => [ "f", "o", "o" ],
+                    }
+            },
+        ],
+        Params => {
+            Pretty => 1,
+        },
+        Result =>
+            '[
+   [
+      1,
+      2,
+      "Foo",
+      "Bar"
+   ],
+   {
+      "Key1" : "Something",
+      "Key2" : [
+         "Foo",
+         "Bar"
+      ],
+      "Key3" : {
+         "Foo" : "Bar"
+      },
+      "Key4" : {
+         "Bar" : [
+            "f",
+            "o",
+            "o"
+         ]
+      }
+   }
+]
+',
+        Name => 'JSON - complex structure - pretty print'
+    },
 );
 
 for my $Test (@Tests) {
 
+    my %Params;
+    if ( $Test->{Params} ) {
+        %Params = %{ $Test->{Params} };
+    }
+
     my $JSON = $JSONObject->Encode(
         Data     => $Test->{Input},
         SortKeys => 1,
+        %Params,
     );
 
     $Self->Is(
@@ -149,6 +204,57 @@ for my $Test (@Tests) {
         InputDecode =>
             '[[1,2,"Foo","Bar"],{"Key1":"Something","Key2":["Foo","Bar"],"Key3":{"Foo":"Bar"},"Key4":{"Bar":["f","o","o"]}}]',
         Name => 'JSON - complex structure'
+    },
+    {
+        Result => 1,
+        InputDecode =>
+            'true',
+        Name => 'JSON - booleans'
+    },
+    {
+        Result => undef,
+        InputDecode =>
+            'false',
+        Name => 'JSON - booleans2'
+    },
+    {
+        Result => {
+            Key1 => 1,
+        },
+        InputDecode =>
+            '{"Key1" : true}',
+        Name => 'JSON - hash containing booleans'
+    },
+    {
+        Result => {
+            Key1 => 0,
+        },
+        InputDecode =>
+            '{"Key1" : false}',
+        Name => 'JSON - hash containing booleans2'
+    },
+    {
+        Result      => [ 1, 0, "3", "Foo", 1 ],
+        InputDecode => '[1,false,"3","Foo",true]',
+        Name        => 'JSON - array containing booleans'
+    },
+    {
+        Result => [
+            [ 1, 2, "Foo", "Bar" ],
+            {
+                Key1 => 0,
+                Key2 => [ "Foo", "Bar" ],
+                Key3 => {
+                    Foo => 1,
+                },
+                Key4 => {
+                    Bar => [ 0, "o", 1 ]
+                    }
+            },
+        ],
+        InputDecode =>
+            '[[true,2,"Foo","Bar"],{"Key1":false,"Key2":["Foo","Bar"],"Key3":{"Foo":true},"Key4":{"Bar":[false,"o",true]}}]',
+        Name => 'JSON - complex structure containing booleans'
     },
 );
 

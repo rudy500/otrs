@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,9 @@ package Kernel::Modules::AgentTicketPrint;
 use strict;
 use warnings;
 
+use Kernel::System::DateTime;
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -30,17 +32,20 @@ sub Run {
 
     # get ticket object
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
 
     my $Output;
     my $QueueID = $TicketObject->TicketQueueID( TicketID => $Self->{TicketID} );
-    my $ArticleID = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'ArticleID' );
+    my $ArticleID = $ParamObject->GetParam( Param => 'ArticleID' );
 
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
     # check needed stuff
     if ( !$Self->{TicketID} || !$QueueID ) {
-        return $LayoutObject->ErrorScreen( Message => 'Need TicketID!' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('Need TicketID!'),
+        );
     }
 
     # check permissions
@@ -109,35 +114,40 @@ sub Run {
         TicketID => $Self->{TicketID},
         UserID   => $Self->{UserID},
     );
-    my @ArticleBox = $TicketObject->ArticleContentIndex(
-        TicketID                   => $Self->{TicketID},
-        StripPlainBodyAsAttachment => 1,
-        UserID                     => $Self->{UserID},
-        DynamicFields              => 0,
+
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+    my @MetaArticles = $ArticleObject->ArticleList(
+        TicketID => $Self->{TicketID},
+        UserID   => $Self->{UserID},
     );
 
-    # check if only one article need printed
+    # Check if only one article should be printed.
     if ($ArticleID) {
-
-        ARTICLE:
-        for my $Article (@ArticleBox) {
-            if ( $Article->{ArticleID} == $ArticleID ) {
-                @ArticleBox = ($Article);
-                last ARTICLE;
-            }
-        }
+        @MetaArticles = grep { $_->{ArticleID} == $ArticleID } @MetaArticles;
     }
 
-    # get config object
+    my @ArticleBox;
+
+    for my $MetaArticle (@MetaArticles) {
+        my $ArticleBackendObject = $ArticleObject->BackendForArticle( %{$MetaArticle} );
+        my %Article              = $ArticleBackendObject->ArticleGet(
+            %{$MetaArticle},
+            DynamicFields => 0,
+            UserID        => $Self->{UserID},
+        );
+        my %Attachments = $ArticleBackendObject->ArticleAttachmentIndex(
+            %{$MetaArticle},
+            UserID           => $Self->{UserID},
+            ExcludePlainText => 1,
+            ExcludeHTMLBody  => 1,
+            ExcludeInline    => 1,
+        );
+        $Article{Atms} = \%Attachments;
+        push @ArticleBox, \%Article;
+    }
+
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
-    # get config settings
-    my $ZoomExpandSort = $ConfigObject->Get('Ticket::Frontend::ZoomExpandSort');
-
-    # resort article order
-    if ( $ZoomExpandSort eq 'reverse' ) {
-        @ArticleBox = reverse(@ArticleBox);
-    }
 
     # show total accounted time if feature is active:
     if ( $ConfigObject->Get('Ticket::Frontend::AccountTime') ) {
@@ -187,7 +197,13 @@ sub Run {
     my $PDFObject = $Kernel::OM->Get('Kernel::System::PDF');
 
     my $PrintedBy = $LayoutObject->{LanguageObject}->Translate('printed by');
-    my $Time      = $LayoutObject->{Time};
+
+    my $DateTimeString = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
+    my $Time           = $LayoutObject->{LanguageObject}->FormatTimeString(
+        $DateTimeString,
+        'DateFormat',
+    );
+
     my %Page;
 
     # get maximum number of pages
@@ -195,7 +211,8 @@ sub Run {
     if ( !$Page{MaxPages} || $Page{MaxPages} < 1 || $Page{MaxPages} > 1000 ) {
         $Page{MaxPages} = 100;
     }
-    my $HeaderRight  = $ConfigObject->Get('Ticket::Hook') . $Ticket{TicketNumber};
+    my $HeaderRight
+        = $ConfigObject->Get('Ticket::Hook') . $ConfigObject->Get('Ticket::HookDivider') . $Ticket{TicketNumber};
     my $HeadlineLeft = $HeaderRight;
     my $Title        = $HeaderRight;
     if ( $Ticket{Title} ) {
@@ -244,8 +261,7 @@ sub Run {
     # output "printed by"
     $PDFObject->Text(
         Text => $PrintedBy . ' '
-            . $Self->{UserFirstname} . ' '
-            . $Self->{UserLastname} . ' ('
+            . $Self->{UserFullname} . ' ('
             . $Self->{UserEmail} . ')'
             . ', ' . $Time,
         FontSize => 9,
@@ -269,11 +285,6 @@ sub Run {
         Y    => -6,
     );
 
-    $PDFObject->HLine(
-        Color     => '#aaa',
-        LineWidth => 0.5,
-    );
-
     # output ticket dynamic fields
     $Self->_PDFOutputTicketDynamicFields(
         PageData   => \%Page,
@@ -283,11 +294,6 @@ sub Run {
     $PDFObject->PositionSet(
         Move => 'relativ',
         Y    => -6,
-    );
-
-    $PDFObject->HLine(
-        Color     => '#aaa',
-        LineWidth => 0.5,
     );
 
     # output linked objects
@@ -309,25 +315,24 @@ sub Run {
 
     # output articles
     $Self->_PDFOutputArticles(
-        PageData    => \%Page,
-        ArticleData => \@ArticleBox,
+        PageData      => \%Page,
+        ArticleData   => \@ArticleBox,
+        ArticleNumber => $ParamObject->GetParam( Param => 'ArticleNumber' ),
     );
 
-    # get ticket object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    # assemble file name
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    if ( $Self->{UserTimeZone} ) {
+        $DateTimeObject->ToTimeZone( TimeZone => $Self->{UserTimeZone} );
+    }
+    my $Filename = 'Ticket_' . $Ticket{TicketNumber} . '_';
+    $Filename .= $DateTimeObject->Format( Format => '%Y-%m-%d_%H:%M' );
+    $Filename .= '.pdf';
 
     # return the pdf document
-    my $Filename = 'Ticket_' . $Ticket{TicketNumber};
-    my ( $s, $m, $h, $D, $M, $Y ) = $TimeObject->SystemTime2Date(
-        SystemTime => $TimeObject->SystemTime(),
-    );
-    $M = sprintf( "%02d", $M );
-    $D = sprintf( "%02d", $D );
-    $h = sprintf( "%02d", $h );
-    $m = sprintf( "%02d", $m );
     my $PDFString = $PDFObject->DocumentOutput();
     return $LayoutObject->Attachment(
-        Filename    => $Filename . "_" . "$Y-$M-$D" . "_" . "$h-$m.pdf",
+        Filename    => $Filename,
         ContentType => "application/pdf",
         Content     => $PDFString,
         Type        => 'inline',
@@ -378,9 +383,7 @@ sub _PDFOutputTicketInfos {
         },
         {
             Key   => $LayoutObject->{LanguageObject}->Translate('Owner'),
-            Value => $Ticket{Owner} . ' ('
-                . $UserInfo{UserFirstname} . ' '
-                . $UserInfo{UserLastname} . ')',
+            Value => $Ticket{Owner} . ' (' . $UserInfo{UserFullname} . ')',
         },
     ];
 
@@ -391,9 +394,7 @@ sub _PDFOutputTicketInfos {
     if ( $ConfigObject->Get('Ticket::Responsible') ) {
         my $Responsible = '-';
         if ( $Ticket{Responsible} ) {
-            $Responsible = $Ticket{Responsible} . ' ('
-                . $Param{ResponsibleData}->{UserFirstname} . ' '
-                . $Param{ResponsibleData}->{UserLastname} . ')';
+            $Responsible = $Ticket{Responsible} . ' (' . $Param{ResponsibleData}->{UserFullname} . ')';
         }
         my $Row = {
             Key   => $LayoutObject->{LanguageObject}->Translate('Responsible'),
@@ -439,6 +440,15 @@ sub _PDFOutputTicketInfos {
             ),
         },
     ];
+
+    # show created by if different then User ID 1
+    if ( $Ticket{CreateBy} > 1 ) {
+        my $Row = {
+            Key   => $LayoutObject->{LanguageObject}->Translate('Created by'),
+            Value => $Kernel::OM->Get('Kernel::System::User')->UserName( UserID => $Ticket{CreateBy} ),
+        };
+        push( @{$TableRight}, $Row );
+    }
 
     if ( $ConfigObject->Get('Ticket::Frontend::AccountTime') ) {
         my $Row = {
@@ -609,6 +619,11 @@ sub _PDFOutputLinkedObjects {
     # get PDF object
     my $PDFObject = $Kernel::OM->Get('Kernel::System::PDF');
 
+    $PDFObject->HLine(
+        Color     => '#aaa',
+        LineWidth => 0.5,
+    );
+
     # set new position
     $PDFObject->PositionSet(
         Move => 'relativ',
@@ -739,6 +754,11 @@ sub _PDFOutputTicketDynamicFields {
 
         # get PDF object
         my $PDFObject = $Kernel::OM->Get('Kernel::System::PDF');
+
+        $PDFObject->HLine(
+            Color     => '#aaa',
+            LineWidth => 0.5,
+        );
 
         # set new position
         $PDFObject->PositionSet(
@@ -922,11 +942,23 @@ sub _PDFOutputArticles {
     my %Page = %{ $Param{PageData} };
 
     # get needed objects
-    my $PDFObject    = $Kernel::OM->Get('Kernel::System::PDF');
-    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+    my $PDFObject     = $Kernel::OM->Get('Kernel::System::PDF');
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $LayoutObject  = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    my @ArticleData  = @{ $Param{ArticleData} };
+    my $ArticleCount = scalar @ArticleData;
+
+    # get config settings
+    my $ZoomExpandSort = $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Frontend::ZoomExpandSort');
+
+    # resort article order
+    if ( $ZoomExpandSort eq 'reverse' ) {
+        @ArticleData = reverse(@ArticleData);
+    }
 
     my $ArticleCounter = 1;
-    for my $ArticleTmp ( @{ $Param{ArticleData} } ) {
+    for my $ArticleTmp (@ArticleData) {
 
         my %Article = %{$ArticleTmp};
 
@@ -938,7 +970,8 @@ sub _PDFOutputArticles {
         my $Attachments;
         for my $FileID ( sort keys %AtmIndex ) {
             my %File = %{ $AtmIndex{$FileID} };
-            $Attachments .= $File{Filename} . ' (' . $File{Filesize} . ")\n";
+            my $Filesize = $LayoutObject->HumanReadableDataSize( Size => $File{FilesizeRaw} );
+            $Attachments .= $File{Filename} . ' (' . $Filesize . ")\n";
         }
 
         # get config object
@@ -946,7 +979,7 @@ sub _PDFOutputArticles {
 
         # show total accounted time if feature is active:
         if ( $ConfigObject->Get('Ticket::Frontend::AccountTime') ) {
-            $Article{'Accounted time'} = $Kernel::OM->Get('Kernel::System::Ticket')->ArticleAccountedTimeGet(
+            $Article{'Accounted time'} = $ArticleObject->ArticleAccountedTimeGet(
                 ArticleID => $Article{ArticleID},
             );
         }
@@ -960,9 +993,18 @@ sub _PDFOutputArticles {
             Y    => -6,
         );
 
+        # get article number
+        my $ArticleNumber;
+        if ( $Param{ArticleNumber} ) {
+            $ArticleNumber = $Param{ArticleNumber};
+        }
+        else {
+            $ArticleNumber = $ZoomExpandSort eq 'reverse' ? $ArticleCount - $ArticleCounter + 1 : $ArticleCounter;
+        }
+
         # article number tag
         $PDFObject->Text(
-            Text     => $LayoutObject->{LanguageObject}->Translate('Article') . ' #' . $ArticleCounter,
+            Text     => $LayoutObject->{LanguageObject}->Translate('Article') . ' #' . $ArticleNumber,
             Height   => 10,
             Type     => 'Cut',
             Font     => 'Proportional',
@@ -975,18 +1017,40 @@ sub _PDFOutputArticles {
             Y    => 2,
         );
 
-        for my $Parameter ( 'From', 'To', 'Cc', 'Accounted time', 'Subject', ) {
-            if ( $Article{$Parameter} ) {
-                $TableParam1{CellData}[$Row][0]{Content} = $LayoutObject->{LanguageObject}->Translate($Parameter) . ':';
+        my %ArticleFields = $LayoutObject->ArticleFields(%Article);
+
+        # Display article fields.
+        for my $ArticleFieldKey (
+            sort { $ArticleFields{$a}->{Prio} <=> $ArticleFields{$b}->{Prio} }
+            keys %ArticleFields
+            )
+        {
+            my %ArticleField = %{ $ArticleFields{$ArticleFieldKey} // {} };
+            if ( $ArticleField{Value} ) {
+                $TableParam1{CellData}[$Row][0]{Content}
+                    = $LayoutObject->{LanguageObject}->Translate( $ArticleField{Label} ) . ':';
                 $TableParam1{CellData}[$Row][0]{Font}    = 'ProportionalBold';
-                $TableParam1{CellData}[$Row][1]{Content} = $Article{$Parameter};
+                $TableParam1{CellData}[$Row][1]{Content} = $ArticleField{Value};
                 $Row++;
             }
         }
+
+        # Display article accounted time.
+        my $ArticleTime = $ArticleObject->ArticleAccountedTimeGet(
+            ArticleID => $Article{ArticleID},
+        );
+        if ($ArticleTime) {
+            $TableParam1{CellData}[$Row][0]{Content}
+                = $LayoutObject->{LanguageObject}->Translate('Accounted time') . ':';
+            $TableParam1{CellData}[$Row][0]{Font}    = 'ProportionalBold';
+            $TableParam1{CellData}[$Row][1]{Content} = $ArticleTime;
+            $Row++;
+        }
+
         $TableParam1{CellData}[$Row][0]{Content} = $LayoutObject->{LanguageObject}->Translate('Created') . ':';
         $TableParam1{CellData}[$Row][0]{Font}    = 'ProportionalBold';
         $TableParam1{CellData}[$Row][1]{Content} = $LayoutObject->{LanguageObject}->FormatTimeString(
-            $Article{Created},
+            $Article{CreateTime},
             'DateFormat',
         );
         $TableParam1{CellData}[$Row][1]{Content}
@@ -1036,11 +1100,6 @@ sub _PDFOutputArticles {
             $TableParam1{CellData}[$Row][1]{Content} = $ValueStrg->{Value};
             $Row++;
         }
-
-        $TableParam1{CellData}[$Row][0]{Content} = $LayoutObject->{LanguageObject}->Translate('Type') . ':';
-        $TableParam1{CellData}[$Row][0]{Font}    = 'ProportionalBold';
-        $TableParam1{CellData}[$Row][1]{Content} = $LayoutObject->{LanguageObject}->Translate( $Article{ArticleType} );
-        $Row++;
 
         if ($Attachments) {
             $TableParam1{CellData}[$Row][0]{Content} = $LayoutObject->{LanguageObject}->Translate('Attachment') . ':';
@@ -1094,32 +1153,14 @@ sub _PDFOutputArticles {
             }
         }
 
-        if ( $Article{ArticleType} eq 'chat-external' || $Article{ArticleType} eq 'chat-internal' )
-        {
-            $Article{Body} = $Kernel::OM->Get('Kernel::System::JSON')->Decode(
-                Data => $Article{Body}
-            );
-            my $Lines;
-            if ( IsArrayRefWithData( $Article{Body} ) ) {
-                for my $Line ( @{ $Article{Body} } ) {
-                    if ( $Line->{SystemGenerated} ) {
-                        $Lines .= '[' . $Line->{CreateTime} . '] ' . $Line->{MessageText} . "\n";
-                    }
-                    else {
-                        $Lines
-                            .= '['
-                            . $Line->{CreateTime} . '] '
-                            . $Line->{ChatterName} . ' '
-                            . $Line->{MessageText} . "\n";
-                    }
-                }
-            }
-            $Article{Body} = $Lines;
-        }
+        my $ArticlePreview = $LayoutObject->ArticlePreview(
+            %Article,
+            ResultType => 'plain',
+        );
 
         # table params (article body)
         my %TableParam2;
-        $TableParam2{CellData}[0][0]{Content} = $Article{Body} || ' ';
+        $TableParam2{CellData}[0][0]{Content} = $ArticlePreview || ' ';
         $TableParam2{Type}                    = 'Cut';
         $TableParam2{Border}                  = 0;
         $TableParam2{Font}                    = 'Monospaced';

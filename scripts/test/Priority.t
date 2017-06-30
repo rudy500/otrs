@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,13 +12,19 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::ObjectManager;
-
-# get needed objects
+# get priority object
 my $PriorityObject = $Kernel::OM->Get('Kernel::System::Priority');
 
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 # add priority names
-my $PriorityRand = int( rand(1000000) ) . ' - example-priority';
+my $PriorityRand = 'priority' . $Helper->GetRandomID();
 
 # Tests for Priority encode method
 my @Tests = (
@@ -116,11 +122,10 @@ for my $Test (@Tests) {
 
     # update data
     my $Update = $PriorityObject->PriorityUpdate(
-        PriorityID     => $PriorityID,
-        Name           => $NewName,
-        ValidID        => $NewValidID,
-        CheckSysConfig => 0,             # (optional) default 1
-        UserID         => 1,
+        PriorityID => $PriorityID,
+        Name       => $NewName,
+        ValidID    => $NewValidID,
+        UserID     => 1,
     );
 
     $Self->Is(
@@ -152,5 +157,7 @@ $Self->IsDeeply(
     \%LastPriorityList,
     'List - Compare complete priority list',
 );
+
+# cleanup is done by RestoreDatabase
 
 1;

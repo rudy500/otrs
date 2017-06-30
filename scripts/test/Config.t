@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,8 @@ use vars (qw($Self));
 # get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
+
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 my $Value = 'Testvalue';
 $ConfigObject->Set(
@@ -111,5 +113,7 @@ $Self->Is(
     $Home,
     'Test Load() - both paths are equivalent.',
 );
+
+# restore to the previous state is done by RestoreDatabase
 
 1;

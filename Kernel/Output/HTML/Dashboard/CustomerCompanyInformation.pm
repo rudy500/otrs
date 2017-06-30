@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Output::HTML::Dashboard::CustomerCompanyInformation;
 
 use strict;
 use warnings;
+
+use Kernel::System::VariableCheck qw(:all);
 
 our $ObjectManagerDisabled = 1;
 
@@ -53,6 +55,15 @@ sub Config {
 sub Run {
     my ( $Self, %Param ) = @_;
 
+    # get customer id from customer user data if neccessary
+    if ( !$Param{CustomerID} && $Param{CustomerUserID} ) {
+        my %CustomerUserData = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserDataGet(
+            User => $Self->{CustomerUserID},
+        );
+
+        $Param{CustomerID} = $CustomerUserData{UserCustomerID} || '';
+    }
+
     return if !$Param{CustomerID};
 
     my %CustomerCompany = $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyGet(
@@ -65,7 +76,7 @@ sub Run {
 
     return if !%CustomerCompany;
 
-    # get needed objects
+    # Get needed objects
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
     my $ValidObject  = $Kernel::OM->Get('Kernel::System::Valid');
     my $CompanyIsValid;
@@ -82,15 +93,72 @@ sub Run {
         $CustomerCompany{ValidID} = $LayoutObject->{LanguageObject}->Translate( $CustomerCompany{ValidID} );
     }
 
+    my $DynamicFieldConfigs = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldListGet(
+        ObjectType => 'CustomerCompany',
+    );
+
+    my %DynamicFieldLookup = map { $_->{Name} => $_ } @{$DynamicFieldConfigs};
+
+    # Get dynamic field backend object.
+    my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+
+    # get attributes
+    my $Attributes = $Self->{Config}->{Attributes};
+
+    # get customer company config mapping
+    my @CustomerCompanyConfigMap = @{ $CustomerCompanyConfig->{Map} };
+
+    if ($Attributes) {
+
+        my @NewMap = $Self->_AttributesGet(
+            Attributes      => $Attributes,
+            CustomerCompany => \%CustomerCompany,
+        );
+
+        @CustomerCompanyConfigMap = @NewMap;
+    }
+
     ENTRY:
-    for my $Entry ( @{ $CustomerCompanyConfig->{Map} } ) {
+    for my $Entry (@CustomerCompanyConfigMap) {
         my $Key = $Entry->[0];
 
         # do not show items if they're not marked as visible
         next ENTRY if !$Entry->[3];
 
+        my $Label = $Entry->[1];
+        my $Value = $CustomerCompany{$Key};
+
+        # render dynamic field values
+        if ( $Entry->[5] eq 'dynamic_field' ) {
+            if ( !IsArrayRefWithData($Value) ) {
+                $Value = [$Value];
+            }
+
+            my $DynamicFieldConfig = $DynamicFieldLookup{ $Entry->[2] };
+
+            next ENTRY if !$DynamicFieldConfig;
+
+            my @RenderedValues;
+            VALUE:
+            for my $Value ( @{$Value} ) {
+                my $RenderedValue = $DynamicFieldBackendObject->DisplayValueRender(
+                    DynamicFieldConfig => $DynamicFieldConfig,
+                    Value              => $Value,
+                    HTMLOutput         => 0,
+                    LayoutObject       => $LayoutObject,
+                );
+
+                next VALUE if !IsHashRefWithData($RenderedValue) || !defined $RenderedValue->{Value};
+
+                push @RenderedValues, $RenderedValue->{Value};
+            }
+
+            $Value = join ', ', @RenderedValues;
+            $Label = $DynamicFieldConfig->{Label};
+        }
+
         # do not show empty entries
-        next ENTRY if !length( $CustomerCompany{$Key} );
+        next ENTRY if !length($Value);
 
         $LayoutObject->Block( Name => "ContentSmallCustomerCompanyInformationRow" );
 
@@ -99,8 +167,8 @@ sub Run {
                 Name => "ContentSmallCustomerCompanyInformationRowLink",
                 Data => {
                     %CustomerCompany,
-                    Label => $Entry->[1],
-                    Value => $CustomerCompany{$Key},
+                    Label => $Label,
+                    Value => $Value,
                     URL =>
                         '[% Env("Baselink") %]Action=AdminCustomerCompany;Subaction=Change;CustomerID=[% Data.CustomerID | uri %];Nav=Agent',
                     Target => '',
@@ -116,8 +184,8 @@ sub Run {
                 Name => "ContentSmallCustomerCompanyInformationRowLink",
                 Data => {
                     %CustomerCompany,
-                    Label  => $Entry->[1],
-                    Value  => $CustomerCompany{$Key},
+                    Label  => $Label,
+                    Value  => $Value,
                     URL    => $Entry->[6],
                     Target => '_blank',
                 },
@@ -131,8 +199,8 @@ sub Run {
             Name => "ContentSmallCustomerCompanyInformationRowText",
             Data => {
                 %CustomerCompany,
-                Label => $Entry->[1],
-                Value => $CustomerCompany{$Key},
+                Label => $Label,
+                Value => $Value,
             },
         );
 
@@ -150,10 +218,33 @@ sub Run {
             Name => $Self->{Name},
             %CustomerCompany,
         },
-        KeepScriptTags => $Param{AJAX},
+        AJAX => $Param{AJAX},
     );
 
     return $Content;
+}
+
+sub _AttributesGet {
+    my ( $Self, %Param ) = @_;
+
+    my @AttributeArray = split ';', $Param{Attributes};
+    my $CustomerCompany = $Param{CustomerCompany};
+    my @Map;
+
+    my $CustomerCompanyConfig = $Kernel::OM->Get('Kernel::Config')->Get( $CustomerCompany->{Source} || '' );
+    return if ref $CustomerCompanyConfig ne 'HASH';
+    return if ref $CustomerCompanyConfig->{Map} ne 'ARRAY';
+
+    # define filtered map
+    ENTRY:
+    for my $Entry ( @{ $CustomerCompanyConfig->{Map} } ) {
+        if ( grep { $_ eq $Entry->[0] } @AttributeArray ) {
+            push @Map, $Entry;
+        }
+    }
+
+    return @Map;
+
 }
 
 1;

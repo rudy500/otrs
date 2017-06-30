@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -30,22 +30,45 @@ sub Run {
     my ( $Self, %Param ) = @_;
 
     # get needed objects
-    my $ParamObject        = $Kernel::OM->Get('Kernel::System::Web::Request');
-    my $LayoutObject       = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
-    my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
+    my $ParamObject           = $Kernel::OM->Get('Kernel::System::Web::Request');
+    my $LayoutObject          = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+    my $CustomerUserObject    = $Kernel::OM->Get('Kernel::System::CustomerUser');
+    my $ConfigObject          = $Kernel::OM->Get('Kernel::Config');
+    my $TicketObject          = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $CustomerCompanyObject = $Kernel::OM->Get('Kernel::System::CustomerCompany');
 
-    my $AutoCompleteConfig = $ConfigObject->Get('AutoComplete::Agent###CustomerSearch');
-    my $MaxResults = $AutoCompleteConfig->{MaxResultsDisplayed} || 20;
+    my $AutoCompleteConfig            = $ConfigObject->Get('AutoComplete::Agent')->{CustomerSearch};
+    my $MaxResults                    = $AutoCompleteConfig->{MaxResultsDisplayed} || 20;
+    my $IncludeUnknownTicketCustomers = int( $ParamObject->GetParam( Param => 'IncludeUnknownTicketCustomers' ) || 0 );
+    my $SearchTerm                    = $ParamObject->GetParam( Param => 'Term' ) || '';
 
     if ( $Self->{Subaction} eq 'SearchCustomerID' ) {
 
-        my @CustomerIDs = $CustomerUserObject->CustomerIDList(
-            SearchTerm => $ParamObject->GetParam( Param => 'Term' ) || '',
+        # build result list
+        my $UnknownTicketCustomerList;
+
+        if ($IncludeUnknownTicketCustomers) {
+
+            # add customers that are not saved in any backend
+            $UnknownTicketCustomerList = $TicketObject->SearchUnknownTicketCustomers(
+                SearchTerm => $SearchTerm,
+            );
+        }
+
+        # Search for Valid customer companies.
+        my %CustomerCompanyList = $CustomerCompanyObject->CustomerCompanyList(
+            Search => $SearchTerm,
+        );
+        map { $CustomerCompanyList{$_} = $UnknownTicketCustomerList->{$_} } keys %{$UnknownTicketCustomerList};
+
+        # Search for all customer companies, valid and invalid.
+        my %CustomerCompanyListAll = $CustomerCompanyObject->CustomerCompanyList(
+            Search => $SearchTerm,
+            Valid  => 0,
         );
 
-        my %CustomerCompanyList = $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyList(
-            Search => $ParamObject->GetParam( Param => 'Term' ) || '',
+        my @CustomerIDs = $CustomerUserObject->CustomerIDList(
+            SearchTerm => $SearchTerm,
         );
 
         # add CustomerIDs for which no CustomerCompany are registered
@@ -57,22 +80,25 @@ sub Run {
             $Seen{$CustomerID} = 1;
 
             # identifies unknown companies
-            if ( !exists $CustomerCompanyList{$CustomerID} ) {
+            if ( !exists $CustomerCompanyListAll{$CustomerID} ) {
                 $CustomerCompanyList{$CustomerID} = $CustomerID;
             }
 
         }
 
-        # build result list
         my @Result;
+
         CUSTOMERID:
         for my $CustomerID ( sort keys %CustomerCompanyList ) {
-            push @Result,
-                {
-                Label => $CustomerCompanyList{$CustomerID},
-                Value => $CustomerID
-                };
+            if ( !( grep { $_->{Value} eq $CustomerID } @Result ) ) {
+                push @Result,
+                    {
+                    Label => $CustomerCompanyList{$CustomerID},
+                    Value => $CustomerID
+                    };
+            }
             last CUSTOMERID if scalar @Result >= $MaxResults;
+
         }
 
         my $JSON = $LayoutObject->JSONEncode(
@@ -88,26 +114,36 @@ sub Run {
     }
     elsif ( $Self->{Subaction} eq 'SearchCustomerUser' ) {
 
+        my $UnknownTicketCustomerList;
+
+        if ($IncludeUnknownTicketCustomers) {
+
+            # add customers that are not saved in any backend
+            $UnknownTicketCustomerList = $TicketObject->SearchUnknownTicketCustomers(
+                SearchTerm => $SearchTerm,
+            );
+        }
+
         my %CustomerList = $CustomerUserObject->CustomerSearch(
-            Search => $ParamObject->GetParam( Param => 'Term' ) || '',
+            Search => $SearchTerm,
         );
+        map { $CustomerList{$_} = $UnknownTicketCustomerList->{$_} } keys %{$UnknownTicketCustomerList};
 
         my @Result;
-
-        my $Count = 1;
 
         CUSTOMERLOGIN:
         for my $CustomerLogin ( sort keys %CustomerList ) {
             my %CustomerData = $CustomerUserObject->CustomerUserDataGet(
                 User => $CustomerLogin,
             );
+
             push @Result,
                 {
                 Label => $CustomerList{$CustomerLogin},
                 Value => $CustomerData{UserCustomerID}
                 };
+            last CUSTOMERLOGIN if scalar @Result >= $MaxResults;
 
-            last CUSTOMERLOGIN if $Count++ >= $MaxResults;
         }
 
         my $JSON = $LayoutObject->JSONEncode(

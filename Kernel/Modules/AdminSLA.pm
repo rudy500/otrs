@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -44,6 +44,7 @@ sub Run {
         # html output
         $Output .= $Self->_MaskNew(
             %Param,
+            Subaction => $Self->{Subaction},
         );
         $Output .= $LayoutObject->Footer();
 
@@ -157,7 +158,21 @@ sub Run {
                     }
                 }
 
-                return $LayoutObject->Redirect( OP => "Action=$Self->{Action}" );
+                # if the user would like to continue editing the SLA, just redirect to the edit screen
+                if (
+                    defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+                    && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+                    )
+                {
+                    return $LayoutObject->Redirect(
+                        OP => "Action=$Self->{Action};Subaction=SLAEdit;SLAID=$GetParam{SLAID}"
+                    );
+                }
+                else {
+
+                    # otherwise return to overview
+                    return $LayoutObject->Redirect( OP => "Action=$Self->{Action}" );
+                }
             }
 
         }
@@ -199,7 +214,7 @@ sub Run {
                 Data     => $LayoutObject->{LanguageObject}->Translate( "Please activate %s first!", "Service" ),
                 Link =>
                     $LayoutObject->{Baselink}
-                    . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Ticket;SysConfigSubGroup=Core::Ticket#Ticket::Service',
+                    . 'Action=AdminSystemConfiguration;Subaction=Edit;SysConfigGroup=Ticket;SysConfigSubGroup=Core::Ticket#Ticket::Service',
             );
         }
 
@@ -213,6 +228,7 @@ sub Run {
 
         $LayoutObject->Block( Name => 'ActionList' );
         $LayoutObject->Block( Name => 'ActionAdd' );
+        $LayoutObject->Block( Name => 'Filter' );
 
         # output overview result
         $LayoutObject->Block(
@@ -224,9 +240,8 @@ sub Run {
 
         # get service list
         my %ServiceList = $Kernel::OM->Get('Kernel::System::Service')->ServiceList(
-            Valid        => 0,
-            KeepChildren => 1,
-            UserID       => $Self->{UserID},
+            Valid  => 0,
+            UserID => $Self->{UserID},
         );
 
         # get valid list
@@ -335,7 +350,7 @@ sub _MaskNew {
     # get service list
     my %ServiceList = $Kernel::OM->Get('Kernel::System::Service')->ServiceList(
         Valid        => 1,
-        KeepChildren => 1,
+        KeepChildren => $ConfigObject->Get('Ticket::Service::KeepChildren') // 0,
         UserID       => $Self->{UserID},
     );
 
@@ -356,7 +371,10 @@ sub _MaskNew {
 
     # generate CalendarOptionStrg
     my %CalendarList;
-    for my $CalendarNumber ( '', 1 .. 50 ) {
+
+    my $Maximum = $ConfigObject->Get("MaximumCalendarNumber") || 50;
+
+    for my $CalendarNumber ( '', 1 .. $Maximum ) {
         if ( $ConfigObject->Get("TimeVacationDays::Calendar$CalendarNumber") ) {
             $CalendarList{$CalendarNumber} = "Calendar $CalendarNumber - "
                 . $ConfigObject->Get( "TimeZone::Calendar" . $CalendarNumber . "Name" );
@@ -418,6 +436,9 @@ sub _MaskNew {
     $LayoutObject->Block(
         Name => 'Overview',
         Data => {
+            SLAID     => $SLAData{SLAID},
+            SLAName   => $SLAData{Name},
+            Subaction => $Param{Subaction},
             %Param
         },
     );

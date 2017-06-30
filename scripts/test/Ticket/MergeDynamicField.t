@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,12 +13,20 @@ use utf8;
 use vars (qw($Self));
 
 # get needed objects
-my $HelperObject       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
 my $TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
 my $BackendObject      = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
-my @DynamicFields = map { $HelperObject->GetRandomID() } 1 .. 2;
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my @DynamicFields = map { $Helper->GetRandomID() } 1 .. 2;
 my @Config;
 
 for my $DynamicField (@DynamicFields) {
@@ -75,7 +83,7 @@ my $MergeTicketID = $TicketObject->TicketCreate(
     OwnerID      => 1,
 );
 
-$Self->True( $MergeTicketID, 'Could create main ticket' );
+$Self->True( $MergeTicketID, 'Could create merge ticket' );
 
 $BackendObject->ValueSet(
     DynamicFieldConfig => $Config[0],
@@ -122,18 +130,6 @@ $Self->Is(
     'TicketMergeDynamicFields copied DF from merge ticket',
 );
 
-# cleanup
-for my $Config (@Config) {
-    $DynamicFieldObject->DynamicFieldUpdate(
-        %{$Config},
-        UserID  => 1,
-        ValidID => 2,
-    );
-}
-
-$TicketObject->TicketDelete(
-    TicketID => $MainTicketID,
-    UserID   => 1,
-);
+# cleanup is done by RestoreDatabase.
 
 1;

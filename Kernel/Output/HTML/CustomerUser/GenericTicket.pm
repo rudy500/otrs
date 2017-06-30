@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,23 +8,14 @@
 
 package Kernel::Output::HTML::CustomerUser::GenericTicket;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
+use Kernel::System::VariableCheck qw(IsArrayRefWithData);
+
 our $ObjectManagerDisabled = 1;
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -54,8 +45,8 @@ sub Run {
         States => {
             Object => 'Kernel::System::State',
             Return => 'StateIDs',
-            Input  => '',
-            Method => '',
+            Input  => 'State',
+            Method => 'StateLookup',
         },
         Priorities => {
             Object => 'Kernel::System::Priority',
@@ -121,7 +112,7 @@ sub Run {
         }
     }
 
-    # build url
+    # build URL
 
     # note:
     # "special characters" in customer id have to be escaped, so that DB::QueryCondition works
@@ -130,7 +121,7 @@ sub Run {
     my $Action    = $Param{Config}->{Action};
     my $Subaction = $Param{Config}->{Subaction};
     my $URL       = $LayoutObject->{Baselink} . "Action=$Action;Subaction=$Subaction";
-    $URL .= ';CustomerID=' . $LayoutObject->LinkEncode($CustomerIDRaw);
+    $URL .= ';CustomerIDRaw=' . $LayoutObject->LinkEncode($CustomerIDRaw);
     for my $Key ( sort keys %TicketSearch ) {
         if ( ref $TicketSearch{$Key} eq 'ARRAY' ) {
             for my $Value ( @{ $TicketSearch{$Key} } ) {
@@ -148,8 +139,53 @@ sub Run {
         );
 
         $TicketSearch{CustomerUserLogin} = $CustomerUserLoginEscaped;
-        $URL .= ';CustomerUserLogin='
+        $URL .= ';CustomerUserLoginRaw='
             . $LayoutObject->LinkEncode($CustomerUserLoginEscaped);
+    }
+
+    my $StateObject = $Kernel::OM->Get('Kernel::System::State');
+
+    # replace StateType to StateIDs for the count numbers in customer information links
+    if ( $TicketSearch{StateType} ) {
+        my @StateIDs;
+
+        if ( $TicketSearch{StateType} eq 'Open' ) {
+            @StateIDs = $StateObject->StateGetStatesByType(
+                Type   => 'Viewable',
+                Result => 'ID',
+            );
+        }
+        elsif ( $TicketSearch{StateType} eq 'Closed' ) {
+            my %ViewableStateOpenLookup = $StateObject->StateGetStatesByType(
+                Type   => 'Viewable',
+                Result => 'HASH',
+            );
+
+            my %StateList = $StateObject->StateList( UserID => $Self->{UserID} );
+            for my $Item ( sort keys %StateList ) {
+                if ( !$ViewableStateOpenLookup{$Item} ) {
+                    push @StateIDs, $Item;
+                }
+            }
+        }
+
+        # current ticket state type
+        else {
+            @StateIDs = $StateObject->StateGetStatesByType(
+                StateType => $TicketSearch{StateType},
+                Result    => 'ID',
+            );
+        }
+
+        # merge with StateIDs
+        if ( @StateIDs && IsArrayRefWithData( $TicketSearch{StateIDs} ) ) {
+            my %StateIDs = map { $_ => 1 } @StateIDs;
+            @StateIDs = grep { exists $StateIDs{$_} } @{ $TicketSearch{StateIDs} };
+        }
+
+        if (@StateIDs) {
+            $TicketSearch{StateIDs} = \@StateIDs;
+        }
     }
 
     my %TimeMap = (
@@ -254,7 +290,7 @@ sub Run {
         Result        => 'COUNT',
         Permission    => 'ro',
         UserID        => $Self->{UserID},
-    );
+    ) || 0;
 
     my $CSSClass = $Param{Config}->{CSSClassNoOpenTicket};
     if ($Count) {

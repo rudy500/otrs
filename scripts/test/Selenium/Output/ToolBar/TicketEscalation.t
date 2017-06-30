@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,31 +19,29 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+        # get config object
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
         # enable tool bar AgentTicketEscalationView
         my %AgentTicketEscalationView = (
-            AccessKey => "w",
-            Action    => "AgentTicketEscalationView",
-            CssClass  => "EscalationView",
-            Icon      => "fa fa-exclamation",
-            Link      => "Action=AgentTicketEscalationView",
-            Module    => "Kernel::Output::HTML::ToolBar::Link",
-            Name      => "Escalation view",
-            Priority  => "1010030",
+            AccessKey => 'w',
+            Action    => 'AgentTicketEscalationView',
+            CssClass  => 'EscalationView',
+            Icon      => 'fa fa-exclamation',
+            Link      => 'Action=AgentTicketEscalationView',
+            Module    => 'Kernel::Output::HTML::ToolBar::Link',
+            Name      => 'Escalation view',
+            Priority  => '1010030',
         );
 
-        $Kernel::OM->Get('Kernel::Config')->Set(
+        $Helper->ConfigSettingChange(
             Key   => 'Frontend::ToolBarModule###3-Ticket::AgentTicketEscalationView',
             Value => \%AgentTicketEscalationView,
         );
 
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::ToolBarModule###3-Ticket::AgentTicketEscalationView',
             Value => \%AgentTicketEscalationView
@@ -61,10 +59,10 @@ $Selenium->RunTest(
         );
 
         # click on tool bar AgentTicketEscalationView
-        $Selenium->find_element("//a[contains(\@title, \'Escalation view:\' )]")->click();
+        $Selenium->find_element("//a[contains(\@title, \'Escalation view:\' )]")->VerifiedClick();
 
         # verify that test is on the correct screen
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
         my $ExpectedURL = "${ScriptAlias}index.pl?Action=AgentTicketEscalationView";
 
         $Self->True(

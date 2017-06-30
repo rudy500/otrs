@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,6 +18,7 @@ our @ObjectDependencies = (
     'Kernel::System::DB',
     'Kernel::System::Encode',
     'Kernel::System::Log',
+    'Kernel::System::Main',
 );
 
 sub new {
@@ -32,9 +33,6 @@ sub new {
 
 sub FormIDCreate {
     my ( $Self, %Param ) = @_;
-
-    # cleanup temp form ids
-    $Self->FormIDCleanUp();
 
     # return requested form id
     return time() . '.' . rand(12341241);
@@ -66,7 +64,7 @@ sub FormIDRemove {
 sub FormIDAddFile {
     my ( $Self, %Param ) = @_;
 
-    for (qw(FormID Filename Content ContentType)) {
+    for (qw(FormID Filename ContentType)) {
         if ( !$Param{$_} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
@@ -75,6 +73,8 @@ sub FormIDAddFile {
             return;
         }
     }
+
+    $Param{Content} = '' if !defined( $Param{Content} );
 
     # get file size
     $Param{Filesize} = bytes::length( $Param{Content} );
@@ -132,7 +132,11 @@ sub FormIDRemoveFile {
     }
 
     my @Index = @{ $Self->FormIDGetAllFilesMeta(%Param) };
-    my $ID    = $Param{FileID} - 1;
+
+    # finish if files have been already removed by other process
+    return if !@Index;
+
+    my $ID = $Param{FileID} - 1;
     $Param{Filename} = $Index[$ID]->{Filename};
 
     return if !$Kernel::OM->Get('Kernel::System::DB')->Do(
@@ -176,19 +180,6 @@ sub FormIDGetAllFilesData {
 
     while ( my @Row = $DBObject->FetchrowArray() ) {
         $Counter++;
-
-        # human readable file size
-        if ( $Row[2] ) {
-            if ( $Row[2] > ( 1024 * 1024 ) ) {
-                $Row[2] = sprintf "%.1f MBytes", ( $Row[2] / ( 1024 * 1024 ) );
-            }
-            elsif ( $Row[2] > 1024 ) {
-                $Row[2] = sprintf "%.1f KBytes", ( ( $Row[2] / 1024 ) );
-            }
-            else {
-                $Row[2] = $Row[2] . ' Bytes';
-            }
-        }
 
         # encode attachment if it's a postgresql backend!!!
         if ( !$DBObject->GetDatabaseFunction('DirectBlob') ) {
@@ -242,19 +233,6 @@ sub FormIDGetAllFilesMeta {
 
     while ( my @Row = $DBObject->FetchrowArray() ) {
         $Counter++;
-
-        # human readable file size
-        if ( $Row[2] ) {
-            if ( $Row[2] > ( 1024 * 1024 ) ) {
-                $Row[2] = sprintf "%.1f MBytes", ( $Row[2] / ( 1024 * 1024 ) );
-            }
-            elsif ( $Row[2] > 1024 ) {
-                $Row[2] = sprintf "%.1f KBytes", ( ( $Row[2] / 1024 ) );
-            }
-            else {
-                $Row[2] = $Row[2] . ' Bytes';
-            }
-        }
 
         # add the info
         push(

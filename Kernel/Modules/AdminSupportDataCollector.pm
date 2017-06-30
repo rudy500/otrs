@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -74,6 +74,9 @@ sub _SupportDataCollectorView {
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
+    # check if cloud services are disabled
+    my $CloudServicesDisabled = $Kernel::OM->Get('Kernel::Config')->Get('CloudServices::Disabled') || 0;
+
     if ( !$SupportData{Success} ) {
         $LayoutObject->Block(
             Name => 'SupportDataCollectionFailed',
@@ -81,7 +84,12 @@ sub _SupportDataCollectorView {
         );
     }
     else {
-        if (
+        if ($CloudServicesDisabled) {
+            $LayoutObject->Block(
+                Name => 'CloudServicesWarning',
+            );
+        }
+        elsif (
             $RegistrationState ne 'registered'
             || $SupportDataSending ne 'Yes'
             )
@@ -95,6 +103,9 @@ sub _SupportDataCollectorView {
                 Name => 'NoteRegisteredSending',
             );
         }
+        $LayoutObject->Block(
+            Name => 'NoteSupportBundle',
+        );
 
         $LayoutObject->Block(
             Name => 'SupportData',
@@ -209,11 +220,12 @@ sub _SupportDataCollectorView {
                     Data => $Entry,
                 );
 
-                if ( $Entry->{Message} ) {
+                if ( $Entry->{Message} || $Entry->{MessageFormatted} ) {
                     $LayoutObject->Block(
                         Name => 'SupportDataSubEntryMessage',
                         Data => {
-                            Message => $Entry->{Message},
+                            Message          => $Entry->{Message},
+                            MessageFormatted => $Entry->{MessageFormatted},
                         },
                     );
                 }
@@ -242,11 +254,15 @@ sub _SupportDataCollectorView {
     {
         $Param{SenderAddress} = $ConfigObject->Get('AdminEmail');
     }
-    $Param{SenderName} = $User{UserFirstname} . ' ' . $User{UserLastname};
+    $Param{SenderName} = $User{UserFullname};
 
     # verify if the email is valid, set it to empty string if not, this will be checked on client
     #    side
-    if ( !$Kernel::OM->Get('Kernel::System::CheckItem')->CheckEmail( Address => $Param{SenderAddress} ) ) {
+    if (
+        $Param{SenderAddress} &&
+        !$Kernel::OM->Get('Kernel::System::CheckItem')->CheckEmail( Address => $Param{SenderAddress} )
+        )
+    {
         $Param{SenderAddress} = '';
     }
 
@@ -356,7 +372,7 @@ sub _DownloadSupportBundle {
 
     if ( !$Content ) {
         return $LayoutObject->ErrorScreen(
-            Message => "File $Location could not be read!",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'File %s could not be read!', $Location ),
         );
     }
 
@@ -469,7 +485,7 @@ sub _SendSupportBundle {
                 $SenderAddress = $ConfigObject->Get('AdminEmail');
             }
 
-            my $SenderName = $User{UserFirstname} . ' ' . $User{UserLastname};
+            my $SenderName = $User{UserFullname};
 
             my $Body;
 

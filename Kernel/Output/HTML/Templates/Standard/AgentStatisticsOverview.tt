@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,8 +7,11 @@
 # --
 
 <div class="MainBox AriaRoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Statistics » Overview") | html %]</h1>
+    <h1>[% Translate("Statistics Overview") | html %]</h1>
 
+    [% INCLUDE "Breadcrumb.tt" Path = Data.BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
         <div class="WidgetSimple">
             <div class="Header">
@@ -64,14 +67,14 @@
                                 </a>
                             </th>
                             [% IF Data.AccessRw %]
-                            <th>
+                            <th class="Center">
                                 <span>[% Translate('Export') | html %]</span>
                             </th>
-                            <th>
+                            <th class="Center">
                                 <span>[% Translate('Delete') | html %]</span>
                             </th>
                             [% END %]
-                            <th>
+                            <th class="Center">
                                 <span>[% Translate('Run') | html %]</span>
                             </th>
                         </tr>
@@ -107,10 +110,7 @@
                             [% END %]
                         <td class="Center">
                             [% IF Data.Valid %]
-                            <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=View;StatID=[% Data.StatID | uri %]" class="AsBlock">
-                                <i class="fa fa-caret-square-o-right"></i>
-                                    [% Translate('Run now') | html %]
-                            </a>
+                            <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=View;StatID=[% Data.StatID | uri %]" class="RunNow AsBlock"><i class="fa fa-caret-square-o-right"></i></a>
                             [% END %]
                         </td>
                     </tr>
@@ -121,16 +121,3 @@
     </div>
 </div>
 </div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('.StatDelete').bind('click', function (Event) {
-    var ConfirmText = '"' + $(this).data('stat-title') + '"\n\n' + [% Translate("Do you really want to delete this statistic?") | JSON %];
-    if (!window.confirm( ConfirmText ) ) {
-        Event.stopPropagation();
-        Event.preventDefault();
-        return false;
-    }
-});
-//]]></script>
-[% END %]

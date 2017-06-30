@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::Valid;
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -33,6 +34,7 @@ sub Run {
     my $GroupObject  = $Kernel::OM->Get('Kernel::System::Group');
     my $LogObject    = $Kernel::OM->Get('Kernel::System::Log');
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+    my $Notification = $ParamObject->GetParam( Param => 'Notification' ) || '';
 
     # ------------------------------------------------------------ #
     # change
@@ -44,6 +46,9 @@ sub Run {
         my %Data = $GroupObject->GroupGet( ID => $ID );
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Group updated!') )
+            if ( $Notification && $Notification eq 'Update' );
+
         $Self->_Edit(
             Action => 'Change',
             %Data,
@@ -85,16 +90,23 @@ sub Run {
             );
 
             if ($GroupUpdate) {
-                $Self->_Overview();
-                my $Output = $LayoutObject->Header();
-                $Output .= $LayoutObject->NavigationBar();
-                $Output .= $LayoutObject->Notify( Info => 'Group updated!' );
-                $Output .= $LayoutObject->Output(
-                    TemplateFile => 'AdminGroup',
-                    Data         => \%Param,
-                );
-                $Output .= $LayoutObject->Footer();
-                return $Output;
+
+                # if the user would like to continue editing the group, just redirect to the edit screen
+                if (
+                    defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+                    && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+                    )
+                {
+                    my $ID = $ParamObject->GetParam( Param => 'ID' ) || '';
+                    return $LayoutObject->Redirect(
+                        OP => "Action=$Self->{Action};Subaction=Change;ID=$GetParam{ID};Notification=Update"
+                    );
+                }
+                else {
+
+                    # otherwise return to overview
+                    return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+                }
             }
             else {
                 $Note = $LogObject->GetLogEntry(
@@ -237,6 +249,9 @@ sub Run {
         $Self->_Overview();
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Group updated!') )
+            if ( $Notification && $Notification eq 'Update' );
+
         $Output .= $LayoutObject->Output(
             TemplateFile => 'AdminGroup',
             Data         => \%Param,
@@ -277,14 +292,6 @@ sub _Edit {
         Data => \%Param,
     );
 
-    # shows header
-    if ( $Param{Action} eq 'Change' ) {
-        $LayoutObject->Block( Name => 'HeaderEdit' );
-    }
-    else {
-        $LayoutObject->Block( Name => 'HeaderAdd' );
-    }
-
     return 1;
 }
 
@@ -303,12 +310,15 @@ sub _Overview {
     $LayoutObject->Block( Name => 'ActionList' );
     $LayoutObject->Block( Name => 'ActionAdd' );
 
+    my %List = $GroupObject->GroupList(
+        ValidID => 0,
+    );
+    my $ListSize = keys %List;
+    $Param{AllItemsCount} = $ListSize;
+
     $LayoutObject->Block(
         Name => 'OverviewResult',
         Data => \%Param,
-    );
-    my %List = $GroupObject->GroupList(
-        ValidID => 0,
     );
 
     # get valid list

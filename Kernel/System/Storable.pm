@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -21,20 +21,15 @@ our @ObjectDependencies = (
 
 Kernel::System::Storable - Storable wrapper functions
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Functions for Storable serialization / deserialization.
 
-=over 4
 
-=cut
-
-=item new()
+=head2 new()
 
 create a Storable object. Do not use it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $StorableObject = $Kernel::OM->Get('Kernel::System::Storable');
 
 =cut
@@ -49,7 +44,7 @@ sub new {
     return $Self;
 }
 
-=item Serialize()
+=head2 Serialize()
 
 Dump a Perl data structure to an storable string.
 
@@ -99,7 +94,7 @@ sub Serialize {
     return $Result;
 }
 
-=item Deserialize()
+=head2 Deserialize()
 
 Load a serialized storable string to a Perl data structure.
 
@@ -133,11 +128,11 @@ sub Deserialize {
     return $Result;
 }
 
-=item Clone()
+=head2 Clone()
 
 Creates a deep copy a Perl data structure.
 
-    my $StoableData = $StorableObject->Clone(
+    my $StorableData = $StorableObject->Clone(
         Data => $Data,          # must be a reference
     );
 
@@ -181,8 +176,6 @@ sub Clone {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

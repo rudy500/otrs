@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,27 +19,37 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
 
         # disable all dashboard plugins
         my $Config = $Kernel::OM->Get('Kernel::Config')->Get('DashboardBackend');
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 0,
             Key   => 'DashboardBackend',
             Value => \%$Config,
         );
 
         # reset TicketQueueOverview dashboard sysconfig
-        $SysConfigObject->ConfigItemReset(
-            Name => 'DashboardBackend###0270-TicketQueueOverview',
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'DashboardBackend###0270-TicketQueueOverview',
+            Value => {
+                'Block'                => 'ContentLarge',
+                'CacheTTLLocal'        => '0.5',
+                'Default'              => '1',
+                'Description'          => 'Provides a matrix overview of the tickets per state per queue.',
+                'Group'                => '',
+                'Module'               => 'Kernel::Output::HTML::Dashboard::TicketQueueOverview',
+                'Permission'           => 'rw',
+                'QueuePermissionGroup' => 'users',
+                'Sort'                 => 'SortBy=Age;OrderBy=Up',
+                'States'               => {
+                    '1' => 'new',
+                    '4' => 'open',
+                    '6' => 'pending reminder'
+                },
+                'Title' => 'Ticket Queue Overview'
+            },
         );
 
         # create test queue
@@ -56,7 +66,7 @@ $Selenium->RunTest(
         );
         $Self->True(
             $QueueID,
-            "Queue add $QueueName - ID $QueueID",
+            "Queue is created - ID $QueueID",
         );
 
         # get ticket object
@@ -78,7 +88,7 @@ $Selenium->RunTest(
             );
             $Self->True(
                 $TicketID,
-                "Ticket is created - ID $TicketID",
+                "Ticket is created - ID $TicketID - state $TicketState",
             );
 
             push @TicketIDs, $TicketID;
@@ -113,7 +123,7 @@ $Selenium->RunTest(
             );
             $Self->True(
                 $Success,
-                "Delete ticket - ID $TicketDelete"
+                "Ticket is deleted - ID $TicketDelete"
             );
         }
 
@@ -123,7 +133,7 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Delete queue - ID $QueueID",
+            "Queue is deleted - ID $QueueID",
         );
 
         # make sure cache is correct

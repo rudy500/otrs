@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -19,15 +20,13 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::Output::HTML::Layout::Ticket - all Ticket-related HTML functions
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All Ticket-related HTML functions
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=item AgentCustomerViewTable()
+=head2 AgentCustomerViewTable()
 
 =cut
 
@@ -62,7 +61,7 @@ sub AgentCustomerViewTable {
     }
 
     my $ShownType = 1;
-    if ( $Param{Type} && $Param{Type} eq 'Lite' ) {
+    if ( $Param{Type} && $Param{Type} eq Translatable('Lite') ) {
         $ShownType = 2;
 
         # check if min one lite view item is configured, if not, use
@@ -114,7 +113,17 @@ sub AgentCustomerViewTable {
         }
     }
 
+    my $DynamicFieldConfigs = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldListGet(
+        ObjectType => [ 'CustomerUser', 'CustomerCompany', ],
+    );
+
+    my %DynamicFieldLookup = map { $_->{Name} => $_ } @{$DynamicFieldConfigs};
+
+    # Get dynamic field object.
+    my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+
     # build table
+    FIELD:
     for my $Field (@MapNew) {
         if ( $Field->[3] && $Field->[3] >= $ShownType && $Param{Data}->{ $Field->[0] } ) {
             my %Record = (
@@ -122,9 +131,50 @@ sub AgentCustomerViewTable {
                 Key   => $Field->[1],
                 Value => $Param{Data}->{ $Field->[0] },
             );
-            if ( $Field->[6] ) {
+
+            # render dynamic field values
+            if ( $Field->[5] eq 'dynamic_field' ) {
+                if ( !IsArrayRefWithData( $Record{Value} ) ) {
+                    $Record{Value} = [ $Record{Value} ];
+                }
+
+                my $DynamicFieldConfig = $DynamicFieldLookup{ $Field->[2] };
+
+                next FIELD if !$DynamicFieldConfig;
+
+                my @RenderedValues;
+                VALUE:
+                for my $Value ( @{ $Record{Value} } ) {
+                    my $RenderedValue = $DynamicFieldBackendObject->DisplayValueRender(
+                        DynamicFieldConfig => $DynamicFieldConfig,
+                        Value              => $Value,
+                        HTMLOutput         => 0,
+                        LayoutObject       => $Self,
+                    );
+
+                    next VALUE if !IsHashRefWithData($RenderedValue) || !defined $RenderedValue->{Value};
+
+                    push @RenderedValues, $RenderedValue->{Value};
+                }
+
+                $Record{Value} = join ', ', @RenderedValues;
+                $Record{Key} = $DynamicFieldConfig->{Label};
+            }
+
+            if (
+                $Field->[6]
+                && (
+                    $Param{Data}->{TicketID}
+                    || $Param{Ticket}
+                    || $Field->[6] !~ m{Env\("CGIHandle"\)}
+                )
+                )
+            {
                 $Record{LinkStart} = "<a href=\"$Field->[6]\"";
-                if ( $Field->[8] ) {
+                if ( !$Param{Ticket} ) {
+                    $Record{LinkStart} .= " target=\"_blank\"";
+                }
+                elsif ( $Field->[8] ) {
                     $Record{LinkStart} .= " target=\"$Field->[8]\"";
                 }
                 if ( $Field->[9] ) {
@@ -158,6 +208,110 @@ sub AgentCustomerViewTable {
                     if ( !$CompanyIsValid ) {
                         $Self->Block(
                             Name => 'CustomerRowCustomerCompanyInvalid',
+                        );
+                    }
+                }
+            }
+
+            if (
+                $ConfigObject->Get('ChatEngine::Active')
+                && $Field->[0] eq 'UserLogin'
+                )
+            {
+                # Check if agent has permission to start chats with the customer users.
+                my $EnableChat = 1;
+                my $ChatStartingAgentsGroup
+                    = $ConfigObject->Get('ChatEngine::PermissionGroup::ChatStartingAgents') || 'users';
+                my $ChatStartingAgentsGroupPermission = $Kernel::OM->Get('Kernel::System::Group')->PermissionCheck(
+                    UserID    => $Self->{UserID},
+                    GroupName => $ChatStartingAgentsGroup,
+                    Type      => 'rw',
+                );
+
+                if ( !$ChatStartingAgentsGroupPermission ) {
+                    $EnableChat = 0;
+                }
+                if (
+                    $EnableChat
+                    && !$ConfigObject->Get('ChatEngine::ChatDirection::AgentToCustomer')
+                    )
+                {
+                    $EnableChat = 0;
+                }
+
+                if ($EnableChat) {
+                    my $VideoChatEnabled = 0;
+                    my $VideoChatAgentsGroup
+                        = $ConfigObject->Get('ChatEngine::PermissionGroup::VideoChatAgents') || 'users';
+                    my $VideoChatAgentsGroupPermission = $Kernel::OM->Get('Kernel::System::Group')->PermissionCheck(
+                        UserID    => $Self->{UserID},
+                        GroupName => $VideoChatAgentsGroup,
+                        Type      => 'rw',
+                    );
+
+                    # Enable the video chat feature if system is entitled and agent is a member of configured group.
+                    if ($VideoChatAgentsGroupPermission) {
+                        if ( $Kernel::OM->Get('Kernel::System::Main')
+                            ->Require( 'Kernel::System::VideoChat', Silent => 1 ) )
+                        {
+                            $VideoChatEnabled = $Kernel::OM->Get('Kernel::System::VideoChat')->IsEnabled();
+                        }
+                    }
+
+                    my $CustomerEnableChat = 0;
+                    my $ChatAccess         = 0;
+                    my $VideoChatAvailable = 0;
+                    my $VideoChatSupport   = 0;
+
+                    # Default status is offline.
+                    my $UserState            = Translatable('Offline');
+                    my $UserStateDescription = $Self->{LanguageObject}->Translate('User is currently offline.');
+
+                    my $CustomerChatAvailability = $Kernel::OM->Get('Kernel::System::Chat')->CustomerAvailabilityGet(
+                        UserID => $Param{Data}->{UserID},
+                    );
+
+                    my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
+
+                    my %CustomerUser = $CustomerUserObject->CustomerUserDataGet(
+                        User => $Param{Data}->{UserID},
+                    );
+                    $CustomerUser{UserFullname} = $CustomerUserObject->CustomerName(
+                        UserLogin => $Param{Data}->{UserID},
+                    );
+                    $VideoChatSupport = 1 if $CustomerUser{VideoChatHasWebRTC};
+
+                    if ( $CustomerChatAvailability == 3 ) {
+                        $UserState            = Translatable('Active');
+                        $CustomerEnableChat   = 1;
+                        $UserStateDescription = $Self->{LanguageObject}->Translate('User is currently active.');
+                        $VideoChatAvailable   = 1;
+                    }
+                    elsif ( $CustomerChatAvailability == 2 ) {
+                        $UserState            = Translatable('Away');
+                        $CustomerEnableChat   = 1;
+                        $UserStateDescription = $Self->{LanguageObject}->Translate('User was inactive for a while.');
+                    }
+
+                    $Self->Block(
+                        Name => 'CustomerRowUserStatus',
+                        Data => {
+                            %CustomerUser,
+                            UserState            => $UserState,
+                            UserStateDescription => $UserStateDescription,
+                        },
+                    );
+
+                    if ($CustomerEnableChat) {
+                        $Self->Block(
+                            Name => 'CustomerRowChatIcons',
+                            Data => {
+                                %{ $Param{Data} },
+                                %CustomerUser,
+                                VideoChatEnabled   => $VideoChatEnabled,
+                                VideoChatAvailable => $VideoChatAvailable,
+                                VideoChatSupport   => $VideoChatSupport,
+                            },
                         );
                     }
                 }
@@ -263,24 +417,28 @@ sub AgentQueueListOption {
     if ( $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Frontend::ListType') eq 'list' ) {
 
         # transform data from Hash in Array because of ordering in frontend by Queue name
-        # it was a problem wit name like '(some_queue)'
+        # it was a problem with name like '(some_queue)'
         # see bug#10621 http://bugs.otrs.org/show_bug.cgi?id=10621
         my %QueueDataHash = %{ $Param{Data} || {} };
-
-        # get StandardResponsesStrg
-        my %ReverseQueueDataHash = reverse %QueueDataHash;
-        my @QueueDataArray       = map {
+        my @QueueDataArray = map {
             {
-                Key   => $ReverseQueueDataHash{$_},
-                Value => $_
+                Key   => $_,
+                Value => $QueueDataHash{$_},
             }
-        } sort values %QueueDataHash;
+        } sort { $QueueDataHash{$a} cmp $QueueDataHash{$b} } keys %QueueDataHash;
 
         # find index of first element in array @QueueDataArray for displaying in frontend
         # at the top should be element with ' $QueueDataArray[$_]->{Key} = 0' like "- Move -"
-        # when such element is found, it is moved at the top
-        my ($FirstElementIndex) = grep $QueueDataArray[$_]->{Key} == 0, 0 .. $#QueueDataArray;
-        splice( @QueueDataArray, 0, 0, splice( @QueueDataArray, $FirstElementIndex, 1 ) );
+        # if such an element is found, it is moved to the top
+        my $MoveStr = $Self->{LanguageObject}->Translate('Move');
+        my $ValueOfQueueNoKey .= '- ' . $MoveStr . ' -';
+        my ($FirstElementIndex) = grep {
+            $QueueDataArray[$_]->{Value} eq '-'
+                || $QueueDataArray[$_]->{Value} eq $ValueOfQueueNoKey
+        } 0 .. scalar(@QueueDataArray) - 1;
+        if ($FirstElementIndex) {
+            splice( @QueueDataArray, 0, 0, splice( @QueueDataArray, $FirstElementIndex, 1 ) );
+        }
         $Param{Data} = \@QueueDataArray;
 
         $Param{MoveQueuesStrg} = $Self->BuildSelection(
@@ -300,7 +458,8 @@ sub AgentQueueListOption {
         . $Param{Name}
         . '" class="'
         . $Class
-        . "\" $Size $Multiple $OnChangeSubmit>\n";
+        . '" data-tree="true"'
+        . " $Size $Multiple $OnChangeSubmit>\n";
     my %UsedData;
     my %Data;
 
@@ -314,7 +473,7 @@ sub AgentQueueListOption {
     # add suffix for correct sorting
     my $KeyNoQueue;
     my $ValueNoQueue;
-    my $MoveStr = $Self->{LanguageObject}->Get('Move');
+    my $MoveStr = $Self->{LanguageObject}->Translate('Move');
     my $ValueOfQueueNoKey .= "- " . $MoveStr . " -";
     DATA:
     for ( sort { $Data{$a} cmp $Data{$b} } keys %Data ) {
@@ -333,10 +492,16 @@ sub AgentQueueListOption {
         $Data{$_} .= '::';
     }
 
+    # get HTML utils object
+    my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
+
     # set default item of select box
     if ($ValueNoQueue) {
         $Param{MoveQueuesStrg} .= '<option value="'
-            . $KeyNoQueue
+            . $HTMLUtilsObject->ToHTML(
+            String             => $KeyNoQueue,
+            ReplaceDoubleSpace => 0,
+            )
             . '">'
             . $ValueNoQueue
             . "</option>\n";
@@ -372,9 +537,6 @@ sub AgentQueueListOption {
                 }
             }
 
-            # get HTML utils object
-            my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-
             if ( !$UsedData{$UpQueue} ) {
 
                 # integrate the not selectable parent and root queues of this queue
@@ -398,7 +560,8 @@ sub AgentQueueListOption {
                         my $OptionTitleHTMLValue = '';
                         if ($OptionTitle) {
                             my $HTMLValue = $HTMLUtilsObject->ToHTML(
-                                String => $Queue[$Index],
+                                String             => $Queue[$Index],
+                                ReplaceDoubleSpace => 0,
                             );
                             $OptionTitleHTMLValue = ' title="' . $HTMLValue . '"';
                         }
@@ -419,10 +582,15 @@ sub AgentQueueListOption {
             my $OptionTitleHTMLValue = '';
             if ($OptionTitle) {
                 my $HTMLValue = $HTMLUtilsObject->ToHTML(
-                    String => $Queue[-1],
+                    String             => $Queue[-1],
+                    ReplaceDoubleSpace => 0,
                 );
                 $OptionTitleHTMLValue = ' title="' . $HTMLValue . '"';
             }
+            my $HTMLValue = $HTMLUtilsObject->ToHTML(
+                String             => $_,
+                ReplaceDoubleSpace => 0,
+            );
             if (
                 $SelectedID eq $_
                 || $Selected eq $Param{Data}->{$_}
@@ -431,7 +599,7 @@ sub AgentQueueListOption {
             {
                 $Param{MoveQueuesStrg}
                     .= '<option selected="selected" value="'
-                    . $_ . '"'
+                    . $HTMLValue . '"'
                     . $OptionTitleHTMLValue . '>'
                     . $String
                     . "</option>\n";
@@ -447,7 +615,7 @@ sub AgentQueueListOption {
             else {
                 $Param{MoveQueuesStrg}
                     .= '<option value="'
-                    . $_ . '"'
+                    . $HTMLValue . '"'
                     . $OptionTitleHTMLValue . '>'
                     . $String
                     . "</option>\n";
@@ -468,7 +636,7 @@ sub AgentQueueListOption {
     return $Param{MoveQueuesStrg};
 }
 
-=item ArticleQuote()
+=head2 ArticleQuote()
 
 get body and attach e. g. inline documents and/or attach all attachments to
 upload cache
@@ -501,43 +669,56 @@ is false), return param will be text/plain instead.
 sub ArticleQuote {
     my ( $Self, %Param ) = @_;
 
-    # check needed stuff
-    for (qw(TicketID ArticleID FormID UploadCacheObject)) {
-        if ( !$Param{$_} ) {
-            $Self->FatalError( Message => "Need $_!" );
+    for my $Needed (qw(TicketID ArticleID FormID UploadCacheObject)) {
+        if ( !$Param{$Needed} ) {
+            $Self->FatalError( Message => "Need $Needed!" );
         }
     }
 
-    # get needed objects
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+    my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $ArticleBackendObject = $ArticleObject->BackendForArticle(
+        ArticleID => $Param{ArticleID},
+        TicketID  => $Param{TicketID}
+    );
 
     # body preparation for plain text processing
     if ( $ConfigObject->Get('Frontend::RichText') ) {
 
         my $Body = '';
 
-        # check for html body
-        my @ArticleBox = $TicketObject->ArticleContentIndex(
-            TicketID                   => $Param{TicketID},
-            StripPlainBodyAsAttachment => 3,
-            UserID                     => $Self->{UserID},
-            DynamicFields              => 0,
+        my %NotInlineAttachments;
+
+        my %QuoteArticle = $ArticleBackendObject->ArticleGet(
+            TicketID      => $Param{TicketID},
+            ArticleID     => $Param{ArticleID},
+            UserID        => $Self->{UserID},
+            DynamicFields => 0,
         );
 
-        my %NotInlineAttachments;
-        ARTICLE:
-        for my $ArticleTmp (@ArticleBox) {
+        # Get the attachments without message bodies.
+        $QuoteArticle{Atms} = {
+            $ArticleBackendObject->ArticleAttachmentIndex(
+                ArticleID        => $Param{ArticleID},
+                UserID           => $Self->{UserID},
+                ExcludePlainText => 1,
+                ExcludeHTMLBody  => 1,
+                )
+        };
 
-            # search for article to answer (reply article)
-            next ARTICLE if $ArticleTmp->{ArticleID} ne $Param{ArticleID};
+        # Check if there is HTML body attachment.
+        my %AttachmentIndexHTMLBody = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID    => $Param{ArticleID},
+            UserID       => $Self->{UserID},
+            OnlyHTMLBody => 1,
+        );
+        my ($HTMLBodyAttachmentID) = sort keys %AttachmentIndexHTMLBody;
 
-            # check if no html body exists
-            last ARTICLE if !$ArticleTmp->{AttachmentIDOfHTMLBody};
-
-            my %AttachmentHTML = $TicketObject->ArticleAttachment(
-                ArticleID => $ArticleTmp->{ArticleID},
-                FileID    => $ArticleTmp->{AttachmentIDOfHTMLBody},
+        if ($HTMLBodyAttachmentID) {
+            my %AttachmentHTML = $ArticleBackendObject->ArticleAttachment(
+                TicketID  => $QuoteArticle{TicketID},
+                ArticleID => $QuoteArticle{ArticleID},
+                FileID    => $HTMLBodyAttachmentID,
                 UserID    => $Self->{UserID},
             );
             my $Charset = $AttachmentHTML{ContentType} || '';
@@ -547,9 +728,10 @@ sub ArticleQuote {
 
             # convert html body to correct charset
             $Body = $Kernel::OM->Get('Kernel::System::Encode')->Convert(
-                Text => $AttachmentHTML{Content},
-                From => $Charset,
-                To   => $Self->{UserCharset},
+                Text  => $AttachmentHTML{Content},
+                From  => $Charset,
+                To    => $Self->{UserCharset},
+                Check => 1,
             );
 
             # get HTML utils object
@@ -578,7 +760,7 @@ sub ArticleQuote {
                 . ';ContentID=';
 
             # search inline documents in body and add it to upload cache
-            my %Attachments = %{ $ArticleTmp->{Atms} };
+            my %Attachments = %{ $QuoteArticle{Atms} };
             my %AttachmentAlreadyUsed;
             $Body =~ s{
                 (=|"|')cid:(.*?)("|'|>|\/>|\s)
@@ -605,7 +787,8 @@ sub ArticleQuote {
                     }
 
                     # get whole attachment
-                    my %AttachmentPicture = $TicketObject->ArticleAttachment(
+                    my %AttachmentPicture = $ArticleBackendObject->ArticleAttachment(
+                        TicketID => $Param{TicketID},
                         ArticleID => $Param{ArticleID},
                         FileID    => $AttachmentID,
                         UserID    => $Self->{UserID},
@@ -645,7 +828,8 @@ sub ArticleQuote {
                 next ATTACHMENT if !$Attachments{$AttachmentID}->{ContentID};
 
                 # get whole attachment
-                my %AttachmentPicture = $TicketObject->ArticleAttachment(
+                my %AttachmentPicture = $ArticleBackendObject->ArticleAttachment(
+                    TicketID  => $Param{TicketID},
                     ArticleID => $Param{ArticleID},
                     FileID    => $AttachmentID,
                     UserID    => $Self->{UserID},
@@ -692,15 +876,13 @@ sub ArticleQuote {
                 next ATTACHMENT if $AttachmentAlreadyUsed{$AttachmentID};
                 $NotInlineAttachments{$AttachmentID} = 1;
             }
-
-            # do no more article
-            last ARTICLE;
         }
 
         # attach also other attachments on article forward
         if ( $Body && $Param{AttachmentsInclude} ) {
             for my $AttachmentID ( sort keys %NotInlineAttachments ) {
-                my %Attachment = $TicketObject->ArticleAttachment(
+                my %Attachment = $ArticleBackendObject->ArticleAttachment(
+                    TicketID  => $Param{TicketID},
                     ArticleID => $Param{ArticleID},
                     FileID    => $AttachmentID,
                     UserID    => $Self->{UserID},
@@ -718,9 +900,11 @@ sub ArticleQuote {
     }
 
     # as fallback use text body for quote
-    my %Article = $TicketObject->ArticleGet(
+    my %Article = $ArticleBackendObject->ArticleGet(
+        TicketID      => $Param{TicketID},
         ArticleID     => $Param{ArticleID},
         DynamicFields => 0,
+        UserID        => $Self->{UserID},
     );
 
     # check if original content isn't text/plain or text/html, don't use it
@@ -741,14 +925,15 @@ sub ArticleQuote {
 
     # attach attachments
     if ( $Param{AttachmentsInclude} ) {
-        my %ArticleIndex = $TicketObject->ArticleAttachmentIndex(
-            ArticleID                  => $Param{ArticleID},
-            UserID                     => $Self->{UserID},
-            StripPlainBodyAsAttachment => 3,
-            Article                    => \%Article,
+        my %ArticleIndex = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID        => $Param{ArticleID},
+            UserID           => $Self->{UserID},
+            ExcludePlainText => 1,
+            ExcludeHTMLBody  => 1,
         );
         for my $Index ( sort keys %ArticleIndex ) {
-            my %Attachment = $TicketObject->ArticleAttachment(
+            my %Attachment = $ArticleBackendObject->ArticleAttachment(
+                TicketID  => $Param{TicketID},
                 ArticleID => $Param{ArticleID},
                 FileID    => $Index,
                 UserID    => $Self->{UserID},
@@ -816,7 +1001,7 @@ sub TicketListShow {
 
     # update preferences if needed
     my $Key = 'UserTicketOverview' . $Env->{Action};
-    if ( !$ConfigObject->Get('DemoSystem') && $Self->{$Key} ne $View ) {
+    if ( !$ConfigObject->Get('DemoSystem') && ( $Self->{$Key} // '' ) ne $View ) {
         $Kernel::OM->Get('Kernel::System::User')->SetPreferences(
             UserID => $Self->{UserID},
             Key    => $Key,
@@ -851,6 +1036,14 @@ sub TicketListShow {
             last KEY;
         }
     }
+
+    # get layout object
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    $LayoutObject->AddJSData(
+        Key   => 'View',
+        Value => $View,
+    );
 
     # load overview backend module
     if ( !$Kernel::OM->Get('Kernel::System::Main')->Require( $Backends->{$View}->{Module} ) ) {
@@ -936,6 +1129,10 @@ sub TicketListShow {
         $Self->Block(
             Name => 'OverviewNavBarPageBack',
             Data => \%Param,
+        );
+        $LayoutObject->AddJSData(
+            Key   => 'Profile',
+            Value => $Param{Profile},
         );
     }
 
@@ -1055,6 +1252,20 @@ sub TicketListShow {
                 my @ColumnsEnabled = @{ $Object->{ColumnsEnabled} };
                 my @ColumnsAvailable;
 
+                # remove duplicate columns
+                my %UniqueColumns;
+                my @ColumnsEnabledAux;
+
+                for my $Column (@ColumnsEnabled) {
+                    if ( !$UniqueColumns{$Column} ) {
+                        push @ColumnsEnabledAux, $Column;
+                    }
+                    $UniqueColumns{$Column} = 1;
+                }
+
+                # set filtered column list
+                @ColumnsEnabled = @ColumnsEnabledAux;
+
                 for my $ColumnName ( sort { $a cmp $b } @{ $Object->{ColumnsAvailable} } ) {
                     if ( !grep { $_ eq $ColumnName } @ColumnsEnabled ) {
                         push @ColumnsAvailable, $ColumnName;
@@ -1073,7 +1284,7 @@ sub TicketListShow {
                         ColumnsEnabled   => $JSONObject->Encode( Data => \@ColumnsEnabled ),
                         ColumnsAvailable => $JSONObject->Encode( Data => \@ColumnsAvailable ),
                         NamePref         => $PrefKeyColumns,
-                        Desc             => 'Shown Columns',
+                        Desc             => Translatable('Shown Columns'),
                         Name             => $Env->{Action},
                         View             => $View,
                         GroupName        => 'TicketOverviewFilterSettings',
@@ -1204,7 +1415,7 @@ sub TicketMetaItems {
             $Image = 'meta-new.png';
             push @Result, {
                 Image      => $Image,
-                Title      => 'Unread article(s) available',
+                Title      => Translatable('Unread article(s) available'),
                 Class      => 'UnreadArticles',
                 ClassSpan  => 'UnreadArticles Remarkable',
                 ClassTable => 'UnreadArticles',
@@ -1213,7 +1424,7 @@ sub TicketMetaItems {
         else {
             push @Result, {
                 Image      => $Image,
-                Title      => 'Unread article(s) available',
+                Title      => Translatable('Unread article(s) available'),
                 Class      => 'UnreadArticles',
                 ClassSpan  => 'UnreadArticles Ordinary',
                 ClassTable => 'UnreadArticles',
@@ -1225,8 +1436,6 @@ sub TicketMetaItems {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

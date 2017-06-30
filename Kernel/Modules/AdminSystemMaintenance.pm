@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -32,7 +33,6 @@ sub Run {
     my $ParamObject             = $Kernel::OM->Get('Kernel::System::Web::Request');
     my $SessionObject           = $Kernel::OM->Get('Kernel::System::AuthSession');
     my $SystemMaintenanceObject = $Kernel::OM->Get('Kernel::System::SystemMaintenance');
-    my $TimeObject              = $Kernel::OM->Get('Kernel::System::Time');
 
     my $SystemMaintenanceID = $ParamObject->GetParam( Param => 'SystemMaintenanceID' ) || '';
     my $WantSessionID       = $ParamObject->GetParam( Param => 'WantSessionID' )       || '';
@@ -119,7 +119,7 @@ sub Run {
             # add notification
             push @NotifyData, {
                 Priority => 'Error',
-                Info     => "Start date shouldn't be defined after Stop date!",
+                Info     => Translatable('Start date shouldn\'t be defined after Stop date!'),
             };
         }
 
@@ -162,15 +162,24 @@ sub Run {
         # show error if can't create
         if ( !$SystemMaintenanceID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error creating the SystemMaintenance",
+                Message => Translatable('There was an error creating the System Maintenance'),
             );
         }
 
         # redirect to edit screen
-        return $LayoutObject->Redirect(
-            OP =>
-                "Action=$Self->{Action};Subaction=SystemMaintenanceEdit;SystemMaintenanceID=$SystemMaintenanceID;Saved=1"
-        );
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
+            return $LayoutObject->Redirect(
+                OP =>
+                    "Action=$Self->{Action};Subaction=SystemMaintenanceEdit;SystemMaintenanceID=$SystemMaintenanceID;Notification=Add"
+            );
+        }
+        else {
+            return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Add" );
+        }
     }
 
     # ------------------------------------------------------------ #
@@ -184,7 +193,7 @@ sub Run {
         # check for SystemMaintenanceID
         if ( !$SystemMaintenanceID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need SystemMaintenanceID!",
+                Message => Translatable('Need SystemMaintenanceID!'),
             );
         }
 
@@ -197,25 +206,42 @@ sub Run {
         # include time stamps on the correct key
         for my $Key (qw(StartDate StopDate)) {
 
-            # try to convert SystemTime to TimeStamp
-            $SystemMaintenanceData->{ $Key . 'TimeStamp' } = $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $SystemMaintenanceData->{$Key},
+            # try to convert to TimeStamp
+            my $DateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    Epoch => $SystemMaintenanceData->{$Key},
+                    }
             );
+            $SystemMaintenanceData->{ $Key . 'TimeStamp' } =
+                $DateTimeObject ? $DateTimeObject->ToString() : undef;
         }
 
         # check for valid system maintenance data
         if ( !IsHashRefWithData($SystemMaintenanceData) ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Could not get data for SystemMaintenanceID $SystemMaintenanceID",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'Could not get data for SystemMaintenanceID %s',
+                    $SystemMaintenanceID
+                ),
             );
         }
 
-        if ( $ParamObject->GetParam( Param => 'Saved' ) ) {
+        if ( $ParamObject->GetParam( Param => 'Notification' ) eq 'Add' ) {
 
             # add notification
             push @NotifyData, {
                 Priority => 'Notice',
-                Info     => "System Maintenance was saved successfully!",
+                Info     => Translatable('System Maintenance was added successfully!'),
+            };
+        }
+
+        if ( $ParamObject->GetParam( Param => 'Notification' ) eq 'Update' ) {
+
+            # add notification
+            push @NotifyData, {
+                Priority => 'Notice',
+                Info     => Translatable('System Maintenance was updated successfully!'),
             };
         }
 
@@ -224,7 +250,7 @@ sub Run {
             # add notification
             push @NotifyData, {
                 Priority => 'Notice',
-                Info     => 'Session has been killed!',
+                Info     => Translatable('Session has been killed!'),
             };
 
             # set class for expanding sessions widget
@@ -236,7 +262,7 @@ sub Run {
             # add notification
             push @NotifyData, {
                 Priority => 'Notice',
-                Info     => 'All sessions have been killed, except for your own.',
+                Info     => Translatable('All sessions have been killed, except for your own.'),
             };
 
             # set class for expanding sessions widget
@@ -285,7 +311,7 @@ sub Run {
             # add notification
             push @NotifyData, {
                 Priority => 'Error',
-                Info     => "Start date shouldn't be defined after Stop date!",
+                Info     => Translatable('Start date shouldn\'t be defined after Stop date!'),
             };
         }
 
@@ -331,15 +357,25 @@ sub Run {
         # show error if can't create
         if ( !$UpdateResult ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error updating the SystemMaintenance",
+                Message => Translatable('There was an error updating the System Maintenance'),
             );
         }
 
         # redirect to edit screen
-        return $LayoutObject->Redirect(
-            OP =>
-                "Action=$Self->{Action};Subaction=SystemMaintenanceEdit;SystemMaintenanceID=$SystemMaintenanceID;Saved=1"
-        );
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
+            return $LayoutObject->Redirect(
+                OP =>
+                    "Action=$Self->{Action};Subaction=SystemMaintenanceEdit;SystemMaintenanceID=$SystemMaintenanceID;Notification=Update"
+            );
+        }
+        else {
+            return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+        }
+
     }
 
     # ------------------------------------------------------------ #
@@ -363,8 +399,10 @@ sub Run {
         );
         if ( !$Delete ) {
             return $LayoutObject->ErrorScreen(
-                Message =>
-                    "Was not possible to delete the SystemMaintenance entry : $SystemMaintenanceID!",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'Was not possible to delete the SystemMaintenance entry: %s!',
+                    $SystemMaintenanceID
+                ),
             );
         }
         return $LayoutObject->Redirect( OP => 'Action=AdminSystemMaintenance' );
@@ -398,10 +436,15 @@ sub Run {
                 # include time stamps on the correct key
                 for my $Key (qw(StartDate StopDate)) {
 
-                    # try to convert SystemTime to TimeStamp
-                    $SystemMaintenance->{ $Key . 'TimeStamp' } = $TimeObject->SystemTime2TimeStamp(
-                        SystemTime => $SystemMaintenance->{$Key},
+                    my $DateTimeObject = $Kernel::OM->Create(
+                        'Kernel::System::DateTime',
+                        ObjectParams => {
+                            Epoch => $SystemMaintenance->{$Key},
+                        },
                     );
+                    $DateTimeObject->ToTimeZone( TimeZone => $Self->{UserTimeZone} );
+
+                    $SystemMaintenance->{ $Key . 'TimeStamp' } = $DateTimeObject->ToString();
                 }
 
                 # create blocks
@@ -417,6 +460,18 @@ sub Run {
         # generate output
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+
+        if ( ( $ParamObject->GetParam( Param => 'Notification' ) || '' ) eq 'Update' ) {
+            $Output .= $LayoutObject->Notify(
+                Info => Translatable('System Maintenance was updated successfully!')
+            );
+        }
+        elsif ( ( $ParamObject->GetParam( Param => 'Notification' ) || '' ) eq 'Add' ) {
+            $Output .= $LayoutObject->Notify(
+                Info => Translatable('System Maintenance was added successfully!')
+            );
+        }
+
         $Output .= $LayoutObject->Output(
             TemplateFile => 'AdminSystemMaintenance',
         );
@@ -524,19 +579,22 @@ sub _ShowEdit {
         for my $SessionID (@List) {
             my $List = '';
             my %Data = $SessionObject->GetSessionIDData( SessionID => $SessionID );
-            $MetaData{"$Data{UserType}Session"}++;
-            if ( !$MetaData{"$Data{UserLogin}"} ) {
-                $MetaData{"$Data{UserType}SessionUniq"}++;
-                $MetaData{"$Data{UserLogin}"} = 1;
+            if ( $Data{UserType} && $Data{UserLogin} ) {
+                $MetaData{"$Data{UserType}Session"}++;
+                if ( !$MetaData{"$Data{UserLogin}"} ) {
+                    $MetaData{"$Data{UserType}SessionUniq"}++;
+                    $MetaData{"$Data{UserLogin}"} = 1;
+                }
             }
 
-            $Data{UserType} = 'Agent' if ( $Data{UserType} ne 'Customer' );
+            $Data{UserType} = 'Agent' if ( !$Data{UserType} || $Data{UserType} ne 'Customer' );
 
             # store data to be used later for showing a users session table
             push @UserSessions, {
                 SessionID     => $SessionID,
                 UserFirstname => $Data{UserFirstname},
                 UserLastname  => $Data{UserLastname},
+                UserFullname  => $Data{UserFullname},
                 UserType      => $Data{UserType},
             };
         }
@@ -589,8 +647,6 @@ sub _ShowEdit {
 sub _GetParams {
     my ( $Self, %Param ) = @_;
 
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
     my $GetParam;
 
     # get parameters from web browser
@@ -622,22 +678,20 @@ sub _GetParams {
             $DateStructure{$Period} = $GetParam->{ $Item . $Period };
         }
 
-        # check date
-        if ( !$TimeObject->Date2SystemTime( %DateStructure, Second => 0 ) ) {
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                %DateStructure,
+                TimeZone => $Self->{UserTimeZone},
+            },
+        );
+        if ( !$DateTimeObject ) {
             $Param{Error}->{ $Item . 'Invalid' } = 'ServerError';
             next ITEM;
         }
 
-        # try to convert date to a SystemTime
-        $GetParam->{$Item} = $TimeObject->Date2SystemTime(
-            %DateStructure,
-            Second => 0,
-        );
-
-        # try to convert SystemTime to TimeStamp
-        $GetParam->{ $Item . 'TimeStamp' } = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $GetParam->{$Item},
-        );
+        $GetParam->{$Item} = $DateTimeObject->ToEpoch();
+        $GetParam->{ $Item . 'TimeStamp' } = $DateTimeObject->ToString();
     }
 
     return $GetParam;

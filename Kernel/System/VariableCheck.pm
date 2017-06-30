@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -34,7 +34,7 @@ Exporter::export_ok_tags('all');
 
 Kernel::System::VariableCheck - helper functions to check variables
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Provides several helper functions to check variables, e.g.
 if a variable is a string, a hash ref etc. This is helpful for
@@ -91,11 +91,7 @@ The functions can be grouped as follows:
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item IsString()
+=head2 IsString()
 
 test supplied data to determine if it is a string - an empty string is valid
 
@@ -117,7 +113,7 @@ sub IsString {
     return 1;
 }
 
-=item IsStringWithData()
+=head2 IsStringWithData()
 
 test supplied data to determine if it is a non zero-length string
 
@@ -138,7 +134,7 @@ sub IsStringWithData {
     return 1;
 }
 
-=item IsArrayRefWithData()
+=head2 IsArrayRefWithData()
 
 test supplied data to determine if it is an array reference and contains at least one key
 
@@ -163,7 +159,7 @@ sub IsArrayRefWithData {
     return 1;
 }
 
-=item IsHashRefWithData()
+=head2 IsHashRefWithData()
 
 test supplied data to determine if it is a hash reference and contains at least one key/value pair
 
@@ -188,7 +184,7 @@ sub IsHashRefWithData {
     return 1;
 }
 
-=item IsNumber()
+=head2 IsNumber()
 
 test supplied data to determine if it is a number
 (integer, floating point, possible exponent, positive or negative)
@@ -212,7 +208,7 @@ sub IsNumber {
     return 1;
 }
 
-=item IsInteger()
+=head2 IsInteger()
 
 test supplied data to determine if it is an integer (only digits, positive or negative)
 
@@ -233,7 +229,7 @@ sub IsInteger {
     return 1;
 }
 
-=item IsPositiveInteger()
+=head2 IsPositiveInteger()
 
 test supplied data to determine if it is a positive integer (only digits and positive)
 
@@ -254,7 +250,7 @@ sub IsPositiveInteger {
     return 1;
 }
 
-=item IsIPv4Address()
+=head2 IsIPv4Address()
 
 test supplied data to determine if it is a valid IPv4 address (syntax check only)
 
@@ -286,7 +282,7 @@ sub IsIPv4Address {
     return 1;
 }
 
-=item IsIPv6Address()
+=head2 IsIPv6Address()
 
 test supplied data to determine if it is a valid IPv6 address (syntax check only)
 shorthand notation and mixed IPv6/IPv4 notation allowed
@@ -370,9 +366,9 @@ sub IsIPv6Address {
     return 1;
 }
 
-=item IsMD5Sum()
+=head2 IsMD5Sum()
 
-test supplied data to determine if it is an md5sum (32 hex characters)
+test supplied data to determine if it is an C<MD5> sum (32 hex characters)
 
 returns 1 if data matches criteria or undef otherwise
 
@@ -391,7 +387,7 @@ sub IsMD5Sum {
     return 1;
 }
 
-=item DataIsDifferent()
+=head2 DataIsDifferent()
 
 compares two data structures with each other. Returns 1 if
 they are different, undef otherwise.
@@ -399,7 +395,7 @@ they are different, undef otherwise.
 Data parameters need to be passed by reference and can be SCALAR,
 ARRAY or HASH.
 
-    my $DataIsDifferent = DataDiff(
+    my $DataIsDifferent = DataIsDifferent(
         Data1 => \$Data1,
         Data2 => \$Data2,
     );
@@ -533,8 +529,6 @@ sub DataIsDifferent {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

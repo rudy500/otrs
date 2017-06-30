@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,11 +18,9 @@ our @ObjectDependencies = (
     'Kernel::System::Cache',
     'Kernel::System::DB',
     'Kernel::System::GenericInterface::DebugLog',
-    'Kernel::System::GenericInterface::ObjectLockState',
     'Kernel::System::GenericInterface::WebserviceHistory',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
     'Kernel::System::Valid',
     'Kernel::System::YAML',
 );
@@ -31,22 +29,16 @@ our @ObjectDependencies = (
 
 Kernel::System::Webservice
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
-Webservice configuration backend.
+Web service configuration backend.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
 =cut
@@ -61,11 +53,11 @@ sub new {
     return $Self;
 }
 
-=item WebserviceAdd()
+=head2 WebserviceAdd()
 
 add new Webservices
 
-returns id of new webservice if successful or undef otherwise
+returns id of new web service if successful or undef otherwise
 
     my $ID = $WebserviceObject->WebserviceAdd(
         Name    => 'some name',
@@ -145,29 +137,24 @@ sub WebserviceAdd {
     # dump config as string
     my $Config = $Kernel::OM->Get('Kernel::System::YAML')->Dump( Data => $Param{Config} );
 
-    # md5 of content
-    my $MD5 = $Kernel::OM->Get('Kernel::System::Main')->MD5sum(
-        String => $Kernel::OM->Get('Kernel::System::Time')->SystemTime() . int( rand(1000000) ),
-    );
-
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
     # sql
     return if !$DBObject->Do(
         SQL =>
-            'INSERT INTO gi_webservice_config (name, config, config_md5, valid_id, '
+            'INSERT INTO gi_webservice_config (name, config, valid_id, '
             . ' create_time, create_by, change_time, change_by)'
-            . ' VALUES (?, ?, ?, ?, current_timestamp, ?, current_timestamp, ?)',
+            . ' VALUES (?, ?, ?, current_timestamp, ?, current_timestamp, ?)',
         Bind => [
-            \$Param{Name}, \$Config, \$MD5, \$Param{ValidID},
+            \$Param{Name}, \$Config, \$Param{ValidID},
             \$Param{UserID}, \$Param{UserID},
         ],
     );
 
     return if !$DBObject->Prepare(
-        SQL  => 'SELECT id FROM gi_webservice_config WHERE config_md5 = ?',
-        Bind => [ \$MD5 ],
+        SQL  => 'SELECT id FROM gi_webservice_config WHERE name = ?',
+        Bind => [ \$Param{Name} ],
     );
 
     my $ID;
@@ -180,7 +167,7 @@ sub WebserviceAdd {
         Type => 'Webservice',
     );
 
-    # get webservice history object
+    # get web service history object
     my $WebserviceHistoryObject = $Kernel::OM->Get('Kernel::System::GenericInterface::WebserviceHistory');
 
     # add history
@@ -193,7 +180,7 @@ sub WebserviceAdd {
     return $ID;
 }
 
-=item WebserviceGet()
+=head2 WebserviceGet()
 
 get Webservices attributes
 
@@ -301,9 +288,9 @@ sub WebserviceGet {
     return \%Data;
 }
 
-=item WebserviceUpdate()
+=head2 WebserviceUpdate()
 
-update Webservice attributes
+update web service attributes
 
 returns 1 if successful or undef otherwise
 
@@ -386,11 +373,6 @@ sub WebserviceUpdate {
     # dump config as string
     my $Config = $Kernel::OM->Get('Kernel::System::YAML')->Dump( Data => $Param{Config} );
 
-    # md5 of content
-    my $MD5 = $Kernel::OM->Get('Kernel::System::Main')->MD5sum(
-        String => $Kernel::OM->Get('Kernel::System::Time')->SystemTime() . int( rand(1000000) ),
-    );
-
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
@@ -417,10 +399,10 @@ sub WebserviceUpdate {
     # sql
     return if !$DBObject->Do(
         SQL => 'UPDATE gi_webservice_config SET name = ?, config = ?, '
-            . ' config_md5 = ?, valid_id = ?, change_time = current_timestamp, '
+            . ' valid_id = ?, change_time = current_timestamp, '
             . ' change_by = ? WHERE id = ?',
         Bind => [
-            \$Param{Name}, \$Config, \$MD5, \$Param{ValidID}, \$Param{UserID},
+            \$Param{Name}, \$Config, \$Param{ValidID}, \$Param{UserID},
             \$Param{ID},
         ],
     );
@@ -430,7 +412,7 @@ sub WebserviceUpdate {
         Type => 'Webservice',
     );
 
-    # get webservice history object
+    # get web service history object
     my $WebserviceHistoryObject = $Kernel::OM->Get('Kernel::System::GenericInterface::WebserviceHistory');
 
     # add history
@@ -443,7 +425,7 @@ sub WebserviceUpdate {
     return 1;
 }
 
-=item WebserviceDelete()
+=head2 WebserviceDelete()
 
 delete a Webservice
 
@@ -476,7 +458,7 @@ sub WebserviceDelete {
     );
     return if !IsHashRefWithData($Webservice);
 
-    # get webservice history object
+    # get web service history object
     my $WebserviceHistoryObject = $Kernel::OM->Get('Kernel::System::GenericInterface::WebserviceHistory');
 
     # delete history
@@ -485,18 +467,10 @@ sub WebserviceDelete {
         UserID       => $Param{UserID},
     );
 
-    # get object lock state object
-    my $ObjectLockStateObject = $Kernel::OM->Get('Kernel::System::GenericInterface::ObjectLockState');
-
-    # delete remaining entries in ObjectLockState
-    return if !$ObjectLockStateObject->ObjectLockStatePurge(
-        WebserviceID => $Param{ID},
-    );
-
     # get debug log object
     my $DebugLogObject = $Kernel::OM->Get('Kernel::System::GenericInterface::DebugLog');
 
-    # delete debugging data for webservice
+    # delete debugging data for web service
     return if !$DebugLogObject->LogDelete(
         WebserviceID   => $Param{ID},
         NoErrorIfEmpty => 1,
@@ -516,9 +490,9 @@ sub WebserviceDelete {
     return 1;
 }
 
-=item WebserviceList()
+=head2 WebserviceList()
 
-get Webservice list
+get web service list
 
     my $List = $WebserviceObject->WebserviceList();
 
@@ -586,8 +560,6 @@ sub WebserviceList {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -17,46 +17,39 @@ use SOAP::Lite;
 use Kernel::System::VariableCheck qw(:all);
 
 # get needed objects
-my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject    = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
 
-my $RandomID = $HelperObject->GetRandomID();
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $RandomID = $Helper->GetRandomID();
 
 # define SOAP variables
 my $SOAPUser     = 'User' . $RandomID;
 my $SOAPPassword = $RandomID;
 
 # update sysconfig settings
-$SysConfigObject->ConfigItemUpdate(
+$Helper->ConfigSettingChange(
     Valid => 1,
     Key   => 'SOAP::User',
     Value => $SOAPUser,
 );
-$SysConfigObject->ConfigItemUpdate(
+$Helper->ConfigSettingChange(
     Valid => 1,
     Key   => 'SOAP::Password',
     Value => $SOAPPassword,
 );
 
 # get remote host with some precautions for certain unit test systems
-my $Host;
-my $FQDN = $ConfigObject->Get('FQDN');
+my $Host = $Helper->GetTestHTTPHostname();
 
-# try to resolve fqdn host
-if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
-    $Host = $FQDN;
-}
-
-# try to resolve localhost instead
-if ( !$Host && gethostbyname('localhost') ) {
-    $Host = 'localhost';
-}
-
-# use hardcoded localhost ip address
-if ( !$Host ) {
-    $Host = '127.0.0.1';
-}
+# skip this test on Plack
+# TODO: fix this
+return 1 if $Host =~ m{:5000};
 
 # prepare RPC config
 my $Proxy = $ConfigObject->Get('HttpType')
@@ -77,12 +70,10 @@ my $SOAPObject = SOAP::Lite->new(
     uri   => $URI,
 );
 
-# ---
 # Tests for number of params in SOAP call
 # SOAP::Lite 0.715 is broken in line 1993, this file was patched in CPAN directory in order to fix
 # this problem. There is a similar problem reported in SOAP::Lite bug tracker in:
 # http://sourceforge.net/tracker/?func=detail&aid=3547564&group_id=66000&atid=513017
-# ---
 
 my @Tests = (
     {
@@ -160,7 +151,7 @@ for my $Test (@Tests) {
         $FaultString = $SOAPMessage->fault()->{faultstring};
     }
 
-    # get result form SOAP message if any
+    # get result from SOAP message if any
     my $Result;
     if ( $SOAPMessage->result() ) {
         $Result = $SOAPMessage->result();
@@ -178,5 +169,7 @@ for my $Test (@Tests) {
         "$Test->{Name}: Message result should have a value",
     );
 }
+
+# cleanup cache is done by RestoreDatabase
 
 1;

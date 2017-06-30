@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,27 +8,16 @@
 
 package Kernel::Output::HTML::Notification::AgentOnline;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
 our @ObjectDependencies = (
     'Kernel::System::AuthSession',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -48,12 +37,13 @@ sub Run {
             $Self->{UserID} ne $Data{UserID}
             && $Data{UserType} eq 'User'
             && $Data{UserLastRequest}
-            && $Data{UserLastRequest} + ( $IdleMinutes * 60 ) > $Kernel::OM->Get('Kernel::System::Time')->SystemTime()
+            && $Data{UserLastRequest} + ( $IdleMinutes * 60 )
+            > $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch()
             && $Data{UserFirstname}
             && $Data{UserLastname}
             )
         {
-            $Online{ $Data{UserID} } = "$Data{UserFirstname} $Data{UserLastname}";
+            $Online{ $Data{UserID} } = "$Data{UserFullname}";
             if ( $Param{Config}->{ShowEmail} ) {
                 $Online{ $Data{UserID} } .= " ($Data{UserEmail})";
             }

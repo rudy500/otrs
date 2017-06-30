@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,14 @@ use vars (qw($Self));
 # get needed objects
 my $DBObject  = $Kernel::OM->Get('Kernel::System::DB');
 my $XMLObject = $Kernel::OM->Get('Kernel::System::XML');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # ------------------------------------------------------------ #
 # XML test 2 (XML:TableCreate, XML:TableAlter, XML:Insert (size check),
@@ -110,13 +118,13 @@ for my $Count ( 1 .. 6 ) {
     my $Size   = $Length;
     my $Key    = 'Some116' . $Count;
     if ( $Size > ( 1024 * 1024 ) ) {
-        $Size = sprintf "%.1f MBytes", ( $Size / ( 1024 * 1024 ) );
+        $Size = sprintf "%.1f MB", ( $Size / ( 1024 * 1024 ) );
     }
     elsif ( $Size > 1024 ) {
-        $Size = sprintf "%.1f KBytes", ( ( $Size / 1024 ) );
+        $Size = sprintf "%.1f KB", ( ( $Size / 1024 ) );
     }
     else {
-        $Size = $Size . ' Bytes';
+        $Size = $Size . ' B';
     }
     $XML = '
         <Insert Table="test_a">
@@ -178,13 +186,13 @@ for my $Count ( 1 .. 6 ) {
     my $Size   = $Length;
     my $Key    = 'Some216' . $Count;
     if ( $Size > ( 1024 * 1024 ) ) {
-        $Size = sprintf "%.1f MBytes", ( $Size / ( 1024 * 1024 ) );
+        $Size = sprintf "%.1f MB", ( $Size / ( 1024 * 1024 ) );
     }
     elsif ( $Size > 1024 ) {
-        $Size = sprintf "%.1f KBytes", ( ( $Size / 1024 ) );
+        $Size = sprintf "%.1f KB", ( ( $Size / 1024 ) );
     }
     else {
-        $Size = $Size . ' Bytes';
+        $Size = $Size . ' B';
     }
 
     # insert
@@ -219,13 +227,13 @@ for my $Count ( 1 .. 19 ) {
     my $Size   = $Length;
     my $Key    = 'Some119' . $Count;
     if ( $Size > ( 1024 * 1024 ) ) {
-        $Size = sprintf "%.1f MBytes", ( $Size / ( 1024 * 1024 ) );
+        $Size = sprintf "%.1f MB", ( $Size / ( 1024 * 1024 ) );
     }
     elsif ( $Size > 1024 ) {
-        $Size = sprintf "%.1f KBytes", ( ( $Size / 1024 ) );
+        $Size = sprintf "%.1f KB", ( ( $Size / 1024 ) );
     }
     else {
-        $Size = $Size . ' Bytes';
+        $Size = $Size . ' B';
     }
 
     # insert
@@ -321,5 +329,7 @@ for my $SQL (@SQL) {
         "Do() DROP TABLE ($SQL)",
     );
 }
+
+# cleanup cache is done by RestoreDatabase.
 
 1;

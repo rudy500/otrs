@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,6 +14,7 @@ use warnings;
 our $ObjectManagerDisabled = 1;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -37,7 +38,7 @@ sub Run {
     # ------------------------------------------------------------ #
     if ( !$ConfigObject->Get('Ticket::Watcher') ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Feature is not active',
+            Message => Translatable('Feature is not active'),
         );
     }
 
@@ -48,11 +49,18 @@ sub Run {
     if ( $ConfigObject->Get('Ticket::WatcherGroup') ) {
         @Groups = @{ $ConfigObject->Get('Ticket::WatcherGroup') };
     }
-    my $Access = 1;
+
+    my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
+    my $Access      = 1;
     if (@Groups) {
         $Access = 0;
         for my $Group (@Groups) {
-            if ( $LayoutObject->{"UserIsGroup[$Group]"} eq 'Yes' ) {
+            my $HasPermission = $GroupObject->PermissionCheck(
+                UserID    => $Self->{UserID},
+                GroupName => $Group,
+                Type      => 'rw',
+            );
+            if ($HasPermission) {
                 $Access = 1;
             }
         }
@@ -163,7 +171,9 @@ sub Run {
         );
     }
 
-    $LayoutObject->ErrorScreen( Message => 'Invalid subaction' );
+    $LayoutObject->ErrorScreen(
+        Message => Translatable('Invalid Subaction.'),
+    );
 }
 
 1;

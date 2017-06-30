@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,6 +13,15 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Process Management") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Process Management'),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
         <div class="WidgetSimple">
@@ -69,15 +78,19 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
             </div>
         </div>
 
-        <div class="WidgetSimple">
+        <div class="WidgetSimple" id="ExampleProcesses">
             <div class="Header">
-                <h2>[% Translate("Example processes") | html %]</h2>
+                <h2>[% Translate("Ready-to-run Processes") | html %]</h2>
             </div>
             <div class="Content">
-            [% IF Data.ExampleProcessList %]
                 <p class="FieldExplanation">
-                    [% Translate("Here you can activate best practice example processes that are part of %s. Please note that some additional configuration may be required.", OTRSBusinessLabel) %]
+                    [% Translate("Here you can activate ready-to-run processes showcasing our best practices. Please note that some additional configuration may be required." ) %]
                 </p>
+            [% IF !Data.OTRSBusinessIsInstalled %]
+                <p class="FieldExplanation">
+                    [% Translate("Would you like to benefit from processes created by experts? Upgrade to %s to import some sophisticated ready-to-run processes.", OTRSBusinessLinkLabel) %]
+                </p>
+            [% END %]
                 <ul class="ActionList SpacingTop">
                     <li>
                         <form action="[% Env("CGIHandle") %]" method="post" enctype="multipart/form-data" class="Validate PreventMultipleSubmits">
@@ -91,17 +104,12 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
                                 <input type="checkbox" id="OverwriteExistingEntitiesExample" name="OverwriteExistingEntities" value="1" checked="checked" />
                                 <label for="OverwriteExistingEntitiesExample">[% Translate("Overwrite existing entities") | html %]</label>
                             </fieldset>
-                            <button class="CallForAction Fullsize Center SpacingTop" type="submit" value="[% Translate("Import example process") | html %]">
-                                <span><i class="fa fa-upload"></i>[% Translate("Import example process") | html %]</span>
+                            <button class="CallForAction Fullsize Center SpacingTop" type="submit" value="[% Translate("Import ready-to-run process") | html %]">
+                                <span><i class="fa fa-upload"></i>[% Translate("Import ready-to-run process") | html %]</span>
                             </button>
                         </form>
                     </li>
                 </ul>
-            [% ELSE %]
-                <p class="FieldExplanation">
-                    [% Translate("Do you want to benefit from processes created by experts? Upgrade to %s to be able to import some sophisticated example processes.", OTRSBusinessLinkLabel) %]
-                </p>
-            [% END %]
             </div>
         </div>
         <div class="WidgetSimple">
@@ -171,16 +179,13 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
                             </td>
                         </tr>
 [% RenderBlockEnd("ProcessNoDataRow") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="4">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-
         </div>
     </div>
     <div class="Clear"></div>
 </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Agent.Admin.ProcessManagement.InitProcessOverview();
-//]]></script>
-[% END %]

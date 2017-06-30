@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -21,19 +21,17 @@ our @ObjectDependencies = (
 
 Kernel::System::Daemon::DaemonModules::BaseTaskWorker - scheduler task worker base class
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Base class for scheduler daemon task worker modules.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=begin Internal:
 
-=cut
+=head2 _HandleError()
 
-=item _HandleError()
-
-creates a system error message and sends an email with the error messages form a task execution
+Creates a system error message and sends an email with the error messages form a task execution.
 
     my $Success = $TaskWorkerObject->_HandleError(
         TaskName     => 'some name',
@@ -53,7 +51,6 @@ sub _HandleError {
         Message  => $Param{LogMessage},
     );
 
-    # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     my $From = $ConfigObject->Get('NotificationSenderName') . ' <'
@@ -78,9 +75,77 @@ sub _HandleError {
     return;
 }
 
+=head2 _CheckTaskParams()
+
+Performs basic checks for common task parameters.
+
+    my $Success = $TaskWorkerObject->_CheckTaskParams(
+        TaskID               => 123,
+        TaskName             => 'some name',                # optional
+        Data                 => $TaskDataHasRef,
+        NeededDataAttributes => ['Object', 'Function'],     # optional, list of attributes that task needs in Data hash
+        DataParamsRef        => 'HASH',                     # optional, 'HASH' or 'ARRAY', kind of reference of Data->Params
+    );
+
+=cut
+
+sub _CheckTaskParams {
+    my ( $Self, %Param ) = @_;
+
+    for my $Needed (qw(TaskID Data)) {
+        if ( !$Param{$Needed} ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "Need $Needed! - Task: $Param{TaskName}",
+            );
+
+            return;
+        }
+    }
+
+    # Check data.
+    if ( ref $Param{Data} ne 'HASH' ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Got no valid Data! - Task: $Param{TaskName}",
+        );
+
+        return;
+    }
+
+    # Check mandatory attributes in Data.
+    if ( $Param{NeededDataAttributes} && ref $Param{NeededDataAttributes} eq 'ARRAY' ) {
+
+        for my $Needed ( @{ $Param{NeededDataAttributes} } ) {
+            if ( !$Param{Data}->{$Needed} ) {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need Data->$Needed! - Task: $Param{TaskName}",
+                );
+
+                return;
+            }
+        }
+    }
+
+    # Check the structure of Data params.
+    if ( $Param{DataParamsRef} ) {
+
+        if ( $Param{Data}->{Params} && ref $Param{Data}->{Params} ne uc $Param{DataParamsRef} ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "Data->Params is invalid, reference is not $Param{DataParamsRef}! - Task: $Param{TaskName}",
+            );
+
+            return;
+        }
+    }
+
+    return 1;
+}
 1;
 
-=back
+=end Internal:
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,6 +1,5 @@
 # --
-# .procmailrc - procmailrc of the OTRS user
-# Copyright (C) 2001-2012 OTRS AG, http://otrs.org/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,6 +15,7 @@ MONTHFOLDER=`date +%Y-%m`
 YEARFOLDER=`date +%Y`
 LOGFILE=$SYS_HOME/var/log/procmail-$MONTHFOLDER.log
 VERBOSE=on
+COMSAT=no
 
 
 # Remove all X-OTRS Header (allow this only for trusted email)
@@ -68,12 +68,12 @@ VERBOSE=on
 
 # Pipe all email into the PostMaster process.
 
-:0 :
+:0 w
 | $SYS_HOME/bin/otrs.Console.pl Maint::PostMaster::Read
 
 
-# spool all the rest (which the otrs.PostMaster.pl can't process!)
-# If the database is down or the otrs.PostMaster.pl exit was not '0'!
+# Spool all the rest (which the console command 'Maint::PostMaster::Read' can't process!)
+# If the database is down or the console command 'Maint::PostMaster::Read' does not return success!
 
 :0 :
 $SYS_HOME/var/spool/.

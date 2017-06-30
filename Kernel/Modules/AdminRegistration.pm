@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -26,6 +26,27 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
+    # get needed objects
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    # check if cloud services are disabled
+    my $CloudServicesDisabled = $ConfigObject->Get('CloudServices::Disabled') || 0;
+
+    # define parameter for breadcrumb during system registration
+    my $WithoutBreadcrumb;
+
+    if ($CloudServicesDisabled) {
+
+        my $Output = $LayoutObject->Header( Title => 'Error' );
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'CloudServicesDisabled',
+            Data         => \%Param
+        );
+        $Output .= $LayoutObject->Footer();
+        return $Output
+    }
+
     my $RegistrationState = $Kernel::OM->Get('Kernel::System::SystemData')->SystemDataGet(
         Key => 'Registration::State',
     ) || '';
@@ -39,12 +60,14 @@ sub Run {
         if ( $Self->{Subaction} eq 'Deregister' || $Self->{Subaction} eq 'UpdateNow' ) {
             $Self->{Subaction} = 'OTRSIDValidate';
         }
+
+        # during system registration, don't create breadcrumb item 'Validate OTRS-ID'
+        $WithoutBreadcrumb = 1 if $Self->{Subaction} eq 'OTRSIDValidate';
     }
 
-    my $LayoutObject       = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+    # get needed objects
     my $ParamObject        = $Kernel::OM->Get('Kernel::System::Web::Request');
     my $RegistrationObject = $Kernel::OM->Get('Kernel::System::Registration');
-    my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
 
     # ------------------------------------------------------------ #
     # Daemon not running screen
@@ -158,7 +181,10 @@ sub Run {
         $Output .= $LayoutObject->NavigationBar();
         $LayoutObject->Block(
             Name => 'Overview',
-            Data => \%Param,
+            Data => {
+                %Param,
+                Subaction => $WithoutBreadcrumb ? '' : $Self->{Subaction},
+            },
         );
 
         my $EntitlementStatus  = 'forbidden';
@@ -237,7 +263,10 @@ sub Run {
         $Output .= $LayoutObject->NavigationBar();
         $LayoutObject->Block(
             Name => 'Overview',
-            Data => \%Param,
+            Data => {
+                %Param,
+                Subaction => $Self->{Subaction},
+            },
         );
 
         $Param{SystemTypeOption} = $LayoutObject->BuildSelection(
@@ -287,7 +316,10 @@ sub Run {
         $Output .= $LayoutObject->NavigationBar();
         $LayoutObject->Block(
             Name => 'Overview',
-            Data => \%Param,
+            Data => {
+                %Param,
+                Subaction => $Self->{Subaction},
+                }
         );
 
         $LayoutObject->Block(
@@ -368,7 +400,10 @@ sub Run {
         $Output .= $LayoutObject->NavigationBar();
         $LayoutObject->Block(
             Name => 'Overview',
-            Data => \%Param,
+            Data => {
+                %Param,
+                Subaction => $Self->{Subaction},
+                }
         );
 
         my %RegistrationData = $RegistrationObject->RegistrationDataGet();
@@ -550,7 +585,10 @@ sub _SentDataOverview {
 
     $LayoutObject->Block(
         Name => 'Overview',
-        Data => \%Param,
+        Data => {
+            %Param,
+            Subaction => 'SentDataOverview',
+            }
     );
 
     $LayoutObject->Block( Name => 'ActionList' );

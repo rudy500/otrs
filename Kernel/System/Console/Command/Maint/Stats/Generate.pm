@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Maint::Stats::Generate;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -19,10 +19,11 @@ our @ObjectDependencies = (
     'Kernel::Output::PDF::Statistics',
     'Kernel::System::CSV',
     'Kernel::System::CheckItem',
+    'Kernel::System::DateTime',
     'Kernel::System::Email',
+    'Kernel::System::Main',
     'Kernel::System::PDF',
     'Kernel::System::Stats',
-    'Kernel::System::Time',
     'Kernel::System::User',
 );
 
@@ -82,6 +83,14 @@ sub Configure {
             "Adds a heading line consisting of statistics title and creation date in case of Excel or CSV as output format.",
         Required   => 0,
         HasValue   => 0,
+        ValueRegex => qr/.*/smx,
+    );
+    $Self->AddOption(
+        Name => 'timezone',
+        Description =>
+            "Target time zone (e.g. Europe/Berlin) for which the file should be generated.",
+        Required   => 0,
+        HasValue   => 1,
         ValueRegex => qr/.*/smx,
     );
     $Self->AddOption(
@@ -150,7 +159,7 @@ sub PreRun {
     # if there is a recipient, we also need a mail body
     if ( $Self->GetOption('mail-recipient') && !$Self->{MailBody} ) {
         die
-            "You defined at least one --mail-recipient which means that you also need to define a mail body using --mail-body.'\n";
+            "You defined at least one --mail-recipient which means that you also need to define a mail body using --mail-body.\n";
     }
 
     # if a target directory has been passed, check if it exists
@@ -182,10 +191,7 @@ sub Run {
 
     $Self->Print("<yellow>Generating statistic number $Self->{StatNumber}...</yellow>\n");
 
-    my ( $s, $m, $h, $D, $M, $Y ) =
-        $Kernel::OM->Get('Kernel::System::Time')->SystemTime2Date(
-        SystemTime => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
-    );
+    my $CurSysDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my %GetParam;
     my $Stat = $Kernel::OM->Get('Kernel::System::Stats')->StatsGet(
@@ -194,9 +200,9 @@ sub Run {
     );
 
     if ( $Stat->{StatType} eq 'static' ) {
-        $GetParam{Year}  = $Y;
-        $GetParam{Month} = $M;
-        $GetParam{Day}   = $D;
+        $GetParam{Year}  = $CurSysDTObject->Get()->{Year};
+        $GetParam{Month} = $CurSysDTObject->Get()->{Month};
+        $GetParam{Day}   = $CurSysDTObject->Get()->{Day};
 
         # get params from -p
         # only for static files
@@ -237,6 +243,12 @@ sub Run {
     }
     elsif ( $Stat->{StatType} eq 'dynamic' ) {
         %GetParam = %{$Stat};
+
+        # overwrite the default stats timezone with the given timezone
+        my $TimeZone = $Self->GetOption('timezone');
+        if ( defined $TimeZone && length $TimeZone ) {
+            $GetParam{TimeZone} = $TimeZone;
+        }
     }
 
     # run stat...
@@ -245,7 +257,6 @@ sub Run {
             StatID   => $Self->{StatID},
             GetParam => \%GetParam,
             UserID   => 1,
-            UserLanguage => $Self->{Language},
         ),
     };
 
@@ -254,7 +265,11 @@ sub Run {
     my $Title          = $TitleArrayRef->[0];
     my $HeadArrayRef   = shift(@StatArray);
     my $CountStatArray = @StatArray;
-    my $Time           = sprintf( "%04d-%02d-%02d %02d:%02d:%02d", $Y, $M, $D, $h, $m, $s );
+    my $Time           = $CurSysDTObject->ToString();
+    my @WithHeader;
+    if ( $Self->GetOption('with-header') ) {
+        @WithHeader = ( "Name: $Title", "Created: $Time" );
+    }
     if ( !@StatArray ) {
         push( @StatArray, [ ' ', 0 ] );
     }
@@ -267,6 +282,7 @@ sub Run {
             Title        => $Title,
             HeadArrayRef => $HeadArrayRef,
             StatArray    => \@StatArray,
+            TimeZone     => $GetParam{TimeZone},
         );
 
         # save the pdf with the title and timestamp as filename, or read it from param
@@ -276,7 +292,8 @@ sub Run {
         }
         else {
             $Filename = $Kernel::OM->Get('Kernel::System::Stats')->StringAndTimestamp2Filename(
-                String => $Stat->{Title} . " Created",
+                String   => $Stat->{Title} . " Created",
+                TimeZone => $GetParam{TimeZone},
             );
         }
         %Attachment = (
@@ -291,9 +308,10 @@ sub Run {
 
         # Create the Excel data
         my $Output = $Kernel::OM->Get('Kernel::System::CSV')->Array2CSV(
-            Head   => $HeadArrayRef,
-            Data   => \@StatArray,
-            Format => 'Excel',
+            WithHeader => \@WithHeader,
+            Head       => $HeadArrayRef,
+            Data       => \@StatArray,
+            Format     => 'Excel',
         );
 
         # save the Excel with the title and timestamp as filename, or read it from param
@@ -303,7 +321,8 @@ sub Run {
         }
         else {
             $Filename = $Kernel::OM->Get('Kernel::System::Stats')->StringAndTimestamp2Filename(
-                String => $Stat->{Title} . " Created",
+                String   => $Stat->{Title} . " Created",
+                TimeZone => $GetParam{TimeZone},
             );
         }
 
@@ -319,9 +338,10 @@ sub Run {
 
         # Create the CSV data
         my $Output = $Kernel::OM->Get('Kernel::System::CSV')->Array2CSV(
-            Head      => $HeadArrayRef,
-            Data      => \@StatArray,
-            Separator => $Self->{Separator},
+            WithHeader => \@WithHeader,
+            Head       => $HeadArrayRef,
+            Data       => \@StatArray,
+            Separator  => $Self->{Separator},
         );
 
         # save the csv with the title and timestamp as filename, or read it from param
@@ -331,7 +351,8 @@ sub Run {
         }
         else {
             $Filename = $Kernel::OM->Get('Kernel::System::Stats')->StringAndTimestamp2Filename(
-                String => $Stat->{Title} . " Created",
+                String   => $Stat->{Title} . " Created",
+                TimeZone => $GetParam{TimeZone},
             );
         }
 
@@ -346,15 +367,20 @@ sub Run {
 
     # write output
     if ( $Self->{TargetDirectory} ) {
-        if ( open my $Filehandle, '>', "$Self->{TargetDirectory}/$Attachment{Filename}" ) {    ## no critic
-            print $Filehandle $Attachment{Content};
-            close $Filehandle;
+
+        my $Success = $Kernel::OM->Get('Kernel::System::Main')->FileWrite(
+            Location => "$Self->{TargetDirectory}/$Attachment{Filename}",
+            Content  => \$Attachment{Content},
+            Mode     => 'binmode',
+        );
+
+        if ($Success) {
             $Self->Print("  Writing file <yellow>$Self->{TargetDirectory}/$Attachment{Filename}</yellow>.\n");
             $Self->Print("<green>Done.</green>\n");
             return $Self->ExitCodeOk();
         }
         else {
-            $Self->PrintError("Can't write $Self->{TargetDirectory}/$Attachment{Filename}: $!");
+            $Self->PrintError("Can't write $Self->{TargetDirectory}/$Attachment{Filename}!");
             return $Self->ExitCodeError();
         }
     }
@@ -422,15 +448,3 @@ sub GetArray {
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

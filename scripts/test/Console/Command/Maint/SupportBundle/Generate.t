@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,16 @@ use utf8;
 
 use vars (qw($Self));
 
-# cleanup from previous tests
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $TargetDirectory = $Kernel::OM->Get('Kernel::Config')->Get('Home') . '/var/tmp';
+
+# Cleanup from previous tests.
 my @SupportFiles = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
     Directory => '/var/tmp',
     Filter    => 'SupportBundle_*.tar.gz',
@@ -23,14 +32,13 @@ foreach my $File (@SupportFiles) {
 
 my $CommandObject = $Kernel::OM->Get('Kernel::System::Console::Command::Maint::SupportBundle::Generate');
 
-my $TargetDirectory = $Kernel::OM->Get('Kernel::Config')->Get('Home') . "/var/tmp";
-
+# Run the console command and get its exit code as a result.
 my $ExitCode = $CommandObject->Execute( '--target-directory', $TargetDirectory );
 
 $Self->Is(
     $ExitCode,
     0,
-    "Maint::SupportBundle::Generate exit code",
+    'Maint::SupportBundle::Generate exit code'
 );
 
 @SupportFiles = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
@@ -41,12 +49,14 @@ $Self->Is(
 $Self->Is(
     scalar @SupportFiles,
     1,
-    "Support bundle generated",
+    'Support bundle generated'
 );
 
-# cleanup
+# Remove generated support files.
 foreach my $File (@SupportFiles) {
     unlink $File;
 }
+
+# Cleanup cache is done by RestoreDatabase.
 
 1;

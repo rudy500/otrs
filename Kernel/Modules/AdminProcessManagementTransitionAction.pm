@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -85,19 +86,19 @@ sub Run {
 
             # add server error error class
             $Error{NameServerError}        = 'ServerError';
-            $Error{NameServerErrorMessage} = 'This field is required';
+            $Error{NameServerErrorMessage} = Translatable('This field is required');
         }
 
         if ( !$GetParam->{Module} ) {
 
             # add server error error class
             $Error{ModuleServerError}        = 'ServerError';
-            $Error{ModuleServerErrorMessage} = 'This field is required';
+            $Error{ModuleServerErrorMessage} = Translatable('This field is required');
         }
 
         if ( !$GetParam->{Config} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "At least one valid config parameter is required.",
+                Message => Translatable('At least one valid config parameter is required.'),
             );
         }
 
@@ -120,7 +121,7 @@ sub Run {
         # show error if can't generate a new EntityID
         if ( !$EntityID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error generating a new EntityID for this TransitionAction",
+                Message => Translatable('There was an error generating a new EntityID for this TransitionAction'),
             );
         }
 
@@ -136,7 +137,7 @@ sub Run {
         # show error if can't create
         if ( !$TransitionActionID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error creating the TransitionAction",
+                Message => Translatable('There was an error creating the TransitionAction'),
             );
         }
 
@@ -151,8 +152,10 @@ sub Run {
         # show error if can't set
         if ( !$Success ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error setting the entity sync status for TransitionAction "
-                    . "entity:$EntityID",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'There was an error setting the entity sync status for TransitionAction entity: %s',
+                    $EntityID
+                ),
             );
         }
 
@@ -165,8 +168,6 @@ sub Run {
         my $TransitionActionConfig = $Self->_GetTransitionActionConfig(
             EntityID => $EntityID,
         );
-
-        my $ConfigJSON = $LayoutObject->JSONEncode( Data => $TransitionActionConfig );
 
         # check if needed to open another window or if popup should go back
         if ( $Redirect && $Redirect eq '1' ) {
@@ -191,7 +192,7 @@ sub Run {
                     ID        => $RedirectID,
                     EntityID  => $RedirectID,
                 },
-                ConfigJSON => $ConfigJSON,
+                ConfigJSON => $TransitionActionConfig,
             );
         }
         else {
@@ -205,7 +206,7 @@ sub Run {
                 # close the popup
                 return $Self->_PopupResponse(
                     ClosePopup => 1,
-                    ConfigJSON => $ConfigJSON,
+                    ConfigJSON => $TransitionActionConfig,
                 );
             }
             else {
@@ -214,7 +215,7 @@ sub Run {
                 return $Self->_PopupResponse(
                     Redirect   => 1,
                     Screen     => $LastScreen,
-                    ConfigJSON => $ConfigJSON,
+                    ConfigJSON => $TransitionActionConfig,
                 );
             }
         }
@@ -228,7 +229,7 @@ sub Run {
         # check for TransitionActionID
         if ( !$TransitionActionID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need TransitionActionID!",
+                Message => Translatable('Need TransitionActionID!'),
             );
         }
 
@@ -244,7 +245,10 @@ sub Run {
         # check for valid TransitionAction data
         if ( !IsHashRefWithData($TransitionActionData) ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Could not get data for TransitionActionID $TransitionActionID",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'Could not get data for TransitionActionID %s',
+                    $TransitionActionID
+                ),
             );
         }
 
@@ -282,19 +286,19 @@ sub Run {
 
             # add server error error class
             $Error{NameServerError}        = 'ServerError';
-            $Error{NameServerErrorMessage} = 'This field is required';
+            $Error{NameServerErrorMessage} = Translatable('This field is required');
         }
 
         if ( !$GetParam->{Module} ) {
 
             # add server error error class
             $Error{ModuleServerError}        = 'ServerError';
-            $Error{ModuleServerErrorMessage} = 'This field is required';
+            $Error{ModuleServerErrorMessage} = Translatable('This field is required');
         }
 
         if ( !$GetParam->{Config} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "At least one valid config parameter is required.",
+                Message => Translatable('At least one valid config parameter is required.'),
             );
         }
 
@@ -321,7 +325,7 @@ sub Run {
         # show error if can't update
         if ( !$Success ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error updating the TransitionAction",
+                Message => Translatable('There was an error updating the TransitionAction'),
             );
         }
 
@@ -336,8 +340,10 @@ sub Run {
         # show error if can't set
         if ( !$Success ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error setting the entity sync status for TransitionAction "
-                    . "entity:$TransitionActionData->{EntityID}",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'There was an error setting the entity sync status for TransitionAction entity: %s',
+                    $TransitionActionData->{EntityID}
+                ),
             );
         }
 
@@ -350,8 +356,6 @@ sub Run {
         my $TransitionActionConfig = $Self->_GetTransitionActionConfig(
             EntityID => $TransitionActionData->{EntityID},
         );
-
-        my $ConfigJSON = $LayoutObject->JSONEncode( Data => $TransitionActionConfig );
 
         # check if needed to open another window or if popup should go back
         if ( $Redirect && $Redirect eq '1' ) {
@@ -376,7 +380,7 @@ sub Run {
                     ID        => $RedirectID,
                     EntityID  => $RedirectID,
                 },
-                ConfigJSON => $ConfigJSON,
+                ConfigJSON => $TransitionActionConfig,
             );
         }
         else {
@@ -390,7 +394,7 @@ sub Run {
                 # close the popup
                 return $Self->_PopupResponse(
                     ClosePopup => 1,
-                    ConfigJSON => $ConfigJSON,
+                    ConfigJSON => $TransitionActionConfig,
                 );
             }
             else {
@@ -399,7 +403,7 @@ sub Run {
                 return $Self->_PopupResponse(
                     Redirect   => 1,
                     Screen     => $LastScreen,
-                    ConfigJSON => $ConfigJSON,
+                    ConfigJSON => $TransitionActionConfig,
                 );
             }
         }
@@ -413,6 +417,7 @@ sub Run {
         # close the popup
         return $Self->_PopupResponse(
             ClosePopup => 1,
+            ConfigJSON => '',
         );
     }
 
@@ -421,7 +426,7 @@ sub Run {
     # ------------------------------------------------------------ #
     else {
         return $LayoutObject->ErrorScreen(
-            Message => "This subaction is not valid",
+            Message => Translatable('This subaction is not valid'),
         );
     }
 }
@@ -476,10 +481,13 @@ sub _ShowEdit {
     }
 
     if ( defined $Param{Action} && $Param{Action} eq 'Edit' ) {
-        $Param{Title} = "Edit Transition Action \"$TransitionActionData->{Name}\"";
+        $Param{Title} = $LayoutObject->{LanguageObject}->Translate(
+            'Edit Transition Action "%s"',
+            $TransitionActionData->{Name}
+        );
     }
     else {
-        $Param{Title} = 'Create New Transition Action';
+        $Param{Title} = Translatable('Create New Transition Action');
     }
 
     my $Output = $LayoutObject->Header(
@@ -599,7 +607,7 @@ sub _GetParams {
 
     if ( @ConfigParamKeys != @ConfigParamValues ) {
         return $Kernel::OM->Get('Kernel::Output::HTML::Layout')->ErrorScreen(
-            Message => "Error: Not all keys seem to have values or vice versa.",
+            Message => Translatable('Error: Not all keys seem to have values or vice versa.'),
         );
     }
 
@@ -680,20 +688,24 @@ sub _PopupResponse {
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
     if ( $Param{Redirect} && $Param{Redirect} eq 1 ) {
-        $LayoutObject->Block(
-            Name => 'Redirect',
-            Data => {
+
+        # send data to JS
+        $LayoutObject->AddJSData(
+            Key   => 'Redirect',
+            Value => {
                 ConfigJSON => $Param{ConfigJSON},
                 %{ $Param{Screen} },
-            },
+                }
         );
     }
     elsif ( $Param{ClosePopup} && $Param{ClosePopup} eq 1 ) {
-        $LayoutObject->Block(
-            Name => 'ClosePopup',
-            Data => {
+
+        # send data to JS
+        $LayoutObject->AddJSData(
+            Key   => 'ClosePopup',
+            Value => {
                 ConfigJSON => $Param{ConfigJSON},
-            },
+                }
         );
     }
 

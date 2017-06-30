@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,8 +10,6 @@ package Kernel::System::VirtualFS::FS;
 
 use strict;
 use warnings;
-
-use Time::HiRes qw();
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -35,23 +33,14 @@ sub new {
         mkdir $Self->{DataDir} || die $!;
     }
 
-    # Check fs write permissions.
-    # Generate a thread-safe article check directory.
-    my ( $Seconds, $Microseconds ) = Time::HiRes::gettimeofday();
-    my $PermissionCheckDirectory
-        = "check_permissions_${$}_" . ( int rand 1_000_000_000 ) . "_${Seconds}_${Microseconds}";
-    my $Path = "$Self->{DataDir}/$PermissionCheckDirectory";
+    # check write permissions
+    if ( !-w $Self->{DataDir} ) {
 
-    if ( mkdir( $Path, 0750 ) ) {
-        rmdir $Path;
-    }
-    else {
-        my $Error = $!;
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'notice',
-            Message  => "Can't create $Path: $Error, try: \$OTRS_HOME/bin/otrs.SetPermissions.pl!",
+            Message  => "Can't write $Self->{DataDir}! try: \$OTRS_HOME/bin/otrs.SetPermissions.pl!",
         );
-        die "Can't create $Path: $Error, try: \$OTRS_HOME/bin/otrs.SetPermissions.pl!";
+        die "Can't write $Self->{DataDir}! try: \$OTRS_HOME/bin/otrs.SetPermissions.pl!";
     }
 
     # config (not used right now)
@@ -69,7 +58,7 @@ sub Read {
         if ( !$Param{$_} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
-                Message  => "Need $_!"
+                Message  => "Need $_!",
             );
             return;
         }
@@ -107,7 +96,7 @@ sub Write {
         if ( !$Param{$_} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
-                Message  => "Need $_!"
+                Message  => "Need $_!",
             );
             return;
         }
@@ -138,13 +127,17 @@ sub Write {
 
     DIRECTORY:
     for my $Dir (@Dirs) {
+
         $DataDir .= '/' . $Dir;
+
         next DIRECTORY if -e $Self->{DataDir} . $DataDir;
         next DIRECTORY if mkdir $Self->{DataDir} . $DataDir;
+
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
             Message  => "Can't create $Self->{DataDir}$DataDir: $!",
         );
+
         return;
     }
 
@@ -156,6 +149,7 @@ sub Write {
         Content    => $Param{Content},
         Permission => $Self->{Permission},
     );
+
     return if !$Filename;
 
     my $BackendKey = $Self->_BackendKeyGenerate(
@@ -173,14 +167,12 @@ sub Delete {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for (qw(BackendKey)) {
-        if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
-            return;
-        }
+    if ( !$Param{BackendKey} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need $_!",
+        );
+        return;
     }
 
     my $Attributes = $Self->_BackendKeyParse(%Param);
@@ -206,14 +198,12 @@ sub _BackendKeyParse {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for (qw(BackendKey)) {
-        if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
-            return;
-        }
+    if ( !$Param{BackendKey} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need $_!",
+        );
+        return;
     }
 
     my @Pairs = split /;/, $Param{BackendKey};
@@ -231,14 +221,12 @@ sub _SplitDir {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for (qw(Filename)) {
-        if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
-            return;
-        }
+    if ( !$Param{Filename} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need $_!",
+        );
+        return;
     }
 
     my @Dir;

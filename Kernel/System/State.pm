@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,22 +24,16 @@ our @ObjectDependencies = (
 
 Kernel::System::State - state lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All ticket state functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create an object
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $StateObject = $Kernel::OM->Get('Kernel::System::State');
 
 =cut
@@ -55,14 +49,19 @@ sub new {
     $Self->{CacheTTL}  = 60 * 60 * 24 * 20;
 
     # check needed config options
-    for (qw(Ticket::ViewableStateType Ticket::UnlockStateType)) {
-        $Kernel::OM->Get('Kernel::Config')->Get($_) || die "Need $_ in Kernel/Config.pm!\n";
+    for my $Needed (qw(Ticket::ViewableStateType Ticket::UnlockStateType)) {
+        if ( !$Kernel::OM->Get('Kernel::Config')->Get($Needed) ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "$Needed is missing in the configuration!",
+            );
+        }
     }
 
     return $Self;
 }
 
-=item StateAdd()
+=head2 StateAdd()
 
 add new states
 
@@ -127,7 +126,7 @@ sub StateAdd {
     return $ID;
 }
 
-=item StateGet()
+=head2 StateGet()
 
 get state attributes
 
@@ -238,7 +237,7 @@ sub StateGet {
     return %Data;
 }
 
-=item StateUpdate()
+=head2 StateUpdate()
 
 update state attributes
 
@@ -248,7 +247,6 @@ update state attributes
         Comment        => 'some comment',
         ValidID        => 1,
         TypeID         => 1,
-        CheckSysConfig => 0,   # (optional) default 1
         UserID         => 123,
     );
 
@@ -267,9 +265,6 @@ sub StateUpdate {
             return;
         }
     }
-
-    # check CheckSysConfig param
-    $Param{CheckSysConfig} //= 1;
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -290,16 +285,10 @@ sub StateUpdate {
         Type => $Self->{CacheType},
     );
 
-    # check all sysconfig options
-    return 1 if !$Param{CheckSysConfig};
-
-    # check all sysconfig options and correct them automatically if neccessary
-    $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemCheckAll();
-
     return 1;
 }
 
-=item StateGetStatesByType()
+=head2 StateGetStatesByType()
 
 get list of states for a type or a list of state types.
 
@@ -449,7 +438,7 @@ sub StateGetStatesByType {
     return @ID;
 }
 
-=item StateList()
+=head2 StateList()
 
 get state list as a hash of ID, Name pairs
 
@@ -537,7 +526,7 @@ sub StateList {
     return %Data;
 }
 
-=item StateLookup()
+=head2 StateLookup()
 
 returns the id or the name of a state
 
@@ -596,7 +585,7 @@ sub StateLookup {
     return $ReturnData;
 }
 
-=item StateTypeList()
+=head2 StateTypeList()
 
 get state type list as a hash of ID, Name pairs
 
@@ -663,7 +652,7 @@ sub StateTypeList {
     return %Data;
 }
 
-=item StateTypeLookup()
+=head2 StateTypeLookup()
 
 returns the id or the name of a state type
 
@@ -724,8 +713,6 @@ sub StateTypeLookup {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

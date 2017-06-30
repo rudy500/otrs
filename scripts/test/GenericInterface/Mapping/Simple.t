@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -17,12 +17,18 @@ use Kernel::GenericInterface::Debugger;
 
 # get needed objects
 my $ConfigObject     = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject     = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $MainObject       = $Kernel::OM->Get('Kernel::System::Main');
-my $TimeObject       = $Kernel::OM->Get('Kernel::System::Time');
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
-my $RandomID = $HelperObject->GetRandomID();
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $RandomID = $Helper->GetRandomID();
 
 my $WebserviceID = $WebserviceObject->WebserviceAdd(
     Config => {
@@ -681,7 +687,8 @@ TEST:
 for my $Test (@MappingTests) {
 
     my $StartSeconds;
-    $StartSeconds = $TimeObject->SystemTime() if ( $Test->{CheckTime} );
+    $StartSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch()
+        if ( $Test->{CheckTime} );
 
     # instantiate mapping object to catch config errors
     my $MappingObject = Kernel::GenericInterface::Mapping->new(
@@ -695,7 +702,7 @@ for my $Test (@MappingTests) {
         $Self->Is(
             ref $MappingObject,
             'Kernel::GenericInterface::Mapping',
-            'MappingObject was correctly instantiated',
+            $Test->{Name} . ' MappingObject was correctly instantiated',
         );
         next TEST if ref $MappingObject ne 'Kernel::GenericInterface::Mapping';
     }
@@ -703,7 +710,7 @@ for my $Test (@MappingTests) {
         $Self->IsNot(
             ref $MappingObject,
             'Kernel::GenericInterface::Mapping',
-            'MappingObject was not correctly instantiated',
+            $Test->{Name} . ' MappingObject was not correctly instantiated',
         );
         next TEST;
     }
@@ -711,11 +718,13 @@ for my $Test (@MappingTests) {
         Data => $Test->{Data},
     );
     if ( $Test->{CheckTime} ) {
-        my $EndSeconds = $TimeObject->SystemTime();
+        my $EndSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
         $Self->True(
             ( $EndSeconds - $StartSeconds ) < 5,
-            'Mapping - Performance on large data set: ' .
-                ( $EndSeconds - $StartSeconds ) . ' second(s)',
+            $Test->{Name}
+                . ' Mapping - Performance on large data set: '
+                . ( $EndSeconds - $StartSeconds )
+                . ' second(s)',
         );
     }
 
@@ -745,17 +754,23 @@ for my $Test (@MappingTests) {
             $Test->{Name} . ' error message found',
         );
     }
+
+    # instantiate another object
+    my $SecondMappingObject = Kernel::GenericInterface::Mapping->new(
+        DebuggerObject => $DebuggerObject,
+        MappingConfig  => {
+            Type   => 'Simple',
+            Config => $Test->{Config},
+        },
+    );
+
+    $Self->Is(
+        ref $SecondMappingObject,
+        'Kernel::GenericInterface::Mapping',
+        $Test->{Name} . ' SecondMappingObject was correctly instantiated',
+    );
 }    # end tests
 
-# delete webservice
-my $Success = $WebserviceObject->WebserviceDelete(
-    ID     => $WebserviceID,
-    UserID => 1,
-);
-
-$Self->True(
-    $Success,
-    "WebserviceDelete()",
-);
+# cleanup is done by RestoreDatabase.
 
 1;

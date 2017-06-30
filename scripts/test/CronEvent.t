@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,10 +13,7 @@ use utf8;
 
 use vars (qw($Self));
 
-# get time object
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-my $SystemTime = $TimeObject->SystemTime();
+my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
 # NextEventGet() tests
 my @Tests = (
@@ -219,6 +216,31 @@ my @Tests = (
         ExpectedValue => '2016-01-01 00:00:00',
         Success       => 1,
     },
+    {
+        Name   => 'Not existing date April 31',
+        Config => {
+            Schedule       => '2 2 31 4 *',
+            StartTimeStamp => '2015-01-01 00:00:00',
+        },
+        Success => 0,
+    },
+    {
+        Name   => 'Not existing date February 30',
+        Config => {
+            Schedule       => '2 2 30 2 *',
+            StartTimeStamp => '2015-01-01 00:00:00',
+        },
+        Success => 0,
+    },
+    {
+        Name   => 'Existing date February 29',
+        Config => {
+            Schedule       => '2 2 29 2 *',
+            StartTimeStamp => '2015-01-01 00:00:00',
+        },
+        ExpectedValue => '2016-02-29 02:02:00',
+        Success       => 1,
+    },
 );
 
 # get cron event object
@@ -227,27 +249,27 @@ my $CronEventObject = $Kernel::OM->Get('Kernel::System::CronEvent');
 for my $Test (@Tests) {
 
     if ( $Test->{Config}->{StartTimeStamp} ) {
-        $Test->{Config}->{StartTime} = $TimeObject->TimeStamp2SystemTime(
-            String => $Test->{Config}->{StartTimeStamp},
+        $Test->{Config}->{StartDateTime} = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{Config}->{StartTimeStamp},
+            },
         );
     }
 
-    my $EventSystemTime = $CronEventObject->NextEventGet( %{ $Test->{Config} } );
+    my $EventTimeStamp = $CronEventObject->NextEventGet( %{ $Test->{Config} } );
 
     if ( $Test->{Success} ) {
 
         $Self->Is(
-            $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $EventSystemTime,
-                )
-                || '',
+            $EventTimeStamp,
             $Test->{ExpectedValue},
             "$Test->{Name} NextEvent() - Human TimeStamp Match",
         );
     }
     else {
         $Self->Is(
-            $EventSystemTime,
+            $EventTimeStamp,
             undef,
             "$Test->{Name} NextEvent()",
         );
@@ -365,27 +387,29 @@ for my $Test (@Tests) {
 
 for my $Test (@Tests) {
 
-    for my $Part (qw(StartTime StopTime)) {
-        if ( $Test->{Config}->{ $Part . 'Stamp' } ) {
-            $Test->{Config}->{$Part} = $TimeObject->TimeStamp2SystemTime(
-                String => $Test->{Config}->{ $Part . 'Stamp' },
-            );
-        }
+    if ( $Test->{Config}->{'StartTimeStamp'} ) {
+        $Test->{Config}->{StartDateTime} = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{Config}->{'StartTimeStamp'},
+            },
+        );
+    }
+    if ( $Test->{Config}->{'StopTimeStamp'} ) {
+        $Test->{Config}->{StopDateTime} = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{Config}->{'StopTimeStamp'},
+            },
+        );
     }
 
     my @NextEvents = $CronEventObject->NextEventList( %{ $Test->{Config} } );
 
     if ( $Test->{Success} ) {
 
-        my @NextEventsConverted = map {
-            $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $_,
-            ) || '';
-            }
-            @NextEvents;
-
         $Self->IsDeeply(
-            \@NextEventsConverted,
+            \@NextEvents,
             $Test->{ExpectedValue},
             "$Test->{Name} NextEventList() - Human TimeStamp Match",
         );
@@ -543,27 +567,27 @@ for my $Test (@Tests) {
 for my $Test (@Tests) {
 
     if ( $Test->{Config}->{StartTimeStamp} ) {
-        $Test->{Config}->{StartTime} = $TimeObject->TimeStamp2SystemTime(
-            String => $Test->{Config}->{StartTimeStamp},
+        $Test->{Config}->{StartDateTime} = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{Config}->{StartTimeStamp},
+            },
         );
     }
 
-    my $EventSystemTime = $CronEventObject->PreviousEventGet( %{ $Test->{Config} } );
+    my $EventTimeStamp = $CronEventObject->PreviousEventGet( %{ $Test->{Config} } );
 
     if ( $Test->{Success} ) {
 
         $Self->Is(
-            $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $EventSystemTime,
-                )
-                || '',
+            $EventTimeStamp,
             $Test->{ExpectedValue},
             "$Test->{Name} PreviousEvent() - Human TimeStamp Match",
         );
     }
     else {
         $Self->Is(
-            $EventSystemTime,
+            $EventTimeStamp,
             undef,
             "$Test->{Name} NextEvent()",
         );

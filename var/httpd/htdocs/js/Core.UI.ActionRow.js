@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -120,11 +120,7 @@ Core.UI.ActionRow = (function (TargetNS) {
             $ActionRow
                 .find('li').filter(':not(.AlwaysPresent)').remove()
                 .end().end()
-                .find('#BulkAction').addClass('Inactive')
-                .end()
-                .find('li.Last').removeClass('Last')
-                .end()
-                .find('li:last').addClass('Last');
+                .find('#BulkAction').addClass('Inactive');
         }
         // Exactly one checkbox is selected
         else if ($Checkboxes.length === 1 && !$('#SelectAllTickets').is(':checked')) {
@@ -143,7 +139,7 @@ Core.UI.ActionRow = (function (TargetNS) {
                             ActionRowElement.attr('href', Value.Link);
                         }
                         if (Value.PopupType) {
-                            ActionRowElement.bind('click.Popup', function () {
+                            ActionRowElement.on('click.Popup', function () {
                                 Core.UI.Popup.OpenPopup(Value.Link, Value.PopupType);
                                 return false;
                             });
@@ -151,12 +147,6 @@ Core.UI.ActionRow = (function (TargetNS) {
                     }
                 });
             }
-
-            // Apply the Last class to the right element
-            $ActionRow
-                .find('li.Last').removeClass('Last')
-                .end()
-                .find('li:last').addClass('Last');
         }
         // Two ore more checkboxes selected
         else {
@@ -164,11 +154,7 @@ Core.UI.ActionRow = (function (TargetNS) {
             $ActionRow
                 .find('li').filter(':not(.AlwaysPresent)').remove()
                 .end().end()
-                .find('#BulkAction').removeClass('Inactive')
-                .end()
-                .find('li.Last').removeClass('Last')
-                .end()
-                .find('li:last').addClass('Last');
+                .find('#BulkAction').removeClass('Inactive');
         }
     };
 
@@ -191,17 +177,23 @@ Core.UI.ActionRow = (function (TargetNS) {
             TicketView = 'Small';
         }
 
-        $('#SelectAllTickets').bind('click', function () {
+        // Hide 'Select all' checkbox in Large and Medium view when table is empty.
+        if ((TicketView === 'Medium' || TicketView === 'Large') && $('#EmptyMessage' + TicketView).length === 1) {
+            $('#SelectAllTickets').closest('li').addClass('Hidden');
+        }
+
+        $('#SelectAllTickets').on('click', function () {
             var Status = $(this).prop('checked');
             $(TicketElementSelectors[TicketView]).prop('checked', Status).triggerHandler('click');
         });
 
-        $(TicketElementSelectors[TicketView]).bind('click', function (Event) {
+        $(TicketElementSelectors[TicketView]).on('click', function (Event) {
             Event.stopPropagation();
             Core.UI.ActionRow.UpdateActionRow($(this), $(TicketElementSelectors[TicketView]), $('div.OverviewActions ul.Actions'));
+            Core.Form.SelectAllCheckboxes($(this), $('#SelectAllTickets'));
         });
 
-        $('#BulkAction a').bind('click', function () {
+        $('#BulkAction a').on('click', function () {
             var $Element = $(this),
                 $SelectedTickets,
                 TicketIDParameter = "TicketID=",
@@ -222,6 +214,8 @@ Core.UI.ActionRow = (function (TargetNS) {
             return false;
         });
     };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.UI.ActionRow || {}));

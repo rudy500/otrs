@@ -1,16 +1,30 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-[% SET OTRSBusinessLabel = '<strong>OTRS Business Solution</strong>™' %]
+[%
+    SET OTRSBusinessLabel      = '<strong>OTRS Business Solution</strong>™';
+    SET OTRSBusinessLabelPlain = 'OTRS Business Solution™';
+%]
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Manage %s", OTRSBusinessLabel) %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate("Manage %s", OTRSBusinessLabelPlain),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
         <div class="WidgetSimple">
             <div class="Header">
@@ -66,6 +80,7 @@
                 </p>
                 <ul class="Default">
                     <li>[% Translate('Chat') | html %]</li>
+                    <li>[% Translate('Report Generator') | html %]</li>
                     <li>[% Translate('Timeline view in ticket zoom') | html %]</li>
                     <li>[% Translate('DynamicField ContactWithData') | html %]</li>
                     <li>[% Translate('DynamicField Database') | html %]</li>

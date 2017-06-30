@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,70 +12,82 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
+        # Get needed objects.
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+        # Disable all dashboard plugins.
+        my $Config = $ConfigObject->Get('DashboardBackend');
+        $Helper->ConfigSettingChange(
+            Valid => 0,
+            Key   => 'DashboardBackend',
+            Value => $Config,
         );
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
-        # get dashboard ProductNotify plugin default sysconfig
-        my %ProductNotifyConfig = $SysConfigObject->ConfigItemGet(
+        # Get dashboard ProductNotify plugin default sysconfig.
+        my %ProductNotifyConfig = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
             Name    => 'DashboardBackend###0000-ProductNotify',
             Default => 1,
         );
 
-        # set dashboard ProductNotify plugin to valid
-        %ProductNotifyConfig = map { $_->{Key} => $_->{Content} }
-            grep { defined $_->{Key} } @{ $ProductNotifyConfig{Setting}->[1]->{Hash}->[1]->{Item} };
-
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'DashboardBackend###0000-ProductNotify',
-            Value => \%ProductNotifyConfig,
+            Value => $ProductNotifyConfig{EffectiveValue},
         );
 
-        # get main object
-        my $MainObject = $Kernel::OM->Get('Kernel::System::Main');
+        # Get current properties and set next version.
+        my $Product                = $ConfigObject->Get('Product');
+        my $Version                = $ConfigObject->Get('Version');
+        my @Parts                  = split /\./, $Version;
+        my $NextVersionFirstNumber = $Parts[0] + 1;
 
-        # get content of RELEASE
-        my $Home    = $Kernel::OM->Get('Kernel::Config')->Get('Home');
-        my $Content = $MainObject->FileRead(
-            Location => "$Home/RELEASE",
-            Result   => 'ARRAY',
-        );
-
-        # change version in RELEASE to one lower then current
-        my $Version;
-        my $OriginalContent = '';
-        my $TestContent     = '';
-        for my $Line ( @{$Content} ) {
-            $OriginalContent .= $Line;
-            if ( $Line =~ /^VERSION\s{0,2}=\s{0,2}(.*)$/i ) {
-                $Version = $1;
-                substr( $Version, 0, 1, substr( $Version, 0, 1 ) - 1 );
-                $Line =~ s/$1/$Version/;
-            }
-            $TestContent .= $Line;
+        my @ProductFeeds;
+        for my $Count ( 1 .. 2 ) {
+            my $Number = $Helper->GetRandomNumber();
+            push @ProductFeeds, {
+                Version => "$NextVersionFirstNumber.0.$Count",
+                Link    => "https://www.otrs.com/release-notes-$Number",
+            };
         }
 
-        # update RELEASE with test version
-        my $FileLocation = $MainObject->FileWrite(
-            Location => "$Home/RELEASE",
-            Content  => \$TestContent,
+        # Override Request() from WebUserAgent to always return some test data without making any
+        #   actual web service calls. This should prevent instability in case cloud services are
+        #   unavailable at the exact moment of this test run.
+        my $CustomCode = <<"EOS";
+use Kernel::System::WebUserAgent;
+package Kernel::System::WebUserAgent;
+use strict;
+use warnings;
+{
+    no warnings 'redefine';
+    sub Request {
+        my \$JSONString = '{"Results":{"PublicFeeds":[{"Success":"1","Operation":"ProductFeed","Data":{"CacheTTL":"4320","Release":[{"Name":"OTRS","Severity":"Patch","Version":"$ProductFeeds[0]->{Version}","Link":"$ProductFeeds[0]->{Link}"},{"Name":"OTRS","Severity":"Patch","Version":"$ProductFeeds[1]->{Version}","Link":"$ProductFeeds[1]->{Link}"}]}}]},"ErrorMessage":"","Success":1}';
+        return (
+            Content => \\\$JSONString,
+            Status  => '200 OK',
+        );
+    }
+}
+1;
+EOS
+        $Helper->CustomCodeActivate(
+            Code => $CustomCode,
         );
 
-        # create test user and login
+        # Make sure cache is correct.
+        $Kernel::OM->Get('Kernel::System::Cache')->Delete(
+            Type => 'DashboardProductNotify',
+            Key =>
+                "CloudService::PublicFeeds::Operation::ProductFeed::Language::en::Product::${Product}::Version::$Version",
+        );
+
+        # Create test user and login.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -86,18 +98,21 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # test if ProductNotify plugin shows correct link
-        my $ProductNotifyLink = "https://www.otrs.com/release-notes-otrs-help-desk";
-        $Self->True(
-            index( $Selenium->get_page_source(), $ProductNotifyLink ) > -1,
-            "ProductNotify dashboard plugin link - found",
-        );
+        # Get script alias.
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
-        # restore default RELEASE version
-        $FileLocation = $MainObject->FileWrite(
-            Location => "$Home/RELEASE",
-            Content  => \$OriginalContent,
-        );
+        # Navigate to dashboard screen.
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentDashboard");
+
+        # Check if ProductNotify plugin has items with correct text and links.
+        for my $Item (@ProductFeeds) {
+            $Self->True(
+                $Selenium->execute_script(
+                    "return \$('#Dashboard0000-ProductNotify tbody tr:contains(\"$Item->{Version}\") a[href=\"$Item->{Link}\"]').length;"
+                ),
+                "ProductNotify dashboard plugin which text contains '$Item->{Version}' and link '$Item->{Link}' - found",
+            );
+        }
     }
 );
 

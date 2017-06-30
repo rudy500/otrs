@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,8 @@ use vars (qw($Self));
 use Kernel::GenericInterface::Debugger;
 use Kernel::GenericInterface::Mapping;
 
+my $Home = $Kernel::OM->Get('Kernel::Config')->Get('Home');
+
 my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
     DebuggerConfig => {
         DebugThreshold => 'debug',
@@ -22,19 +24,6 @@ my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
     },
     WebserviceID      => 1,
     CommunicationType => 'Provider',
-);
-
-# create a mapping instance
-my $MappingObject = Kernel::GenericInterface::Mapping->new(
-    DebuggerObject => $DebuggerObject,
-    MappingConfig  => {
-        Type => 'XSLT',
-    },
-);
-$Self->Is(
-    ref $MappingObject,
-    'Kernel::GenericInterface::Mapping',
-    'MappingObject was correctly instantiated',
 );
 
 my @MappingTests = (
@@ -48,6 +37,7 @@ my @MappingTests = (
         },
         ResultData    => undef,
         ResultSuccess => 0,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test no xslt',
@@ -60,6 +50,7 @@ my @MappingTests = (
         },
         ResultData    => undef,
         ResultSuccess => 0,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test invalid xslt',
@@ -76,6 +67,7 @@ my @MappingTests = (
         },
         ResultData    => undef,
         ResultSuccess => 0,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test empty data',
@@ -85,6 +77,7 @@ my @MappingTests = (
         Data          => undef,
         ResultData    => {},
         ResultSuccess => 1,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test empty config',
@@ -96,6 +89,7 @@ my @MappingTests = (
             Key => 'Value',
         },
         ResultSuccess => 1,
+        ConfigSuccess => 0,
     },
     {
         Name   => 'Test invalid hash key name',
@@ -113,6 +107,7 @@ my @MappingTests = (
         },
         ResultData    => undef,
         ResultSuccess => 0,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test invalid replacement',
@@ -130,6 +125,7 @@ my @MappingTests = (
         },
         ResultData    => undef,
         ResultSuccess => 0,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test simple overwrite',
@@ -149,16 +145,17 @@ my @MappingTests = (
             NewKey => 'NewValue',
         },
         ResultSuccess => 1,
+        ConfigSuccess => 1,
     },
     {
         Name   => 'Test replacement with custom functions',
         Config => {
-            Template => '<?xml version="1.0" encoding="UTF-8"?>
+            Template => qq{<?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0"
  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
  xmlns:otrs="http://otrs.org"
  extension-element-prefixes="otrs">
-<xsl:import href="Kernel/GenericInterface/Mapping/OTRSFunctions.xsl" />
+<xsl:import href="$Home/Kernel/GenericInterface/Mapping/OTRSFunctions.xsl" />
 <xsl:output method="xml" encoding="utf-8" indent="yes"/>
 <xsl:template match="/RootElement">
 <NewRootElement>
@@ -171,11 +168,11 @@ my @MappingTests = (
     <NewStructure>
         <DateFromISO>
             <xsl:variable name="dateiso" select="/RootElement/DateISO" />
-            <xsl:value-of select="otrs:date-iso-to-xsd($dateiso)" />
+            <xsl:value-of select="otrs:date-iso-to-xsd(\$dateiso)" />
         </DateFromISO>
         <DateToISO>
             <xsl:variable name="datexsd" select="/RootElement/DateXSD" />
-            <xsl:value-of select="otrs:date-xsd-to-iso($datexsd)" />
+            <xsl:value-of select="otrs:date-xsd-to-iso(\$datexsd)" />
         </DateToISO>
         <NewKey1>
             <xsl:value-of select="/RootElement/Key1" />
@@ -186,7 +183,7 @@ my @MappingTests = (
     </NewStructure>
 </NewRootElement>
 </xsl:template>
-</xsl:stylesheet>',
+</xsl:stylesheet>},
         },
         Data => {
             DateISO    => '2010-12-31 23:58:59',
@@ -215,11 +212,39 @@ my @MappingTests = (
             },
         },
         ResultSuccess => 1,
+        ConfigSuccess => 1,
     },
 );
 
+TEST:
 for my $Test (@MappingTests) {
-    $MappingObject->{MappingConfig}->{Config} = $Test->{Config};
+
+    # create a mapping instance
+    my $MappingObject = Kernel::GenericInterface::Mapping->new(
+        DebuggerObject => $DebuggerObject,
+        MappingConfig  => {
+            Type   => 'XSLT',
+            Config => $Test->{Config},
+        },
+    );
+    if ( $Test->{ConfigSuccess} ) {
+        $Self->Is(
+            ref $MappingObject,
+            'Kernel::GenericInterface::Mapping',
+            $Test->{Name} . ' MappingObject was correctly instantiated',
+        );
+        next TEST if ref $MappingObject ne 'Kernel::GenericInterface::Mapping';
+    }
+    else {
+        $Self->IsNot(
+            ref $MappingObject,
+            'Kernel::GenericInterface::Mapping',
+            $Test->{Name} . ' MappingObject was not correctly instantiated',
+        );
+        next TEST;
+    }
+
+    # $MappingObject->{MappingConfig}->{Config} = $Test->{Config};
     my $MappingResult = $MappingObject->Map(
         Data => $Test->{Data},
     );
@@ -238,18 +263,27 @@ for my $Test (@MappingTests) {
         $Test->{Name} . ' (Data Structure).',
     );
 
-    $Self->Is(
-        $MappingResult->{Success},
-        $Test->{ResultSuccess},
-        $Test->{Name} . ' success status',
-    );
-
     if ( !$Test->{ResultSuccess} ) {
         $Self->True(
             $MappingResult->{ErrorMessage},
             $Test->{Name} . ' error message found',
         );
     }
+
+    # instantiate another object
+    my $SecondMappingObject = Kernel::GenericInterface::Mapping->new(
+        DebuggerObject => $DebuggerObject,
+        MappingConfig  => {
+            Type   => 'XSLT',
+            Config => $Test->{Config},
+        },
+    );
+
+    $Self->Is(
+        ref $SecondMappingObject,
+        'Kernel::GenericInterface::Mapping',
+        $Test->{Name} . ' SecondMappingObject was correctly instantiated',
+    );
 }
 
 1;

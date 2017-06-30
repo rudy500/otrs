@@ -1,19 +1,26 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
 
 use vars (qw($Self));
 
-my $RandomName = $Kernel::OM->Get('Kernel::System::UnitTest::Helper')->GetRandomID();
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $WebService = 'webservice' . $Helper->GetRandomID();
 
 my $Home = $Kernel::OM->Get('Kernel::Config')->Get('Home');
 
@@ -31,24 +38,24 @@ my @Tests = (
     },
     {
         Name     => 'Missing source-path',
-        Options  => [ '--name', $RandomName ],
+        Options  => [ '--name', $WebService ],
         ExitCode => 1,
     },
     {
         Name     => 'Missing source-path value',
-        Options  => [ '--name', $RandomName, '--source-path' ],
+        Options  => [ '--name', $WebService, '--source-path' ],
         ExitCode => 1,
     },
 
     {
         Name     => 'Non existing source-path',
-        Options  => [ '--name', $RandomName, '--source-path', $RandomName ],
+        Options  => [ '--name', $WebService, '--source-path', $WebService ],
         ExitCode => 1,
     },
     {
         Name    => 'Non YAML source-path',
         Options => [
-            '--name', $RandomName, '--source-path',
+            '--name', $WebService, '--source-path',
             "$Home/scripts/test/Console/Command/Admin/WebService/GenericTicketConnectorSOAP.wsdl"
         ],
         ExitCode => 1,
@@ -56,7 +63,7 @@ my @Tests = (
     {
         Name    => 'Non web service YAML source-path',
         Options => [
-            '--name', $RandomName, '--source-path',
+            '--name', $WebService, '--source-path',
             "$Home/scripts/test/Console/Command/Admin/WebService/BookOrdering.yml"
         ],
         ExitCode => 1,
@@ -64,7 +71,7 @@ my @Tests = (
     {
         Name    => 'Correct YAML source-path',
         Options => [
-            '--name', $RandomName, '--source-path',
+            '--name', $WebService, '--source-path',
             "$Home/scripts/test/Console/Command/Admin/WebService/GenericTicketConnectorSOAP.yml"
         ],
         ExitCode => 0,
@@ -72,7 +79,7 @@ my @Tests = (
     {
         Name    => 'Duplicate name',
         Options => [
-            '--name', $RandomName, '--source-path',
+            '--name', $WebService, '--source-path',
             "$Home/scripts/test/Console/Command/Admin/WebService/GenericTicketConnectorSOAP.yml"
         ],
         ExitCode => 1,
@@ -93,23 +100,6 @@ for my $Test (@Tests) {
     );
 }
 
-# get web service object
-my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
-
-my $WebService = $WebserviceObject->WebserviceGet(
-    Name => $RandomName,
-);
-
-if ($WebService) {
-    my $Success = $WebserviceObject->WebserviceDelete(
-        ID     => $WebService->{ID},
-        UserID => 1,
-    );
-
-    $Self->True(
-        $Success,
-        "WebserviceDelete() for web service: $RandomName with true",
-    );
-}
+# cleanup is done by RestoreDatabase
 
 1;

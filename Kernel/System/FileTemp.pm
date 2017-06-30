@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -21,22 +21,16 @@ our @ObjectDependencies = (
 
 Kernel::System::FileTemp - tmp files
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This module is managing temporary files and directories.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $FileTempObject = $Kernel::OM->Get('Kernel::System::FileTemp');
 
 =cut
@@ -53,7 +47,7 @@ sub new {
     return $Self;
 }
 
-=item TempFile()
+=head2 TempFile()
 
 returns an opened temporary file handle and its file name.
 Please note that you need to close the file handle for other processes to write to it.
@@ -81,7 +75,7 @@ sub TempFile {
     return ( $FH, $Filename );
 }
 
-=item TempDir()
+=head2 TempDir()
 
 returns a temp directory. The directory and its contents will be removed
 if the FileTemp object goes out of scope.
@@ -117,8 +111,6 @@ sub DESTROY {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

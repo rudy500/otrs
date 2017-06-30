@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 use Mail::Address;
 
 our $ObjectManagerDisabled = 1;
@@ -25,6 +26,14 @@ sub new {
 
     $Self->{Debug} = $Param{Debug} || 0;
 
+    # get form id
+    $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
+
+    # create form id
+    if ( !$Self->{FormID} ) {
+        $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
+    }
+
     return $Self;
 }
 
@@ -37,15 +46,17 @@ sub Run {
     # check needed stuff
     if ( !$Self->{TicketID} ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'No TicketID is given!',
-            Comment => 'Please contact the admin.',
+            Message => Translatable('No TicketID is given!'),
+            Comment => Translatable('Please contact the administrator.'),
         );
     }
 
     # get needed objects
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-    my $TimeObject   = $Kernel::OM->Get('Kernel::System::Time');
+    my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
+    my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+    my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
 
     # get config for frontend module
     my $Config = $ConfigObject->Get("Ticket::Frontend::$Self->{Action}");
@@ -60,7 +71,7 @@ sub Run {
     # error screen, don't show ticket
     if ( !$Access ) {
         return $LayoutObject->NoPermission(
-            Message    => "You need $Config->{Permission} permissions!",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'You need %s permissions!', $Config->{Permission} ),
             WithHeader => 'yes',
         );
     }
@@ -127,9 +138,8 @@ sub Run {
                     BodyClass => 'Popup',
                 );
                 $Output .= $LayoutObject->Warning(
-                    Message => $LayoutObject->{LanguageObject}
-                        ->Get('Sorry, you need to be the ticket owner to perform this action.'),
-                    Comment => $LayoutObject->{LanguageObject}->Get('Please change the owner first.'),
+                    Message => Translatable('Sorry, you need to be the ticket owner to perform this action.'),
+                    Comment => Translatable('Please change the owner first.'),
                 );
                 $Output .= $LayoutObject->Footer(
                     Type => 'Small',
@@ -146,8 +156,8 @@ sub Run {
     my %GetParam;
     for (
         qw(
-        From To Cc Bcc Subject Body InReplyTo References ResponseID ReplyArticleID StateID
-        ArticleID ArticleTypeID TimeUnits Year Month Day Hour Minute FormID ReplyAll
+        From To Cc Bcc Subject Body InReplyTo References ResponseID ReplyArticleID StateID ArticleID
+        IsVisibleForCustomerPresent IsVisibleForCustomer TimeUnits Year Month Day Hour Minute FormID ReplyAll
         )
         )
     {
@@ -370,7 +380,7 @@ sub Run {
     for my $DynamicFieldConfig ( @{$DynamicField} ) {
         next DYNAMICFIELD if !IsHashRefWithData($DynamicFieldConfig);
 
-        # extract the dynamic field value form the web request
+        # extract the dynamic field value from the web request
         $DynamicFieldValues{ $DynamicFieldConfig->{Name} } =
             $DynamicFieldBackendObject->EditFieldValueGet(
             DynamicFieldConfig => $DynamicFieldConfig,
@@ -384,7 +394,8 @@ sub Run {
     DYNAMICFIELD:
     for my $DynamicFieldItem ( sort keys %DynamicFieldValues ) {
         next DYNAMICFIELD if !$DynamicFieldItem;
-        next DYNAMICFIELD if !$DynamicFieldValues{$DynamicFieldItem};
+        next DYNAMICFIELD if !defined $DynamicFieldValues{$DynamicFieldItem};
+        next DYNAMICFIELD if !length $DynamicFieldValues{$DynamicFieldItem};
 
         $DynamicFieldACLParameters{ 'DynamicField_' . $DynamicFieldItem } = $DynamicFieldValues{$DynamicFieldItem};
     }
@@ -408,14 +419,6 @@ sub Run {
     my $UploadCacheObject = $Kernel::OM->Get('Kernel::System::Web::UploadCache');
     my $MainObject        = $Kernel::OM->Get('Kernel::System::Main');
 
-    # get form id
-    my $FormID = $ParamObject->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $UploadCacheObject->FormIDCreate();
-    }
-
     # send email
     if ( $Self->{Subaction} eq 'SendEmail' ) {
 
@@ -435,6 +438,48 @@ sub Run {
 
         my %Error;
 
+        # get check item object
+        my $CheckItemObject = $Kernel::OM->Get('Kernel::System::CheckItem');
+
+        # check some values
+        LINE:
+        for my $Line (qw(To Cc Bcc)) {
+            next LINE if !$GetParam{$Line};
+            for my $Email ( Mail::Address->parse( $GetParam{$Line} ) ) {
+                if ( !$CheckItemObject->CheckEmail( Address => $Email->address() ) ) {
+                    $Error{ $Line . 'ErrorType' } = $Line . $CheckItemObject->CheckErrorType() . 'ServerErrorMsg';
+                    $Error{ $Line . 'Invalid' }   = 'ServerError';
+                }
+                my $IsLocal = $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressIsLocalAddress(
+                    Address => $Email->address()
+                );
+                if ($IsLocal) {
+                    $Error{ $Line . 'IsLocalAddress' } = 'ServerError';
+                }
+            }
+        }
+
+        if ( $Error{ToIsLocalAddress} ) {
+            $LayoutObject->Block(
+                Name => 'ToIsLocalAddressServerErrorMsg',
+                Data => \%GetParam,
+            );
+        }
+
+        if ( $Error{CcIsLocalAddress} ) {
+            $LayoutObject->Block(
+                Name => 'CcIsLocalAddressServerErrorMsg',
+                Data => \%GetParam,
+            );
+        }
+
+        if ( $Error{BccIsLocalAddress} ) {
+            $LayoutObject->Block(
+                Name => 'BccIsLocalAddressServerErrorMsg',
+                Data => \%GetParam,
+            );
+        }
+
         # If is an action about attachments
         my $IsUpload = 0;
 
@@ -450,7 +495,7 @@ sub Run {
             next COUNT if !$Delete;
             $Error{AttachmentDelete} = 1;
             $UploadCacheObject->FormIDRemoveFile(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
                 FileID => $Count,
             );
             $IsUpload = 1;
@@ -465,7 +510,7 @@ sub Run {
                 Param => 'FileUpload',
             );
             $UploadCacheObject->FormIDAddFile(
-                FormID      => $FormID,
+                FormID      => $Self->{FormID},
                 Disposition => 'attachment',
                 %UploadStuff,
             );
@@ -473,27 +518,30 @@ sub Run {
 
         # get all attachments meta data
         my @Attachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
-
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
 
         # check pending date
         if ( $StateData{TypeName} && $StateData{TypeName} =~ /^pending/i ) {
-            if ( !$TimeObject->Date2SystemTime( %GetParam, Second => 0 ) ) {
-                if ( !$IsUpload ) {
-                    $Error{DateInvalid} = 'ServerError';
-                }
-            }
+
+            # convert pending date to a datetime object
+            my $PendingDateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    %GetParam,
+                    Second => 0,
+                },
+            );
+
+            # get current system epoch
+            my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
             if (
-                $TimeObject->Date2SystemTime( %GetParam, Second => 0 )
-                < $TimeObject->SystemTime()
+                ( !$PendingDateTimeObject || $PendingDateTimeObject < $CurSystemDateTimeObject )
+                && !$IsUpload
                 )
             {
-                if ( !$IsUpload ) {
-                    $Error{DateInvalid} = 'ServerError';
-                }
+                $Error{DateInvalid} = 'ServerError';
             }
         }
 
@@ -549,8 +597,7 @@ sub Run {
         my %ArticleParam;
 
         # run compose modules
-        if ( ref $ConfigObject->Get('Ticket::Frontend::ArticleComposeModule') eq 'HASH' )
-        {
+        if ( ref $ConfigObject->Get('Ticket::Frontend::ArticleComposeModule') eq 'HASH' ) {
 
             # use ticket QueueID in compose modules
             $GetParam{QueueID} = $Ticket{QueueID};
@@ -564,18 +611,50 @@ sub Run {
                 }
                 my $Object = $Jobs{$Job}->{Module}->new( %{$Self}, Debug => $Self->{Debug} );
 
+                my $Multiple;
+
                 # get params
-                for ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
-                    $GetParam{$_} = $ParamObject->GetParam( Param => $_ );
+                PARAMETER:
+                for my $Parameter ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
+                    if ( $Jobs{$Job}->{ParamType} && $Jobs{$Job}->{ParamType} ne 'Single' ) {
+                        @{ $GetParam{$Parameter} } = $ParamObject->GetArray( Param => $Parameter );
+                        $Multiple = 1;
+                        next PARAMETER;
+                    }
+
+                    $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter );
                 }
 
                 # run module
-                $Object->Run( %GetParam, Config => $Jobs{$Job} );
+                $Object->Run(
+                    %GetParam,
+                    StoreNew => 1,
+                    Config   => $Jobs{$Job}
+                );
+
+                # get options that have been removed from the selection
+                # and add them back to the selection so that the submit
+                # will contain options that were hidden from the agent
+                my $Key = $Object->Option( %GetParam, Config => $Jobs{$Job} );
+
+                if ( $Object->can('GetOptionsToRemoveAJAX') ) {
+                    my @RemovedOptions = $Object->GetOptionsToRemoveAJAX(%GetParam);
+                    if (@RemovedOptions) {
+                        if ($Multiple) {
+                            for my $RemovedOption (@RemovedOptions) {
+                                push @{ $GetParam{$Key} }, $RemovedOption;
+                            }
+                        }
+                        else {
+                            $GetParam{$Key} = shift @RemovedOptions;
+                        }
+                    }
+                }
 
                 # ticket params
                 %ArticleParam = (
                     %ArticleParam,
-                    $Object->ArticleOption( %GetParam, Config => $Jobs{$Job} ),
+                    $Object->ArticleOption( %GetParam, %ArticleParam, Config => $Jobs{$Job} ),
                 );
 
                 # get errors
@@ -650,9 +729,11 @@ sub Run {
 
                 if ( !IsHashRefWithData($ValidationResult) ) {
                     return $LayoutObject->ErrorScreen(
-                        Message =>
-                            "Could not perform validation on field $DynamicFieldConfig->{Label}!",
-                        Comment => 'Please contact the admin.',
+                        Message => $LayoutObject->{LanguageObject}->Translate(
+                            'Could not perform validation on field %s!',
+                            $DynamicFieldConfig->{Label},
+                        ),
+                        Comment => Translatable('Please contact the administrator.'),
                     );
                 }
 
@@ -718,7 +799,7 @@ sub Run {
 
         # get pre loaded attachments
         my @AttachmentData = $UploadCacheObject->FormIDGetAllFilesData(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
         # get submit attachment
@@ -781,37 +862,30 @@ sub Run {
             );
         }
 
-        # if there is no ArticleTypeID, use the default value
-        my $ArticleTypeID = $GetParam{ArticleTypeID} // $TicketObject->ArticleTypeLookup(
-            ArticleType => $Config->{DefaultArticleType},
-        );
-
-        # error page
-        if ( !$ArticleTypeID ) {
-            return $LayoutObject->ErrorScreen(
-                Comment => 'Can not determine the ArticleType, Please contact the admin.',
-            );
+        my $IsVisibleForCustomer = $Config->{IsVisibleForCustomerDefault};
+        if ( $GetParam{IsVisibleForCustomerPresent} ) {
+            $IsVisibleForCustomer = $GetParam{IsVisibleForCustomer} ? 1 : 0;
         }
 
         # send email
-        my $ArticleID = $TicketObject->ArticleSend(
-            ArticleTypeID  => $ArticleTypeID,
-            SenderType     => 'agent',
-            TicketID       => $Self->{TicketID},
-            HistoryType    => 'SendAnswer',
-            HistoryComment => "\%\%$Recipients",
-            From           => $GetParam{From},
-            To             => $GetParam{To},
-            Cc             => $GetParam{Cc},
-            Bcc            => $GetParam{Bcc},
-            Subject        => $GetParam{Subject},
-            UserID         => $Self->{UserID},
-            Body           => $GetParam{Body},
-            InReplyTo      => $GetParam{InReplyTo},
-            References     => $GetParam{References},
-            Charset        => $LayoutObject->{UserCharset},
-            MimeType       => $MimeType,
-            Attachment     => \@AttachmentData,
+        my $ArticleID = $ArticleBackendObject->ArticleSend(
+            IsVisibleForCustomer => $IsVisibleForCustomer,
+            SenderType           => 'agent',
+            TicketID             => $Self->{TicketID},
+            HistoryType          => 'SendAnswer',
+            HistoryComment       => "\%\%$Recipients",
+            From                 => $GetParam{From},
+            To                   => $GetParam{To},
+            Cc                   => $GetParam{Cc},
+            Bcc                  => $GetParam{Bcc},
+            Subject              => $GetParam{Subject},
+            UserID               => $Self->{UserID},
+            Body                 => $GetParam{Body},
+            InReplyTo            => $GetParam{InReplyTo},
+            References           => $GetParam{References},
+            Charset              => $LayoutObject->{UserCharset},
+            MimeType             => $MimeType,
+            Attachment           => \@AttachmentData,
             %ArticleParam,
         );
 
@@ -925,8 +999,17 @@ sub Run {
                     Debug => $Self->{Debug},
                 );
 
+                my $Multiple;
+
                 # get params
+                PARAMETER:
                 for my $Parameter ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
+                    if ( $Jobs{$Job}->{ParamType} && $Jobs{$Job}->{ParamType} ne 'Single' ) {
+                        @{ $GetParam{$Parameter} } = $ParamObject->GetArray( Param => $Parameter );
+                        $Multiple = 1;
+                        next PARAMETER;
+                    }
+
                     $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter );
                 }
 
@@ -938,16 +1021,28 @@ sub Run {
                     %GetParam = ( %GetParam, $Object->GetParamAJAX(%GetParam) )
                 }
 
+                # get options that have to be removed from the selection visible
+                # to the agent. These options will be added again on submit.
+                if ( $Object->can('GetOptionsToRemoveAJAX') ) {
+                    my @OptionsToRemove = $Object->GetOptionsToRemoveAJAX(%GetParam);
+
+                    for my $OptionToRemove (@OptionsToRemove) {
+                        delete $Data{$OptionToRemove};
+                    }
+                }
+
                 my $Key = $Object->Option( %GetParam, Config => $Jobs{$Job} );
                 if ($Key) {
                     push(
                         @ExtendedData,
                         {
-                            Name        => $Key,
-                            Data        => \%Data,
-                            SelectedID  => $GetParam{$Key},
-                            Translation => 1,
-                            Max         => 150,
+                            Name         => $Key,
+                            Data         => \%Data,
+                            SelectedID   => $GetParam{$Key},
+                            Translation  => 1,
+                            PossibleNone => 1,
+                            Multiple     => $Multiple,
+                            Max          => 150,
                         }
                     );
                 }
@@ -958,7 +1053,7 @@ sub Run {
             %GetParam,
         );
 
-        # update Dynamc Fields Possible Values via AJAX
+        # update Dynamic Fields Possible Values via AJAX
         my @DynamicFieldAJAX;
 
         # cycle trough the activated Dynamic Fields for this screen
@@ -1057,7 +1152,7 @@ sub Run {
             for ( sort keys %AllStdAttachments ) {
                 my %Data = $StdAttachmentObject->StdAttachmentGet( ID => $_ );
                 $UploadCacheObject->FormIDAddFile(
-                    FormID      => $FormID,
+                    FormID      => $Self->{FormID},
                     Disposition => 'attachment',
                     %Data,
                 );
@@ -1066,22 +1161,45 @@ sub Run {
 
         # get all attachments meta data
         my @Attachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
         # get last customer article or selected article ...
-        my %Data;
+        my @ArticleList;
+
         if ( $GetParam{ArticleID} ) {
-            %Data = $TicketObject->ArticleGet(
-                ArticleID     => $GetParam{ArticleID},
-                DynamicFields => 1,
+
+            @ArticleList = $ArticleObject->ArticleList(
+                TicketID  => $Self->{TicketID},
+                ArticleID => $GetParam{ArticleID},
             );
         }
         else {
-            %Data = $TicketObject->ArticleLastCustomerArticle(
-                TicketID      => $Self->{TicketID},
-                DynamicFields => 1,
+
+            @ArticleList = $ArticleObject->ArticleList(
+                TicketID             => $Self->{TicketID},
+                IsVisibleForCustomer => 1,
+                OnlyLast             => 1,
             );
+        }
+
+        my %Data;
+
+        ARTICLEMETADATA:
+        for my $ArticleMetaData (@ArticleList) {
+
+            next ARTICLEMETADATA if !$ArticleMetaData;
+            next ARTICLEMETADATA if !IsHashRefWithData($ArticleMetaData);
+
+            my $CurrentArticleBackendObject = $ArticleObject->BackendForArticle( %{$ArticleMetaData} );
+
+            %Data = $CurrentArticleBackendObject->ArticleGet(
+                TicketID  => $Self->{TicketID},
+                ArticleID => $ArticleMetaData->{ArticleID},
+                UserID    => $Self->{UserID},
+            );
+
+            last ARTICLEMETADATA;
         }
 
         # set OrigFrom for correct email quoting (xxxx wrote)
@@ -1103,6 +1221,11 @@ sub Run {
         $Data{OrigFromName} =~ s/<.*>|\(.*\)|\"|;|,//g;
         $Data{OrigFromName} =~ s/( $)|(  $)//g;
 
+        # Fallback to OrigFrom if realname part is empty.
+        if ( !$Data{OrigFromName} ) {
+            $Data{OrigFromName} = $Data{OrigFrom};
+        }
+
         # get customer data
         my %Customer;
         if ( $Ticket{CustomerUserID} ) {
@@ -1115,7 +1238,7 @@ sub Run {
         $Data{Body} = $LayoutObject->ArticleQuote(
             TicketID          => $Self->{TicketID},
             ArticleID         => $Data{ArticleID},
-            FormID            => $FormID,
+            FormID            => $Self->{FormID},
             UploadCacheObject => $UploadCacheObject,
         );
 
@@ -1163,9 +1286,9 @@ sub Run {
                 else {
                     $Data{Body} = "<br/>" . $Data{Body};
 
-                    if ( $Data{Created} ) {
+                    if ( $Data{CreateTime} ) {
                         $Data{Body} = $LayoutObject->{LanguageObject}->Translate('Date') .
-                            ": $Data{Created}<br/>" . $Data{Body};
+                            ": $Data{CreateTime}<br/>" . $Data{Body};
                     }
 
                     for (qw(Subject ReplyTo Reply-To Cc To From)) {
@@ -1190,7 +1313,7 @@ sub Run {
         else {
 
             # prepare body, subject, ReplyTo ...
-            # rewrap body if exists
+            # re-wrap body if exists
             if ( $Data{Body} ) {
                 $Data{Body} =~ s/\t/ /g;
                 my $Quote = $ConfigObject->Get('Ticket::Frontend::Quote');
@@ -1200,9 +1323,9 @@ sub Run {
                 }
                 else {
                     $Data{Body} = "\n" . $Data{Body};
-                    if ( $Data{Created} ) {
+                    if ( $Data{CreateTime} ) {
                         $Data{Body} = $LayoutObject->{LanguageObject}->Translate('Date') .
-                            ": $Data{Created}\n" . $Data{Body};
+                            ": $Data{CreateTime}\n" . $Data{Body};
                     }
 
                     for (qw(Subject ReplyTo Reply-To Cc To From)) {
@@ -1219,11 +1342,6 @@ sub Run {
                     $Data{Body} .= "\n---- $EndMessage ---\n";
                 }
             }
-        }
-
-        # check if Cc recipients should be used
-        if ( $ConfigObject->Get('Ticket::Frontend::ComposeExcludeCcRecipients') ) {
-            $Data{Cc} = '';
         }
 
         # get system address object
@@ -1266,18 +1384,16 @@ sub Run {
         }
 
         # use customer database email
-        # do not add customer email to cc, if article type is email-internal
-        my $DataArticleType = $TicketObject->ArticleTypeLookup( ArticleTypeID => $Data{ArticleTypeID} );
+        # do not add customer email to cc, if article is visible for customer
         if (
             $ConfigObject->Get('Ticket::Frontend::ComposeAddCustomerAddress')
-            && $DataArticleType !~ m{internal}
+            && $Data{IsVisibleForCustomer}
             )
         {
-
             # check if customer is in recipient list
             if ( $Customer{UserEmail} && $Data{ToEmail} !~ /^\Q$Customer{UserEmail}\E$/i ) {
 
-                if ( $Data{SenderType} eq 'agent' && $DataArticleType !~ m{external} ) {
+                if ( $Data{SenderType} eq 'agent' && !$Data{IsVisibleForCustomer} ) {
                     if ( $Data{To} ) {
                         $Data{To} .= ', ' . $Customer{UserEmail};
                     }
@@ -1302,7 +1418,7 @@ sub Run {
                 # add customers database address to Cc
                 else {
                     $Output .= $LayoutObject->Notify(
-                        Info => "Customer user automatically added in Cc.",
+                        Info => Translatable("Customer user automatically added in Cc."),
                     );
                     if ( $Data{Cc} ) {
                         $Data{Cc} .= ', ' . $Customer{UserEmail};
@@ -1381,7 +1497,7 @@ sub Run {
 [% Data.StdResponse | html %]
 [% Data.Signature | html %]
 
-[% Data.Created | Localize("TimeShort") %] - [% Data.OrigFromName | html %] [% Translate("wrote") | html %]:
+[% Data.CreateTime | Localize("TimeShort") %] - [% Data.OrigFromName | html %] [% Translate("wrote") | html %]:
 [% Data.Body | html %]
 ';
 
@@ -1521,8 +1637,8 @@ sub Run {
         my $References = ( $Data{MessageID} || '' ) . ( $Data{References} || '' );
 
         # run compose modules
-        if ( ref $ConfigObject->Get('Ticket::Frontend::ArticleComposeModule') eq 'HASH' )
-        {
+        if ( ref $ConfigObject->Get('Ticket::Frontend::ArticleComposeModule') eq 'HASH' ) {
+
             my %Jobs = %{ $ConfigObject->Get('Ticket::Frontend::ArticleComposeModule') };
             for my $Job ( sort keys %Jobs ) {
 
@@ -1533,8 +1649,14 @@ sub Run {
                 my $Object = $Jobs{$Job}->{Module}->new( %{$Self}, Debug => $Self->{Debug} );
 
                 # get params
-                for ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
-                    $GetParam{$_} = $ParamObject->GetParam( Param => $_ );
+                PARAMETER:
+                for my $Parameter ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
+                    if ( $Jobs{$Job}->{ParamType} && $Jobs{$Job}->{ParamType} ne 'Single' ) {
+                        @{ $GetParam{$Parameter} } = $ParamObject->GetArray( Param => $Parameter );
+                        next PARAMETER;
+                    }
+
+                    $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter );
                 }
 
                 # run module
@@ -1596,14 +1718,6 @@ sub _Mask {
         OnlyDynamicFields => 1
     );
 
-    # create a string with the quoted dynamic field names separated by commas
-    if ( IsArrayRefWithData($DynamicFieldNames) ) {
-        FIELD:
-        for my $Field ( @{$DynamicFieldNames} ) {
-            $Param{DynamicFieldNamesStrg} .= ", '" . $Field . "'";
-        }
-    }
-
     # get needed objects
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -1627,46 +1741,16 @@ sub _Mask {
         Class => 'Modernize',
     );
 
-    # get ticket object
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-
-    #  get article type
-    my %ArticleTypeList;
-
-    if ( $Config->{ArticleTypes} ) {
-
-        my @ArticleTypesPossible = @{ $Config->{ArticleTypes} };
-        for my $ArticleTypeID (@ArticleTypesPossible) {
-            my $ArticleType = $TicketObject->ArticleTypeLookup(
-                ArticleType => $ArticleTypeID,
-            );
-            $ArticleTypeList{$ArticleType} = $ArticleTypeID;
-        }
-
-        my %Selected;
-        if ( $Self->{GetParam}->{ArticleTypeID} ) {
-            $Selected{SelectedID} = $Self->{GetParam}->{ArticleTypeID};
-        }
-        else {
-            $Selected{SelectedValue} = $Config->{DefaultArticleType};
-        }
-
-        $Param{ArticleTypesStrg} = $LayoutObject->BuildSelection(
-            Data => \%ArticleTypeList,
-            Name => 'ArticleTypeID',
-            %Selected,
-            Class => 'Modernize',
-        );
-
-        $LayoutObject->Block(
-            Name => 'ArticleType',
-            Data => \%Param,
-        );
+    my $IsVisibleForCustomer = $Config->{IsVisibleForCustomerDefault};
+    if ( $Param{GetParam}->{IsVisibleForCustomerPresent} ) {
+        $IsVisibleForCustomer = $Param{GetParam}->{IsVisibleForCustomer} ? 1 : 0;
     }
 
-    # build customer search auto-complete field
     $LayoutObject->Block(
-        Name => 'CustomerSearchAutoComplete',
+        Name => 'IsVisibleForCustomer',
+        Data => {
+            IsVisibleForCustomer => $IsVisibleForCustomer,
+        },
     );
 
     # prepare errors!
@@ -1679,7 +1763,7 @@ sub _Mask {
     }
 
     # get used calendar
-    my $Calendar = $TicketObject->TicketCalendarGet(
+    my $Calendar = $Kernel::OM->Get('Kernel::System::Ticket')->TicketCalendarGet(
         QueueID => $Param{QueueID},
         SLAID   => $Param{SLAID},
     );
@@ -1813,47 +1897,33 @@ sub _Mask {
         );
     }
 
+    my @EmailAddressesCc;
+
     # set preselected values for Cc field
     if ( $Param{Cc} && $Param{Cc} ne '' && !$CustomerCounterCc ) {
-        $LayoutObject->Block(
-            Name => 'PreFilledCc',
+
+        # split Cc values
+        @EmailAddressesCc = map { $_->[0] ? "$_->[0] <$_->[1]>" : "$_->[1]" } ( Mail::Address->parse( $Param{Cc} ) );
+
+        $LayoutObject->AddJSData(
+            Key   => 'EmailAddressesCc',
+            Value => \@EmailAddressesCc,
         );
 
-        # split To values
-        for my $Email ( Mail::Address->parse( $Param{Cc} ) ) {
-            $LayoutObject->Block(
-                Name => 'PreFilledCcRow',
-                Data => {
-                    Email => $Email->address(),
-                },
-            );
-        }
         $Param{Cc} = '';
     }
 
-    # get form id
-    my $FormID = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
-    }
-
     # set preselected values for To field
-    if ( $Param{To} ne '' && !$CustomerCounter ) {
-        $LayoutObject->Block(
-            Name => 'PreFilledTo',
-        );
+    if ( defined $Param{To} && $Param{To} ne '' && !$CustomerCounter ) {
 
         # split To values
-        for my $Email ( Mail::Address->parse( $Param{To} ) ) {
-            $LayoutObject->Block(
-                Name => 'PreFilledToRow',
-                Data => {
-                    Email => $Email->address(),
-                },
-            );
-        }
+        my @EmailAddressesTo = map { $_->[0] ? "$_->[0] <$_->[1]>" : "$_->[1]" } ( Mail::Address->parse( $Param{To} ) );
+
+        $LayoutObject->AddJSData(
+            Key   => 'EmailAddressesTo',
+            Value => \@EmailAddressesTo,
+        );
+
         $Param{To} = '';
     }
 
@@ -1861,7 +1931,7 @@ sub _Mask {
         Name => $Param{TicketBackType},
         Data => {
 
-            #            FormID => $FormID,
+            #            FormID => $Self->{FormID},
             %Param,
         },
     );
@@ -1929,46 +1999,13 @@ sub _Mask {
         );
     }
 
-    my $ShownOptionsBlock;
-
-    # show spell check
-    if ( $LayoutObject->{BrowserSpellChecker} ) {
-
-        # check if need to call Options block
-        if ( !$ShownOptionsBlock ) {
-            $LayoutObject->Block(
-                Name => 'TicketOptions',
-                Data => {},
-            );
-
-            # set flag to "true" in order to prevent calling the Options block again
-            $ShownOptionsBlock = 1;
-        }
-
-        $LayoutObject->Block(
-            Name => 'SpellCheck',
-            Data => {},
-        );
-    }
-
-    # show address book
-    if ( $LayoutObject->{BrowserJavaScriptSupport} ) {
-
-        # check if need to call Options block
-        if ( !$ShownOptionsBlock ) {
-            $LayoutObject->Block(
-                Name => 'TicketOptions',
-                Data => {},
-            );
-
-            # set flag to "true" in order to prevent calling the Options block again
-            $ShownOptionsBlock = 1;
-        }
-
-        $LayoutObject->Block(
-            Name => 'AddressBook',
-            Data => {},
-        );
+    # Show the customer user address book if the module is registered and java script support is available.
+    if (
+        $ConfigObject->Get('Frontend::Module')->{AgentCustomerUserAddressBook}
+        && $LayoutObject->{BrowserJavaScriptSupport}
+        )
+    {
+        $Param{OptionCustomerUserAddressBook} = 1;
     }
 
     # add rich text editor
@@ -1978,8 +2015,8 @@ sub _Mask {
         $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
         $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-        $LayoutObject->Block(
-            Name => 'RichText',
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
             Data => \%Param,
         );
     }
@@ -2002,11 +2039,16 @@ sub _Mask {
         );
     }
 
+    $LayoutObject->AddJSData(
+        Key   => 'DynamicFieldNames',
+        Value => $DynamicFieldNames,
+    );
+
     # create & return output
     return $LayoutObject->Output(
         TemplateFile => 'AgentTicketCompose',
         Data         => {
-            FormID => $FormID,
+            FormID => $Self->{FormID},
             %Param,
         },
     );

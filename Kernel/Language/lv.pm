@@ -23,771 +23,29 @@ sub Data {
     $Self->{DateFormatShort}     = '%D.%M.%Y';
     $Self->{DateInputFormat}     = '%D.%M.%Y';
     $Self->{DateInputFormatLong} = '%D.%M.%Y - %T';
-    $Self->{Completeness}        = 0.304716745695034;
+    $Self->{Completeness}        = 0.220578778135048;
 
     # csv separator
     $Self->{Separator} = '';
 
     $Self->{Translation} = {
 
-        # Template: AAABase
-        'Yes' => 'Jā',
-        'No' => 'Nē',
-        'yes' => 'jā',
-        'no' => 'nē',
-        'Off' => 'Izslēgts',
-        'off' => 'izslēgts',
-        'On' => 'Ieslēgts',
-        'on' => 'ieslēgts',
-        'top' => 'sākums',
-        'end' => 'beigas',
-        'Done' => 'Pabeigts',
-        'Cancel' => 'Atcelt',
-        'Reset' => 'Atiestatīt',
-        'more than ... ago' => '',
-        'in more than ...' => '',
-        'within the last ...' => '',
-        'within the next ...' => '',
-        'Created within the last' => '',
-        'Created more than ... ago' => '',
-        'Today' => 'Šodien',
-        'Tomorrow' => 'Rīt',
-        'Next week' => 'Nākamnedēļ',
-        'day' => 'diena',
-        'days' => 'dienas',
-        'day(s)' => 'diena(s)',
-        'd' => '',
-        'hour' => 'stunda',
-        'hours' => 'stundas',
-        'hour(s)' => 'stunda(s)',
-        'Hours' => 'Stundas',
-        'h' => 'h',
-        'minute' => 'minūte',
-        'minutes' => 'minūtes',
-        'minute(s)' => 'minūte(s)',
-        'Minutes' => 'Minūtes',
-        'm' => 'min',
-        'month' => 'mēnesis',
-        'months' => 'mēneši',
-        'month(s)' => 'mēnesis(ši)',
-        'week' => 'nedēļa',
-        'week(s)' => 'nedēļa(s)',
-        'quarter' => '',
-        'quarter(s)' => '',
-        'half-year' => '',
-        'half-year(s)' => '',
-        'year' => 'gads',
-        'years' => 'gadi',
-        'year(s)' => 'gads(i)',
-        'second(s)' => 'sekunde(s)',
-        'seconds' => 'sekundes',
-        'second' => 'sekunde',
-        's' => 's',
-        'Time unit' => 'Laika vienība',
-        'wrote' => 'rakstīja',
-        'Message' => 'Ziņojums',
-        'Error' => 'kļūda',
-        'Bug Report' => 'kļūdas ziņojums',
-        'Attention' => 'uzmanību',
-        'Warning' => 'brīdinājums',
-        'Module' => 'modulis',
-        'Modulefile' => 'moduļa fails',
-        'Subfunction' => 'apakšfunkcija',
-        'Line' => 'līnija',
-        'Setting' => 'iestatījums',
-        'Settings' => 'Iestatījumi',
-        'Example' => 'piemērs',
-        'Examples' => 'piemēri',
-        'valid' => 'derīgs',
-        'Valid' => 'Vai derīgs?',
-        'invalid' => 'nederīgs',
-        'Invalid' => 'Nederīgs',
-        '* invalid' => '* ir nederīga',
-        'invalid-temporarily' => 'īslaicīgi nederīgs',
-        ' 2 minutes' => ' 2 minūtes',
-        ' 5 minutes' => ' 5 minūtes',
-        ' 7 minutes' => ' 7 minūtes',
-        '10 minutes' => '10 minūtes',
-        '15 minutes' => '15 minūtes',
-        'Mr.' => 'K-gs',
-        'Mrs.' => 'K-dze',
-        'Next' => 'Nākamais',
-        'Back' => 'Atpakaļ',
-        'Next...' => 'Nākamais...',
-        '...Back' => '...atpakaļ',
-        '-none-' => '-nav-',
-        'none' => 'nav',
-        'none!' => 'nav pazīmju!',
-        'none - answered' => 'neviens nav atbildējis',
-        'please do not edit!' => 'lūdzu nelabot!',
-        'Need Action' => 'Nepieciešama darbība',
-        'AddLink' => 'Pievienot saiti',
-        'Link' => 'Saite',
-        'Unlink' => 'Dzēst saiti',
-        'Linked' => 'Sasaistīts',
-        'Link (Normal)' => 'Saite (normāla)',
-        'Link (Parent)' => 'Saite (uz sākotnējo)',
-        'Link (Child)' => 'Saite (uz nākamo)',
-        'Normal' => 'Normāls',
-        'Parent' => 'Sākotnējais',
-        'Child' => 'Nākamais',
-        'Hit' => 'Trāpījums',
-        'Hits' => 'Trāpījumi',
-        'Text' => 'Teksts',
-        'Standard' => 'Standarta',
-        'Lite' => 'Vieglā',
-        'User' => 'Lietotājs',
-        'Username' => 'Lietotājvārds',
-        'Language' => 'Valoda',
-        'Languages' => 'Valodas',
-        'Password' => 'Parole',
-        'Preferences' => 'Iestatījumi',
-        'Salutation' => 'Uzruna',
-        'Salutations' => 'Uzrunas',
-        'Signature' => 'Paraksts',
-        'Signatures' => 'Paraksti',
-        'Customer' => 'Klienti',
-        'CustomerID' => 'Klienta identifikators',
-        'CustomerIDs' => 'Klienta identifikatori',
-        'customer' => 'Klients',
-        'agent' => 'atbildīgais',
-        'system' => 'sistēma',
-        'Customer Info' => 'Klienta informācija',
-        'Customer Information' => 'Klienta informācija',
-        'Customer Companies' => 'Klienta uzņēmumi',
-        'Company' => 'Organizācija/uzņēmums',
-        'go!' => 'Sākt!',
-        'go' => 'Sākt',
-        'All' => 'Visi pieteikumi',
-        'all' => 'visi pieteikumi',
-        'Sorry' => 'Atvainojiet',
-        'update!' => 'atjaunināšana!',
-        'update' => 'atjaunināšana',
-        'Update' => 'Atjaunināt',
-        'Updated!' => 'Atjaunināts!',
-        'submit!' => 'iesniegt!',
-        'submit' => 'ieniegt',
-        'Submit' => 'Iesniegt',
-        'change!' => 'Mainīt!',
-        'Change' => 'Mainīt',
-        'change' => 'Mainīt',
-        'click here' => 'klikšķināt te',
-        'Comment' => 'Komentārs',
-        'Invalid Option!' => 'Nederīga izvēle!',
-        'Invalid time!' => 'Nederīgs laiks!',
-        'Invalid date!' => 'Nederīgs datums!',
-        'Name' => 'Vārds',
-        'Group' => 'Grupa',
-        'Description' => 'Apraksts',
-        'description' => 'apraksts',
-        'Theme' => 'Tēma',
-        'Created' => 'Izveidots',
-        'Created by' => 'Izveidojis',
-        'Changed' => 'Mainīts',
-        'Changed by' => 'Mainījis',
-        'Search' => 'Meklēt',
-        'and' => 'un',
-        'between' => 'starp',
-        'before/after' => 'pirms/pēc',
-        'Fulltext Search' => 'pilna teksta meklēšana',
-        'Data' => 'Datu fails',
-        'Options' => 'Iestatījumi',
-        'Title' => 'Virsraksts',
-        'Item' => 'vienība',
-        'Delete' => 'Dzēst',
-        'Edit' => 'Labot',
-        'View' => 'Skatīt',
-        'Number' => 'Numurs',
-        'System' => 'Sistēma',
-        'Contact' => 'Kontaktpersona',
-        'Contacts' => 'Kontaktpersonas',
-        'Export' => 'Eksports',
-        'Up' => 'uz augšu',
-        'Down' => 'uz leju',
-        'Add' => 'Pievienot',
-        'Added!' => 'Pievienots!',
-        'Category' => 'Kategorija',
-        'Viewer' => 'Aplūkotājs',
-        'Expand' => 'Izvērst',
-        'Small' => 'Mazs',
-        'Medium' => 'Vidējs',
-        'Large' => 'Liels',
-        'Date picker' => 'Datuma atlasītājs',
-        'Show Tree Selection' => '',
-        'The field content is too long!' => 'Lauka saturs ir pārāk garš!',
-        'Maximum size is %s characters.' => 'Maksimālais izmērs ir %s zīmes.',
-        'This field is required or' => '',
-        'New message' => 'Jauns ziņojums',
-        'New message!' => 'Jauns ziņojums!',
-        'Please answer this ticket(s) to get back to the normal queue view!' =>
-            'Lai varētu atgriezties uz parasto rindas apskati, lūdzu atbildiet uz šo problēmas pieteikumu!',
-        'You have %s new message(s)!' => 'Jums ir %s jauns(i) ziņojums(i)!',
-        'You have %s reminder ticket(s)!' => 'Jums ir %s atgādinājums(i)!',
-        'The recommended charset for your language is %s!' => 'Ieteicamais simbolu kodējums izvēlētajai valodai ir %s!',
-        'Change your password.' => 'Mainiet savu paroli.',
-        'Please activate %s first!' => '',
-        'No suggestions' => 'Nav ieteikumu',
-        'Word' => 'Vārds',
-        'Ignore' => 'Ignorēt',
-        'replace with' => 'aizvietot ar',
-        'There is no account with that login name.' => 'Nav lietāja konta ar tādu lietotāja vārdu.',
-        'Login failed! Your user name or password was entered incorrectly.' =>
-            'Pieteikšanās neizdevās! Jūsu lietotājvārds vai parole ir ievadīta nepareizi.',
-        'There is no acount with that user name.' => 'Nav konta ar šo lietotājvārdu.',
-        'Please contact your administrator' => 'Lūdzu, sazinieties ar savu administratoru.',
-        'Authentication succeeded, but no customer record is found in the customer backend. Please contact your administrator.' =>
-            '',
-        'This e-mail address already exists. Please log in or reset your password.' =>
-            '',
-        'Logout' => 'Atteikties',
-        'Logout successful. Thank you for using %s!' => 'Atteikšanās veiksmīga! Paldies, ka izmantojāt %s problēmu pieteikumu sistēmu!',
-        'Feature not active!' => 'Papildiespēja nav aktivizēta!',
-        'Agent updated!' => 'Aģents atjaunināts!',
-        'Database Selection' => 'Datubāzes izvēle',
-        'Create Database' => 'Izveidot datubāzi',
-        'System Settings' => 'Sistēmas iestatījumi',
-        'Mail Configuration' => 'Pasta konfigurācija',
-        'Finished' => 'Pabeigts(i)',
-        'Install OTRS' => 'Instalējiet OTRS',
-        'Intro' => '',
-        'License' => 'Licence',
-        'Database' => 'Datubāze',
-        'Configure Mail' => 'Konfigurēt pastu',
-        'Database deleted.' => 'Datubāze izdzēsta.',
-        'Enter the password for the administrative database user.' => '',
-        'Enter the password for the database user.' => 'Ievadiet paroli datubāzes lietotājam.',
-        'If you have set a root password for your database, it must be entered here. If not, leave this field empty.' =>
-            'Ja esat iestatījis root paroli datubāzei, tā jāievada šeit. Ja ne, atstājiet šo lauku tukšu.',
-        'Database already contains data - it should be empty!' => 'Datubāze jau satur datus - tai jābūt tukšai!',
-        'Login is needed!' => 'Vispirms jāpiesakās sistēmā!',
-        'It is currently not possible to login due to a scheduled system maintenance.' =>
-            'Pašlaik nav iespējams pieteikties, jo notiek plānota sistēmas uzturēšana.',
-        'Password is needed!' => 'Parole ir obligāta!',
-        'Take this Customer' => 'Ņemt šo klientu',
-        'Take this User' => 'Ņemt šo lietotāju',
-        'possible' => 'iespējams',
-        'reject' => 'nepieņemt',
-        'reverse' => 'pretēji',
-        'Facility' => 'Iespēja',
-        'Time Zone' => 'Laika josla',
-        'Pending till' => 'Neizlemts līdz',
-        'Don\'t use the Superuser account to work with OTRS! Create new Agents and work with these accounts instead.' =>
-            '',
-        'Dispatching by email To: field.' => 'Pārvietot pēc Kam: lauka pazīmes e-pastā.',
-        'Dispatching by selected Queue.' => 'Pārvietot uz norādīto rindu.',
-        'No entry found!' => 'Nekas netika atrasts!',
-        'Session invalid. Please log in again.' => 'Nederīga sesija. Lūdzu, piesakieties vēlreiz.',
-        'Session has timed out. Please log in again.' => 'Sesija ir beigusies. Lūdzu, piesakieties vēlreiz.',
-        'Session limit reached! Please try again later.' => 'Sesijas ierobežojums sasniegts! Lūdzu, mēģiniet vēlreiz vēlāk.',
-        'No Permission!' => 'Nav atļaujas!',
-        '(Click here to add)' => '(Klikšķiniet šeit, lai pievienotu)',
-        'Preview' => 'Priekšapskate',
-        'Package not correctly deployed! Please reinstall the package.' =>
-            '',
-        '%s is not writable!' => '%s nav rakstāms!',
-        'Cannot create %s!' => 'Nevar izveidot %s!',
-        'Check to activate this date' => 'Atzīmējiet, lai aktivizētu šo datumu',
-        'You have Out of Office enabled, would you like to disable it?' =>
-            '',
-        'News about OTRS releases!' => 'Ziņas par OTRS relīzēm!',
-        'Customer %s added' => 'Klients %s pievienots',
-        'Role added!' => 'Loma pievienota!',
-        'Role updated!' => 'Loma atjaunināta!',
-        'Attachment added!' => 'Pielikums pievienots!',
-        'Attachment updated!' => 'Pielikums atjaunināts!',
-        'Response added!' => 'Atbilde pievienota!',
-        'Response updated!' => 'Atbilde atjaunināta!',
-        'Group updated!' => 'Grupa atjaunināta!',
-        'Queue added!' => 'Rinda pievienota!',
-        'Queue updated!' => 'Rinda atjaunināta!',
-        'State added!' => 'Stāvoklis pievienots!',
-        'State updated!' => 'Stāvoklis atjaunināts!',
-        'Type added!' => '',
-        'Type updated!' => '',
-        'Customer updated!' => 'Klients atjaunināts!',
-        'Customer company added!' => 'Klienta uzņēmums pievienots!',
-        'Customer company updated!' => 'Klienta uzņēmums atjaunināts!',
-        'Note: Company is invalid!' => 'Piezīme: uzņēmums ir nederīgs!',
-        'Mail account added!' => 'Pasta konts pievienots!',
-        'Mail account updated!' => 'Pasta konts atjaunināts!',
-        'System e-mail address added!' => 'Sistēmas e-pasta adrese pievienota!',
-        'System e-mail address updated!' => 'Sistēmas e-pasta adrese atjaunināta!',
-        'Contract' => 'Kontrakts (līgums)',
-        'Online Customer: %s' => 'Tiešsaistes klients: %s',
-        'Online Agent: %s' => 'Tiešsaistes atbildīgā persona: %s',
-        'Calendar' => 'Kalendārs',
-        'File' => 'Datu fails',
-        'Filename' => 'Faila (datnes) nosaukums',
-        'Type' => 'Tips',
-        'Size' => 'Izmērs',
-        'Upload' => 'Augšupielādēt',
-        'Directory' => 'Direktorija (mape)',
-        'Signed' => 'Parakstīts',
-        'Sign' => 'Parakstīt',
-        'Crypted' => 'Šifrēts',
-        'Crypt' => 'Šifrēt',
-        'PGP' => 'PGP',
-        'PGP Key' => 'PGP atslēga',
-        'PGP Keys' => 'PGP atslēgas',
-        'S/MIME' => 'S/MIME',
-        'S/MIME Certificate' => 'S/MIME sertifikāts',
-        'S/MIME Certificates' => 'S/MIME sertifikāti',
-        'Office' => 'Birojs',
-        'Phone' => 'Telefons',
-        'Fax' => 'Fakss',
-        'Mobile' => 'Mobilais telefons',
-        'Zip' => 'Pasta indekss',
-        'City' => 'Pilsēta',
-        'Street' => 'Iela',
-        'Country' => 'Valsts',
-        'Location' => 'Vieta',
-        'installed' => 'instalēts',
-        'uninstalled' => 'nav instalēts',
-        'Security Note: You should activate %s because application is already running!' =>
-            'Drošības piezīme: jums vajadzētu aktivizēt %s, jo programma jau darbojas!',
-        'Unable to parse repository index document.' => '',
-        'No packages for your framework version found in this repository, it only contains packages for other framework versions.' =>
-            '',
-        'No packages, or no new packages, found in selected repository.' =>
-            '',
-        'Edit the system configuration settings.' => 'Rediģēt sistēmas konfigurācijas iestatījumus.',
-        'ACL information from database is not in sync with the system configuration, please deploy all ACLs.' =>
-            '',
-        'printed at' => 'izdrukāts',
-        'Loading...' => 'Ielāde...',
-        'Dear Mr. %s,' => 'Cien. %s k-gs,',
-        'Dear Mrs. %s,' => 'Cien. %s k-dze,',
-        'Dear %s,' => 'Cien. %s,',
-        'Hello %s,' => 'Labdien %s,',
-        'This email address is not allowed to register. Please contact support staff.' =>
-            'Šo e-pasta adresi nav atļauts reģistrēt. Lūdzu, sazinieties ar atbalsta personālu.',
-        'New account created. Sent login information to %s. Please check your email.' =>
-            'Jauns konts izveidots. Nosūtīta pieteikšanās informācija uz %s. Lūdzu, pārbaudiet savu e-pastu.',
-        'Please press Back and try again.' => 'Lūdzu, klikšķiniet uz Atpakaļ un mēģiniet vēlreiz.',
-        'Sent password reset instructions. Please check your email.' => '',
-        'Sent new password to %s. Please check your email.' => 'Nosūtīta jauna paroli uz %s. Lūdzu, pārbaudiet savu e-pastu.',
-        'Upcoming Events' => 'Nākamie notikumi',
-        'Event' => 'Notikums',
-        'Events' => 'Notikumi',
-        'Invalid Token!' => 'Nederīga piekļuves pilnvara!',
-        'more' => 'vēl',
-        'Collapse' => 'Sašaurināt',
-        'Shown' => 'Parādīts',
-        'Shown customer users' => 'Parādītie klienti',
-        'News' => 'Jaunumi',
-        'Product News' => 'Izstrādes jaunumi',
-        'OTRS News' => 'OTRS jaunumi',
-        '7 Day Stats' => '7 dienu statistika',
-        'Process Management information from database is not in sync with the system configuration, please synchronize all processes.' =>
-            'Procesu pārvaldības informācija no datu bāzes netiek sinhronizēta ar sistēmas konfigurāciju, lūdzu, sinhronizējiet visus procesus.',
-        'Package not verified by the OTRS Group! It is recommended not to use this package.' =>
-            'Pakete nav pārbaudīta ar OTRS Group! Nav ieteicams izmantot šo paketi.',
-        '<br>If you continue to install this package, the following issues may occur!<br><br>&nbsp;-Security problems<br>&nbsp;-Stability problems<br>&nbsp;-Performance problems<br><br>Please note that issues that are caused by working with this package are not covered by OTRS service contracts!<br><br>' =>
-            '',
-        'Mark' => 'Atzīmēt',
-        'Unmark' => 'Noņemt atzīmi',
-        'Bold' => 'Treknraksts',
-        'Italic' => 'Kursīvs',
-        'Underline' => 'Pasvītrots',
-        'Font Color' => 'Fonta krāsa',
-        'Background Color' => 'Fona krāsa',
-        'Remove Formatting' => 'Novākt formātējumu',
-        'Show/Hide Hidden Elements' => 'Rādīt/Slēpt slēptos teksta elementus',
-        'Align Left' => 'Kārtot pa kreisi',
-        'Align Center' => 'Centrēt',
-        'Align Right' => 'Kārtot pa labi',
-        'Justify' => 'Izlīdzināt',
-        'Header' => 'Galvene',
-        'Indent' => 'Atkāpe',
-        'Outdent' => 'Pretējā atkāpe',
-        'Create an Unordered List' => 'Izveidot nesakārtotu sarakstu',
-        'Create an Ordered List' => 'Izveidot sakārtotu sarakstu',
-        'HTML Link' => 'HTML hipersaite',
-        'Insert Image' => 'Ievietot attēlu',
-        'CTRL' => 'CTRL',
-        'SHIFT' => 'SHIFT',
-        'Undo' => 'atcelt',
-        'Redo' => 'atjaunot',
-        'OTRS Daemon is not running.' => '',
-        'Can\'t contact registration server. Please try again later.' => '',
-        'No content received from registration server. Please try again later.' =>
-            '',
-        'Problems processing server result. Please try again later.' => '',
-        'Username and password do not match. Please try again.' => 'Lietotājvārds un parole nesakrīt. Lūdzu, mēģiniet vēlreiz.',
-        'The selected process is invalid!' => 'Atlasītais process ir nederīgs!',
-        'Upgrade to %s now!' => 'Jaunināšana uz %s tagad!',
-        '%s Go to the upgrade center %s' => '%s Dodieties uz jaunināšanas centru %s',
-        'The license for your %s is about to expire. Please make contact with %s to renew your contract!' =>
-            'Jūsu %s licences termiņš drīz beigsies. Lūdzu, sazinieties ar %s, lai atjaunotu savu līgumu!',
-        'An update for your %s is available, but there is a conflict with your framework version! Please update your framework first!' =>
-            '',
-        'Your system was successfully upgraded to %s.' => 'Jūsu sistēma tika veiksmīgi atjaunināta uz %s.',
-        'There was a problem during the upgrade to %s.' => 'Radās problēma  jaunināšanas laikā uz %s.',
-        '%s was correctly reinstalled.' => '%s tika pareizi pārinstalēta.',
-        'There was a problem reinstalling %s.' => 'Radās problēma pārinstalējot %s.',
-        'Your %s was successfully updated.' => 'Jūsu %s tika veiksmīgi atjaunināts.',
-        'There was a problem during the upgrade of %s.' => 'Radās problēma %s jaunināšanas laikā.',
-        '%s was correctly uninstalled.' => '%s tika pareizi atinstalēta.',
-        'There was a problem uninstalling %s.' => 'Radās problēma atinstalējot %s.',
-
-        # Template: AAACalendar
-        'New Year\'s Day' => 'Jaungada diena',
-        'International Workers\' Day' => 'Darba svēki',
-        'Christmas Eve' => 'Ziemassvētku vakars',
-        'First Christmas Day' => 'Pirmie Ziemassvētki',
-        'Second Christmas Day' => 'Otrie Ziemassvētki',
-        'New Year\'s Eve' => 'Vecgada diena',
-
-        # Template: AAAGenericInterface
-        'OTRS as requester' => 'OTRS kā pieprasītājs',
-        'OTRS as provider' => '',
-        'Webservice "%s" created!' => 'Web pakalpojums "%s" izveidots!',
-        'Webservice "%s" updated!' => 'Web pakalpojums "%s" atjaunināts!',
-
-        # Template: AAAMonth
-        'Jan' => 'Jan',
-        'Feb' => 'Feb',
-        'Mar' => 'Mar',
-        'Apr' => 'Apr',
-        'May' => 'Mai',
-        'Jun' => 'Jūn',
-        'Jul' => 'Jūl',
-        'Aug' => 'Aug',
-        'Sep' => 'Sep',
-        'Oct' => 'Okt',
-        'Nov' => 'Nov',
-        'Dec' => 'Dec',
-        'January' => 'Janvāris',
-        'February' => 'Februāris',
-        'March' => 'Marts',
-        'April' => 'Aprīlis',
-        'May_long' => 'Maijs',
-        'June' => 'Jūnijs',
-        'July' => 'Jūlijs',
-        'August' => 'Augusts',
-        'September' => 'Septembris',
-        'October' => 'Oktobris',
-        'November' => 'Novembris',
-        'December' => 'Decembris',
-
-        # Template: AAAPreferences
-        'Preferences updated successfully!' => 'Iestatījumi sekmīgi atjaunoti!',
-        'User Profile' => 'Lietotāja profils',
-        'Email Settings' => 'E-pasta iestatījumi',
-        'Other Settings' => 'Citi iestatījumi',
-        'Change Password' => 'Paroles maiņa',
-        'Current password' => 'Pašreizējā parole',
-        'New password' => 'Jaunā parole',
-        'Verify password' => 'Apstipriniet paroli',
-        'Spelling Dictionary' => 'Pareizrakstības vārdnīca',
-        'Default spelling dictionary' => 'Pareizrakstības vārdnīca pēc noklusējuma',
-        'Max. shown Tickets a page in Overview.' => 'Maksimālais problēmu pieteikumu skaits pārskata lapā.',
-        'The current password is not correct. Please try again!' => 'Pašreizējā parole nav pareiza. Lūdzu, mēģiniet vēlreiz!',
-        'Can\'t update password, your new passwords do not match. Please try again!' =>
-            'Nevar atjaunināt paroli, jaunas paroles nesakrīt. Lūdzu, mēģiniet vēlreiz!',
-        'Can\'t update password, it contains invalid characters!' => 'Nevar atjaunināt paroli, tā satur nederīgas rakstzīmes.',
-        'Can\'t update password, it must be at least %s characters long!' =>
-            'Nevar mainīt paroli, tai jābūt vismaz %s rakstzīmes garai!',
-        'Can\'t update password, it must contain at least 2 lowercase and 2 uppercase characters!' =>
-            'Nevar mainīt paroli, tajā jābūt vismaz 2 mazām un 2 lielām rakstzīmēm!',
-        'Can\'t update password, it must contain at least 1 digit!' => 'Nevar mainīt paroli, tajā jābūt vismaz 1 ciparam!',
-        'Can\'t update password, it must contain at least 2 characters!' =>
-            'Nevar mainīt paroli, tajā jābūt vismaz 2 rakstzīmēm!',
-        'Can\'t update password, this password has already been used. Please choose a new one!' =>
-            'Nevar mainīt paroli, šī parole jau ir izmantota. Lūdzu, izvēlieties jaunu!',
-        'Select the separator character used in CSV files (stats and searches). If you don\'t select a separator here, the default separator for your language will be used.' =>
-            '',
-        'CSV Separator' => 'CSV atdalītājs',
-
-        # Template: AAATicket
-        'Status View' => '',
-        'Service View' => '',
-        'Bulk' => '',
-        'Lock' => 'Aizslēgt',
-        'Unlock' => 'Atslēgt',
-        'History' => 'Vēsture',
-        'Zoom' => 'Atvērt vaļā',
-        'Age' => 'Atvērts jau',
-        'Bounce' => 'Pārcelt',
-        'Forward' => 'Pārsūtīt',
-        'From' => 'No',
-        'To' => 'Kam',
-        'Cc' => 'Kopija',
-        'Bcc' => 'Diskrētā kopija',
-        'Subject' => 'Tēma',
-        'Move' => 'Pārvietot',
-        'Queue' => 'Rinda',
-        'Queues' => 'Rindas',
-        'Priority' => 'Prioritāte',
-        'Priorities' => 'Prioritāte',
-        'Priority Update' => 'Prioritāte mainīta',
-        'Priority added!' => 'Prioritāte pievienota!',
-        'Priority updated!' => 'Prioritāte atjaunināta!',
-        'Signature added!' => 'Paraksts pievienots!',
-        'Signature updated!' => 'Paraksts atjaunināts!',
-        'SLA' => 'Servisa līmeņa līgums',
-        'Service Level Agreement' => 'Servisa līmeņa līgums',
-        'Service Level Agreements' => 'Servisa līmeņa līgums',
-        'Service' => 'Servisi',
-        'Services' => '',
-        'State' => 'Statuss',
-        'States' => 'Statuss',
-        'Status' => 'Statuss',
-        'Statuses' => 'Statuss',
-        'Ticket Type' => 'Pieteikuma veids',
-        'Ticket Types' => 'Pieteikuma veidi',
-        'Compose' => 'Izveidot',
-        'Pending' => 'Neizlemts',
-        'Owner' => 'Īpašnieks',
-        'Owner Update' => 'Īpašnieks mainīts',
-        'Responsible' => 'Atbildīgais',
-        'Responsible Update' => 'Atbildīgais mainīts',
-        'Sender' => 'Nosūtītājs',
-        'Article' => 'Ziņojums',
-        'Ticket' => 'Pieteikumi',
-        'Createtime' => 'Izveidošanas laiks',
-        'plain' => 'vienkāršs teksts',
-        'Email' => 'E-pasts',
-        'email' => 'e-pasts',
-        'Close' => 'Aizvērt',
-        'Action' => 'Darbība',
-        'Attachment' => 'Pielikums',
-        'Attachments' => 'Pielikumi',
-        'This message was written in a character set other than your own.' =>
-            'Šis ziņojums ir rakstīts citā rakstzīmju kodējumā nekā pašlaik izmantotais.',
-        'If it is not displayed correctly,' => 'Ja tas netiek parādīts pareizi,',
-        'This is a' => 'Tas ir',
-        'to open it in a new window.' => 'lai atvērtu jaunā logā',
-        'This is a HTML email. Click here to show it.' => 'Šis ir HTML e-pasts. Klikšķiniet šeit, lai atvērtu to jaunā pārlūkprogrammas logā.',
-        'Free Fields' => 'Neaizpildītie lauki',
-        'Merge' => 'Apvienot',
-        'merged' => 'apvienotie',
-        'closed successful' => 'aizvērta, atrisināta',
-        'closed unsuccessful' => 'aizvērta, neatrisināta',
-        'Locked Tickets Total' => 'Bloķētie pieteikumi: kopā',
-        'Locked Tickets Reminder Reached' => 'Bloķētie pieteikumi: ir pienācis atgādinājuma laiks',
-        'Locked Tickets New' => 'Bloķētie pieteikumi: jaunie',
-        'Responsible Tickets Total' => 'Atbildīgie pieteikumi: kopā',
-        'Responsible Tickets New' => 'Atbildīgie pieteikumi: jaunie',
-        'Responsible Tickets Reminder Reached' => 'Atbildīgie pieteikumi: sasniegts atgādinājuma laiks',
-        'Watched Tickets Total' => 'Vērotie pieteikumi: kopā',
-        'Watched Tickets New' => 'Vērotie pieteikumi: jaunie',
-        'Watched Tickets Reminder Reached' => 'Vērotie pieteikumi: sasniegts atgādinājuma laiks',
-        'All tickets' => 'Visi pieteikumi',
-        'Available tickets' => 'Pieejamie pieteikumi',
-        'Escalation' => 'Eskalācija',
-        'last-search' => 'pēdējā meklēšana',
-        'QueueView' => 'Rindas skats',
-        'Ticket Escalation View' => 'Pieteikumu eskalācijas skats',
-        'Message from' => 'Ziņa no',
-        'End message' => 'Ziņas beigas',
-        'Forwarded message from' => 'Pārsūtītā ziņa no',
-        'End forwarded message' => 'Pārsūtītās ziņas beigas',
-        'Bounce Article to a different mail address' => 'Novirzīt ziņu uz citu e-pasta adresi',
-        'Reply to note' => 'Atbildēt uz vēstuli',
-        'new' => 'jauna',
-        'open' => 'atvērta',
-        'Open' => 'Atvērta',
-        'Open tickets' => 'Atvērtie pieteikumi',
-        'closed' => 'aizvērta',
-        'Closed' => 'Aizvērta',
-        'Closed tickets' => 'Aizvērtie pieteikumi',
-        'removed' => 'aizvākta',
-        'pending reminder' => 'neizlemts - gaida atgādinājumu',
-        'pending auto' => 'gaida automātisku darbību',
-        'pending auto close+' => 'gaida automātisku aizvēršanu+',
-        'pending auto close-' => 'gaida automātisku aizvēršanu-',
-        'email-external' => 'ārējs e-pasts',
-        'email-internal' => 'iekšējs e-pasts',
-        'note-external' => 'ārēja piezīme',
-        'note-internal' => 'iekšēja piezīme',
-        'note-report' => 'piezīmju pārskats',
-        'phone' => 'telefona zvans',
-        'sms' => 'sms',
-        'webrequest' => 'no pārlūkprogrammas veidots pieteikums',
-        'lock' => 'aizslēgt',
-        'unlock' => 'atslēgt',
-        'very low' => 'ļoti zema',
-        'low' => 'zema',
-        'normal' => 'normāla',
-        'high' => 'augsta',
-        'very high' => 'ļoti augsta',
-        '1 very low' => '1 ļoti zema',
-        '2 low' => '2 zema',
-        '3 normal' => '3 normāla',
-        '4 high' => '4 augsta',
-        '5 very high' => '5 ļoti augsta',
-        'auto follow up' => 'automātisks sekojums',
-        'auto reject' => 'automātisks noraidījums',
-        'auto remove' => 'automātiska noņemšana',
-        'auto reply' => 'automātiska atbilde',
-        'auto reply/new ticket' => 'automātiska atbilde/jauns pieteikums',
-        'Create' => 'Izveidot',
-        'Answer' => 'Atbilde',
-        'Phone call' => 'Telefona zvans',
-        'Ticket "%s" created!' => 'Problēmas pieteikums "%s" izveidots!',
-        'Ticket Number' => 'Pieteikuma numurs',
-        'Ticket Object' => 'Pieteikuma objekts (?)',
-        'No such Ticket Number "%s"! Can\'t link it!' => 'Nevar atrast šādu problēmas pieteikuma numuru "%s"! Nav iespējams to piesaistīt!',
-        'You don\'t have write access to this ticket.' => 'Jums nav rakstīšanas piekļuve šim pieteikumam.',
-        'Sorry, you need to be the ticket owner to perform this action.' =>
-            'Atvainojiet, jums ir jābūt pieteikuma īpašniekam, lai veiktu šo darbību.',
-        'Please change the owner first.' => 'Lūdzu, mainiet īpašnieku vispirms.',
-        'Ticket selected.' => 'Pieteikums izvēlēts.',
-        'Ticket is locked by another agent.' => 'Pieteikumu ir bloķējis cits aģents.',
-        'Ticket locked.' => 'Pieteikums bloķēts.',
-        'Don\'t show closed Tickets' => 'Nerādīt atvērtos problēmu pieteikumus',
-        'Show closed Tickets' => 'Rādīt atvērtos problēmu pieteikumus',
-        'New Article' => 'Jauns ziņojums',
-        'Unread article(s) available' => 'Nelasīta ziņa(s) ir pieejama',
-        'Remove from list of watched tickets' => 'Izņemt no vēroto pieteikumu saraksta',
-        'Add to list of watched tickets' => 'Pievienot vēroto pieteikumu sarakstam',
-        'Email-Ticket' => 'Pieteikums ar e-pastu',
-        'Create new Email Ticket' => 'Izveidot jaunu problēmas pieteikumu ar e-pastu',
-        'Phone-Ticket' => 'Telefonisks pieteikums',
-        'Search Tickets' => 'Meklēt pieteikumos',
-        'Customer Realname' => 'Klienta pilns vārds',
-        'Customer History' => 'Klienta vēsture',
-        'Edit Customer Users' => 'Labot klientu datus',
-        'Edit Customer' => 'Rediģēt klientu',
-        'Bulk Action' => '',
-        'Bulk Actions on Tickets' => 'Veikt darbības ar vairākiem pieteikumiem uzreiz',
-        'Send Email and create a new Ticket' => 'Nosūtīt e-pastu un izveidot jaunu problēmas pieteikumu',
-        'Create new Email Ticket and send this out (Outbound)' => 'Izveidot jaunu problēmas pieteikumu ar e-pastu un to izsūtīt (izejošs)',
-        'Create new Phone Ticket (Inbound)' => 'Izveidot jaunu telefonisku problēmas pieteikumu (ienākošs)',
-        'Address %s replaced with registered customer address.' => 'Adresi %s aizstāta ar reģistrēta klienta adresi.',
-        'Customer user automatically added in Cc.' => 'Klients automātiski pievienots CC.',
-        'Overview of all open Tickets' => 'Pārskats par visiem atvērtajiem problēmu pieteikumiem',
-        'Locked Tickets' => 'Bloķētie pieteikumi',
-        'My Locked Tickets' => 'Mani bloķētie pieteikumi',
-        'My Watched Tickets' => 'Mani vērotie pieteikumi',
-        'My Responsible Tickets' => 'Mani atbildīgie pieteikumi',
-        'Watched Tickets' => 'Vērotie pieteikumi',
-        'Watched' => 'Vērots',
-        'Watch' => 'Vērot',
-        'Unwatch' => 'Nevērot',
-        'Lock it to work on it' => 'Bloķēt, lai strādātu ar to',
-        'Unlock to give it back to the queue' => 'Atbloķēt, lai atgrieztu atpakaļ rindā',
-        'Show the ticket history' => 'Parādīt pieteikuma vēsturi',
-        'Print this ticket' => 'Drukāt šo pieteikumu',
-        'Print this article' => 'Drukāt šo ziņu',
-        'Split' => 'Sadalīt',
-        'Split this article' => 'Sadalīt šo ziņu',
-        'Forward article via mail' => 'Pārsūtīt ziņu pa e-pastu',
-        'Change the ticket priority' => 'Mainīt pieteikuma prioritāti',
-        'Change the ticket free fields!' => 'Mainīt pieteikuma neaizpildītos laukus',
-        'Link this ticket to other objects' => 'Saistīt šo pieteikumu ar citiem objektiem',
-        'Change the owner for this ticket' => 'Mainīt īpašnieku šim pieteikumam',
-        'Change the  customer for this ticket' => 'Mainīt klientu šim pieteikumam',
-        'Add a note to this ticket' => 'Pievienot piezīmi šim pieteikumam',
-        'Merge into a different ticket' => 'Apvienot ar citu pieteikumu',
-        'Set this ticket to pending' => 'Iestatīt šo pieteikumu gaidīšanā',
-        'Close this ticket' => 'Aizvērt šo pieteikumu',
-        'Look into a ticket!' => 'Apskatīt pieteikumu!',
-        'Delete this ticket' => 'Dzēst šo pieteikumu',
-        'Mark as Spam!' => 'Iezīmēt kā mēstuli (spamu)!',
-        'My Queues' => 'Manas rindas',
-        'Shown Tickets' => 'Parādītie pieteikumi',
-        'Shown Columns' => 'Parādītās kolonnas',
-        'Your email with ticket number "<OTRS_TICKET>" is merged to "<OTRS_MERGE_TO_TICKET>".' =>
-            'Jūsu e-pasts ar pieteikuma numuru "<OTRS_TICKET>" ir apvienots ar pieteikumu nr. "<OTRS_MERGE_TO_TICKET>"!',
-        'Ticket %s: first response time is over (%s)!' => 'Pieteikums %s: reakcijas laiks ir lielāks par (%s)!',
-        'Ticket %s: first response time will be over in %s!' => 'Pieteikums %s: reakcijas laiks beigsies %s!',
-        'Ticket %s: update time is over (%s)!' => 'Pieteikums %s: atjaunošanas (labošanas) laiks ir lielāks par (%s)!',
-        'Ticket %s: update time will be over in %s!' => 'Pieteikums %s: atjaunošanas (labošanas) laiks beigsies %s!',
-        'Ticket %s: solution time is over (%s)!' => 'Pieteikums %s: atrisināšanas laiks ir lielāks par (%s)!',
-        'Ticket %s: solution time will be over in %s!' => 'Pieteikums %s: atrisināšanas laiks beigsies %s!',
-        'There are more escalated tickets!' => 'Ir vēl citi problēmu pieteikumi ar paaugstinātu svarīgumu (?)!',
-        'Plain Format' => 'Parasts formāts',
-        'Reply All' => 'Atbildēt visiem',
-        'Direction' => 'Virziens',
-        'New ticket notification' => 'Jauna pieteikuma paziņojums',
-        'Send me a notification if there is a new ticket in "My Queues".' =>
-            'Sūtīt man paziņojumu ja manās rindās parādās jauns pieteikums.',
-        'Send new ticket notifications' => 'Nosūtīt jauna pieteikuma paziņojumus',
-        'Ticket follow up notification' => '',
-        'Send me a notification if a customer sends a follow up and I\'m the owner of the ticket or the ticket is unlocked and is in one of my subscribed queues.' =>
-            'Sūtīt man paziņojumu, ja klients nosūta papildinformāciju un es esmu šī pieteikuma īpašnieks.',
-        'Send ticket follow up notifications' => '',
-        'Ticket lock timeout notification' => 'Pieteikuma bloķēšanas noilguma paziņojums',
-        'Send me a notification if a ticket is unlocked by the system.' =>
-            'Sūtīt man paziņojumu, ja sistēma ir atslēgusi pieteikumu.',
-        'Send ticket lock timeout notifications' => 'Sūtīt pieteikuma bloķēšanas noilguma paziņojumu',
-        'Ticket move notification' => 'Pieteikuma pārvietošanas paziņojums',
-        'Send me a notification if a ticket is moved into one of "My Queues".' =>
-            'Nosūtīt man paziņojumu, ja pieteikums pārvietots uz kādu no "Manām rindām".',
-        'Send ticket move notifications' => 'Nosūtīt pieteikuma pārvietošanas paziņojumu',
-        'Your queue selection of your favourite queues. You also get notified about those queues via email if enabled.' =>
-            'Jūsu vēlamo rindu izvēle. Jūs arī saņemsiet paziņojumu par šīm rindām e-pastā, ja ir iespējots.',
-        'Custom Queue' => 'Pielāgota rinda',
-        'QueueView refresh time' => 'Rindas skata atjaunināšanas laiks',
-        'If enabled, the QueueView will automatically refresh after the specified time.' =>
-            '',
-        'Refresh QueueView after' => '',
-        'Screen after new ticket' => 'Ekrāns pēc jauna pieteikuma izveidošanas',
-        'Show this screen after I created a new ticket' => 'Rādīt šo ekrānu, kad ir izveidots jauns pieteikums',
-        'Closed Tickets' => 'Aizvērtie pieteikumi',
-        'Show closed tickets.' => 'Rādīt aizvērtos pieteikumus.',
-        'Max. shown Tickets a page in QueueView.' => 'Maksimālais parādīto pieteikumu skaits rindas skatā (pieteikumu sarakstā).',
-        'Ticket Overview "Small" Limit' => 'Pieteikuma pārskats "Small" ierobežojums',
-        'Ticket limit per page for Ticket Overview "Small"' => 'Pieteikumu ierobežojums vienā lappusē pieteikuma pārskatam "Small"',
-        'Ticket Overview "Medium" Limit' => 'Pieteikuma pārskats "Medium" ierobežojums',
-        'Ticket limit per page for Ticket Overview "Medium"' => 'Pieteikumu ierobežojums vienā lappusē pieteikuma pārskatam "Medium"',
-        'Ticket Overview "Preview" Limit' => 'Pieteikuma pārskats "Preview" ierobežojums',
-        'Ticket limit per page for Ticket Overview "Preview"' => 'Pieteikumu ierobežojums vienā lappusē pieteikuma pārskatam "Preview"',
-        'Ticket watch notification' => ' Vērojamo pieteikumu paziņojums',
-        'Send me the same notifications for my watched tickets that the ticket owners will get.' =>
-            '',
-        'Send ticket watch notifications' => '',
-        'Out Of Office Time' => 'Ārpus darba laika',
-        'New Ticket' => 'Jaunie pieteikumi',
-        'Create new Ticket' => 'Izveidot jaunu pieteikumu',
-        'Customer called' => 'Klienta zvans',
-        'phone call' => 'telefona zvans',
-        'Phone Call Outbound' => '',
-        'Phone Call Inbound' => '',
-        'Reminder Reached' => 'Pienācis atgādinājuma laiks',
-        'Reminder Tickets' => 'Pieteikumi ar atgādinājumiem',
-        'Escalated Tickets' => 'Eskalētie pieteikumi',
-        'New Tickets' => 'Jaunie pieteikumi',
-        'Open Tickets / Need to be answered' => 'Atvētie pieteikumi/nepieciešama atbilde',
-        'All open tickets, these tickets have already been worked on, but need a response' =>
-            '',
-        'All new tickets, these tickets have not been worked on yet' => '',
-        'All escalated tickets' => 'Visi eskalētie pieteikumi',
-        'All tickets with a reminder set where the reminder date has been reached' =>
-            '',
-        'Archived tickets' => 'Arhivētie pieteikumi',
-        'Unarchived tickets' => 'Nearhivētie pieteikumi',
-        'Ticket Information' => 'Pieteikuma informācija',
-        'including subqueues' => '',
-        'excluding subqueues' => '',
-
-        # Template: AAAWeekDay
-        'Sun' => 'Sv',
-        'Mon' => 'Pi',
-        'Tue' => 'Ot',
-        'Wed' => 'Tr',
-        'Thu' => 'Ce',
-        'Fri' => 'Pk',
-        'Sat' => 'Se',
-
         # Template: AdminACL
         'ACL Management' => 'ACL pārvaldība',
-        'Filter for ACLs' => 'Filtrs priekš ACLs',
-        'Filter' => 'Filtrs',
-        'ACL Name' => 'ACL nosaukums',
         'Actions' => 'Darbības',
         'Create New ACL' => 'Izveidot jaunu ACL',
         'Deploy ACLs' => 'Ieviest ACLs',
         'Export ACLs' => 'Eksportēt ACLs',
-        'Configuration import' => 'Konfigurācijas importēšana',
+        'Filter for ACLs' => 'Filtrs priekš ACLs',
+        'Just start typing to filter...' => 'Vienkārši sāciet rakstīt, lai filtrētu...',
+        'Configuration Import' => '',
         'Here you can upload a configuration file to import ACLs to your system. The file needs to be in .yml format as exported by the ACL editor module.' =>
             '',
         'This field is required.' => 'Šis lauks ir obligāts.',
         'Overwrite existing ACLs?' => 'Pārrakstīt esošos ACLs?',
         'Upload ACL configuration' => 'Augšupielādēt ACL konfigurācijas',
         'Import ACL configuration(s)' => 'Importēt ACL konfigurāciju(as)',
+        'Description' => 'Apraksts',
         'To create a new ACL you can either import ACLs which were exported from another system or create a complete new one.' =>
             '',
         'Changes to the ACLs here only affect the behavior of the system, if you deploy the ACL data afterwards. By deploying the ACL data, the newly made changes will be written to the configuration.' =>
@@ -796,9 +54,12 @@ sub Data {
         'Please note: This table represents the execution order of the ACLs. If you need to change the order in which ACLs are executed, please change the names of the affected ACLs.' =>
             '',
         'ACL name' => 'ACL nosaukums',
+        'Comment' => 'Komentārs',
         'Validity' => 'Derīgums',
+        'Export' => 'Eksports',
         'Copy' => 'Kopēt',
         'No data found.' => 'Dati nav atrasti.',
+        'No matches found.' => 'Nekas nav atrasts.',
 
         # Template: AdminACLEdit
         'Edit ACL %s' => 'Rediģēt ACL %s',
@@ -814,18 +75,15 @@ sub Data {
         'Check the official' => '',
         'documentation' => 'dokumentācija',
         'Show or hide the content' => 'Rādīt vai slēpt saturu',
-        'Edit ACL information' => 'Rediģēt ACL informāciju',
+        'Edit ACL Information' => '',
+        'Name' => 'Vārds',
         'Stop after match' => 'Pārtraukt pēc sakritības',
-        'Edit ACL structure' => 'Rediģēt ACL struktūru',
+        'Edit ACL Structure' => '',
         'Save' => 'Saglabāt',
         'or' => 'vai',
         'Save and finish' => 'Saglabāt un pabeigt',
+        'Cancel' => 'Atcelt',
         'Do you really want to delete this ACL?' => 'Vai tiešām vēlaties izdzēst šo ACL?',
-        'This item still contains sub items. Are you sure you want to remove this item including its sub items?' =>
-            'Šī vienība satur apakšvienības. Vai tiešām vēlaties dzēst šo vienību, ieskaitot tās apakšvienības?',
-        'An item with this name is already present.' => 'Vienība ar šādu nosaukumu jau pastāv.',
-        'Add all' => 'Pievienot visus',
-        'There was an error reading the ACL data.' => 'Radās kļūda, lasot ACL datus.',
 
         # Template: AdminACLNew
         'Create a new ACL by submitting the form data. After creating the ACL, you will be able to add configuration items in edit mode.' =>
@@ -834,24 +92,36 @@ sub Data {
         # Template: AdminAttachment
         'Attachment Management' => 'Pielikumu pārvaldība',
         'Add attachment' => 'Pievienot pielikumu',
+        'Filter for Attachments' => '',
+        'Filter for attachments' => '',
         'List' => 'Saraksts',
+        'Filename' => 'Faila (datnes) nosaukums',
+        'Changed' => 'Mainīts',
+        'Created' => 'Izveidots',
+        'Delete' => 'Dzēst',
         'Download file' => 'Lejupielādēt failu',
         'Delete this attachment' => 'Dzēst šo pielikumu',
         'Add Attachment' => 'Pievienot pielikumu',
         'Edit Attachment' => 'Rediģēt pielikumu',
+        'Attachment' => 'Pielikums',
 
         # Template: AdminAutoResponse
         'Auto Response Management' => 'Automātisko atbilžu pārvaldība',
         'Add auto response' => 'Pievienot automātisko atbildi',
+        'Filter for Auto Responses' => '',
+        'Filter for auto responses' => '',
+        'Type' => 'Tips',
         'Add Auto Response' => 'Pievienot automātisko atbildi',
         'Edit Auto Response' => 'Rediģēt automātisko atbildi',
+        'Subject' => 'Tēma',
         'Response' => 'Atbilde',
         'Auto response from' => 'Automātiskā atbilde no',
         'Reference' => 'Atsauce (en)',
         'You can use the following tags' => 'Jūs varat izmantot šādus tagus',
         'To get the first 20 character of the subject.' => 'Lai saņemtu pirmās 20 rakstzīmes no pieteikuma tēmas',
         'To get the first 5 lines of the email.' => 'Lai saņemtu pirmās 5 rindiņas no e-pasta',
-        'To get the realname of the sender (if given).' => 'Lai saņemtu nosūtītāja īsto vārdu (ja norādīts).',
+        'To get the realname of the ticket\'s customer user (if given).' =>
+            '',
         'To get the article attribute' => 'Lai iegūtu ziņas atribūtus',
         ' e. g.' => 'piem.,',
         'Options of the current customer user data' => 'Pašreizējā klienta datu iespējas',
@@ -877,6 +147,7 @@ sub Data {
         'Send support data' => '',
         'This will allow the system to send additional support data information to OTRS Group.' =>
             '',
+        'Update' => 'Atjaunināt',
         'System Registration' => '',
         'To enable data sending, please register your system with OTRS Group or update your system registration information (make sure to activate the \'send support data\' option.)' =>
             '',
@@ -887,7 +158,7 @@ sub Data {
         # Template: AdminCloudServices
         'System registration is a service of OTRS Group, which provides a lot of advantages!' =>
             '',
-        'Please note that you using OTRS cloud services requires the system to be registered.' =>
+        'Please note that the use of OTRS cloud services requires the system to be registered.' =>
             '',
         'Register this system' => '',
         'Here you can configure available cloud services that communicate securely with %s.' =>
@@ -897,11 +168,18 @@ sub Data {
 
         # Template: AdminCustomerCompany
         'Customer Management' => 'Klientu pārvaldība',
+        'Search' => 'Meklēt',
         'Wildcards like \'*\' are allowed.' => 'Aizstājējzīmes kā \'*\' ir atļautas.',
         'Add customer' => 'Pievienot klientu',
         'Select' => 'Paņemt',
+        'List (only %s shown - more available)' => '',
+        'total' => '',
         'Please enter a search term to look for customers.' => 'Lūdzu, ievadiet meklējamo terminu, lai atrastu klientu.',
+        'CustomerID' => 'Klienta identifikators',
         'Add Customer' => 'Pievienot klientu',
+        'Edit Customer' => 'Rediģēt klientu',
+        'Please note' => '',
+        'This customer backend is read only!' => '',
 
         # Template: AdminCustomerUser
         'Customer User Management' => '',
@@ -909,11 +187,16 @@ sub Data {
         'Add customer user' => 'Pievienot klientu',
         'Customer user are needed to have a customer history and to login via customer panel.' =>
             '',
+        'List (%s total)' => '',
+        'Username' => 'Lietotājvārds',
+        'Email' => 'E-pasts',
         'Last Login' => 'Pēdējā pieteikšanās',
         'Login as' => 'Pieteikties sistēmā kā',
         'Switch to customer' => 'Pārslēgties uz klientu',
         'Add Customer User' => 'Pievienot klientu',
         'Edit Customer User' => 'Rediģēt klientu',
+        'This customer backend is read only, but the customer user preferences can be changed!' =>
+            '',
         'This field is required and needs to be a valid email address.' =>
             '',
         'This email address is not allowed due to the system configuration.' =>
@@ -935,13 +218,11 @@ sub Data {
         'You can manage these groups via the configuration setting "CustomerGroupAlwaysGroups".' =>
             'Jūs varat pārvaldīt šīs grupas, izmantojot konfigurāciju "CustomerGroupAlwaysGroups".',
         'Filter for Groups' => 'Filtrs priekš grupām',
-        'Just start typing to filter...' => 'Vienkārši sāciet rakstīt, lai filtrētu...',
         'Select the customer:group permissions.' => '',
         'If nothing is selected, then there are no permissions in this group (tickets will not be available for the customer).' =>
             '',
         'Search Results' => 'Meklēšanas rezultāti',
         'Customers' => 'Klienti',
-        'No matches found.' => 'Nekas nav atrasts.',
         'Groups' => 'Grupas',
         'Change Group Relations for Customer' => 'Mainīt grupas attiecības ar klientu',
         'Change Customer Relations for Group' => 'Mainīt klienta attiecības ar grupu',
@@ -959,6 +240,7 @@ sub Data {
         'Manage Customer-Services Relations' => 'Pārvaldīt klienta - pakalpojumu attiecības',
         'Edit default services' => 'Rediģēt pakalpojumus pēc noklusējuma',
         'Filter for Services' => 'Filtrs priekš pakalpojumiem',
+        'Services' => '',
         'Allocate Services to Customer' => 'Piešķirt pakalpojumus klientam',
         'Allocate Customers to Service' => 'Iedalīt klientus pakalpojumam',
         'Toggle active state for all' => 'Pārslēgt aktīvs stāvoklis visiem',
@@ -968,17 +250,17 @@ sub Data {
         # Template: AdminDynamicField
         'Dynamic Fields Management' => 'Dinamisko lauku pārvaldība',
         'Add new field for object' => 'Pievienot jaunu lauku objektam',
+        'Filter for Dynamic Fields' => '',
+        'Filter for dynamic fields' => '',
         'To add a new field, select the field type from one of the object\'s list, the object defines the boundary of the field and it can\'t be changed after the field creation.' =>
             '',
         'Dynamic Fields List' => 'Dinamisko lauku saraksts',
+        'Settings' => 'Iestatījumi',
         'Dynamic fields per page' => 'Dinamiskie lauki vienā lappusē',
         'Label' => '',
         'Order' => 'Kārtība',
         'Object' => 'Objekts',
         'Delete this field' => 'Dzēst šo lauku',
-        'Do you really want to delete this dynamic field? ALL associated data will be LOST!' =>
-            '',
-        'Delete field' => 'Dzēst lauku',
 
         # Template: AdminDynamicFieldCheckbox
         'Dynamic Fields' => 'Dinamiskie lauki',
@@ -1019,6 +301,10 @@ sub Data {
         'Years in the future to display (default: 5 years).' => 'Gadi nākotnē, lai attēlotu (pēc noklusējuma: 5 gadi).',
         'Show link' => 'Rādīt saiti',
         'Here you can specify an optional HTTP link for the field value in Overviews and Zoom screens.' =>
+            '',
+        'Example' => 'piemērs',
+        'Link for preview' => '',
+        'If filled in, this URL will be used for a preview which is shown when this link is hovered in ticket zoom. Please note that for this to work, the regular URL field above needs to be filled in, too.' =>
             '',
         'Restrict entering of dates' => 'Ierobežot datumu ievadīšanu',
         'Here you can restrict the entering of dates of tickets.' => 'Šeit var ierobežot pieteikumu datumu ievadīšanu.',
@@ -1062,6 +348,7 @@ sub Data {
             '',
         'Create Administrative Message' => 'Izveidot administratora ziņu',
         'Your message was sent to' => 'Jūsu ziņojums tika nosūtīts',
+        'From' => 'No',
         'Send message to users' => 'Nosūtīt ziņu lietotājiem',
         'Send message to group members' => 'Nosūtīt ziņu grupas dalībniekiem',
         'Group members need to have permission' => 'Grupas dalībniekiem ir nepieciešama atļauja',
@@ -1073,6 +360,8 @@ sub Data {
         # Template: AdminGenericAgent
         'Generic Agent' => 'Vispārīgais uzdevums',
         'Add job' => 'Pievienot uzdevumu',
+        'Filter for Generic Agent Jobs' => '',
+        'Filter for generic agent jobs' => '',
         'Last run' => 'Pēdējo reizi izpildīts',
         'Run Now!' => 'Izpildīt tagad!',
         'Delete this task' => 'Dzēst šo uzdevumu',
@@ -1081,7 +370,7 @@ sub Data {
         'Job name' => 'Uzdevuma nosaukums',
         'The name you entered already exists.' => 'Ievadītais nosaukums jau pastāv.',
         'Toggle this widget' => 'Pārslēgt šo logrīku',
-        'Automatic execution (multiple tickets)' => 'Automātiskā izpilde (vairāki pieteikumi)',
+        'Automatic Execution (Multiple Tickets)' => '',
         'Execution Schedule' => 'Izpildes grafiks',
         'Schedule minutes' => '',
         'Schedule hours' => '',
@@ -1090,9 +379,10 @@ sub Data {
             'Pašlaik šis vispārīgais aģenta uzdevums neizpildīsies automātiski.',
         'To enable automatic execution select at least one value from minutes, hours and days!' =>
             'Lai iestatītu automātisku izpildi, izvēlieties vismaz vienu vērtību no minūtēm, stundām un dienām!',
-        'Event based execution (single ticket)' => '',
+        'Event Based Execution (Single Ticket)' => '',
         'Event Triggers' => '',
         'List of all configured events' => '',
+        'Event' => 'Notikums',
         'Delete this event' => 'Dzēst šo notikumu',
         'Additionally or alternatively to a periodic execution, you can define ticket events that will trigger this job.' =>
             '',
@@ -1103,23 +393,30 @@ sub Data {
         'Add Event' => 'Pievienot notikumu',
         'To add a new event select the event object and event name and click on the "+" button' =>
             '',
-        'Duplicate event.' => 'Dublēt notikumu',
-        'This event is already attached to the job, Please use a different one.' =>
-            '',
-        'Delete this Event Trigger' => '',
-        'Remove selection' => 'Noņemt atlasi',
         'Select Tickets' => 'Izvēlēties pieteikumus',
         '(e. g. 10*5155 or 105658*)' => 'piem. 10*5144 vai 105658*',
+        'Title' => 'Virsraksts',
         '(e. g. 234321)' => 'piem. 234321',
-        'Customer login' => 'Klienta login',
+        'Customer user' => '',
         '(e. g. U5150)' => 'piem. U5150',
         'Fulltext-search in article (e. g. "Mar*in" or "Baue*").' => '',
+        'To' => 'Kam',
+        'Cc' => 'Kopija',
+        'Text' => 'Teksts',
+        'Service' => 'Servisi',
+        'Service Level Agreement' => 'Servisa līmeņa līgums',
+        'Priority' => 'Prioritāte',
+        'Queue' => 'Rinda',
+        'State' => 'Statuss',
         'Agent' => 'Aģents (pieteikumu apstrādātājs)',
+        'Owner' => 'Īpašnieks',
+        'Responsible' => 'Atbildīgais',
         'Ticket lock' => 'Pieteikuma bloķēšana',
         'Create times' => '',
         'No create time settings.' => 'Nav izveidošanas laika iestatījumu',
         'Ticket created' => 'Pieteikums izveidots',
         'Ticket created between' => 'Pieteikums izveidots starp',
+        'and' => 'un',
         'Last changed times' => 'Pēdējo izmaiņu laiks',
         'No last changed time settings.' => '',
         'Ticket last changed' => '',
@@ -1161,7 +458,7 @@ sub Data {
         'new owner' => '',
         'new responsible' => '',
         'Set new ticket lock' => '',
-        'New customer' => '',
+        'New customer user' => '',
         'New customer ID' => '',
         'New title' => '',
         'New type' => '',
@@ -1178,16 +475,26 @@ sub Data {
         'Warning: All affected tickets will be removed from the database and cannot be restored!' =>
             '',
         'Execute Custom Module' => '',
+        'Module' => 'modulis',
         'Param %s key' => '',
         'Param %s value' => '',
         'Save Changes' => '',
+        'Tag Reference' => '',
+        'In the note section, you can use the following tags' => '',
+        'Attributes of the current customer user data' => '',
+        'Attributes of the ticket data' => '',
+        'Ticket dynamic fields internal key values' => '',
+        'Example note' => '',
         'Results' => 'Rezultāti',
         '%s Tickets affected! What do you want to do?' => '',
         'Warning: You used the DELETE option. All deleted tickets will be lost!' =>
             '',
+        'Warning: There are %s tickets affected but only %s may be modified during one job execution!' =>
+            '',
         'Edit job' => '',
         'Run job' => '',
         'Affected Tickets' => '',
+        'Age' => 'Atvērts jau',
 
         # Template: AdminGenericInterfaceDebugger
         'GenericInterface Debugger for Web Service %s' => '',
@@ -1210,9 +517,6 @@ sub Data {
         'Limit' => 'Limits',
         'Refresh' => 'Atjaunot',
         'Request Details' => '',
-        'An error occurred during communication.' => '',
-        'Show or hide the content.' => '',
-        'Clear debug log' => '',
 
         # Template: AdminGenericInterfaceInvokerDefault
         'Add new Invoker to Web Service %s' => '',
@@ -1242,7 +546,6 @@ sub Data {
         'Synchronous event triggers would be processed directly during the web request.' =>
             '',
         'Save and continue' => '',
-        'Delete this Invoker' => '',
 
         # Template: AdminGenericInterfaceMappingSimple
         'GenericInterface Mapping Simple for Web Service %s' => '',
@@ -1267,7 +570,6 @@ sub Data {
         'New value map' => '',
         'Add value mapping' => '',
         'Do you really want to delete this key mapping?' => '',
-        'Delete this Key Mapping' => '',
 
         # Template: AdminGenericInterfaceMappingXSLT
         'GenericInterface Mapping XSLT for Web Service %s' => '',
@@ -1295,11 +597,10 @@ sub Data {
         'Mapping for outgoing response data' => '',
         'The response data will be processed by this mapping, to transform it to the kind of data the remote system expects.' =>
             '',
-        'Delete this Operation' => '',
 
         # Template: AdminGenericInterfaceTransportHTTPREST
         'GenericInterface Transport HTTP::REST for Web Service %s' => '',
-        'Network transport' => '',
+        'Network Transport' => '',
         'Properties' => '',
         'Route mapping for Operation' => '',
         'Define the route that should get mapped to this operation. Variables marked by a \':\' will get mapped to the entered name and passed along with the others to the mapping. (e.g. /Ticket/:TicketID).' =>
@@ -1329,7 +630,9 @@ sub Data {
         'Authentication' => '',
         'The authentication mechanism to access the remote system.' => '',
         'A "-" value means no authentication.' => '',
+        'User' => 'Lietotājs',
         'The user name to be used to access the remote system.' => '',
+        'Password' => 'Parole',
         'The password for the privileged user.' => '',
         'Use SSL Options' => '',
         'Show or hide SSL options to connect to the remote system.' => '',
@@ -1361,7 +664,7 @@ sub Data {
             '',
         '\'FreeText\' is used as example for actual configured value.' =>
             '',
-        'Response name free text' => '',
+        'Request name free text' => '',
         'Text to be used to as function wrapper name suffix or replacement.' =>
             '',
         'Please consider XML element naming restrictions (e.g. don\'t use \'<\' and \'&\').' =>
@@ -1369,6 +672,7 @@ sub Data {
         'Response name scheme' => '',
         'Select how SOAP response function wrapper should be constructed.' =>
             '',
+        'Response name free text' => '',
         'Here you can specify the maximum size (in bytes) of SOAP messages that OTRS will process.' =>
             '',
         'Encoding' => '',
@@ -1401,6 +705,8 @@ sub Data {
         'e.g. /opt/otrs/var/certificates/SOAP/CA' => '',
         'Sort options' => '',
         'Add new first level element' => '',
+        'Element' => '',
+        'Add' => 'Pievienot',
         'Outbound sort order for xml fields (structure starting below function name wrapper) - see documentation for SOAP transport.' =>
             '',
 
@@ -1419,6 +725,12 @@ sub Data {
         'Configuration history' => '',
         'Delete web service' => '',
         'Do you really want to delete this web service?' => '',
+        'Example Web Services' => '',
+        'Here you can activate best practice example web service that are part of %s. Please note that some additional configuration may be required.' =>
+            '',
+        'Import example web service' => '',
+        'Do you want to benefit from web services created by experts? Upgrade to %s to be able to import some sophisticated example web services.' =>
+            '',
         'After you save the configuration you will be redirected again to the edit screen.' =>
             '',
         'If you want to return to overview please click the "Go to overview" button.' =>
@@ -1432,6 +744,7 @@ sub Data {
             '',
         'In requester mode, OTRS uses web services of remote systems.' =>
             '',
+        'Network transport' => '',
         'Operations are individual system functions which remote systems can request.' =>
             '',
         'Invokers prepare data for a request to a remote web service, and process its response data.' =>
@@ -1442,14 +755,10 @@ sub Data {
         'Delete this action' => '',
         'At least one %s has a controller that is either not active or not present, please check the controller registration or delete the %s' =>
             '',
-        'Delete webservice' => '',
-        'Delete operation' => '',
-        'Delete invoker' => '',
-        'Clone webservice' => '',
-        'Import webservice' => '',
 
         # Template: AdminGenericInterfaceWebserviceHistory
         'GenericInterface Configuration History for Web Service %s' => '',
+        'History' => 'Vēsture',
         'Go back to Web Service' => '',
         'Here you can view older versions of the current web service\'s configuration, export or even restore them.' =>
             '',
@@ -1462,13 +771,11 @@ sub Data {
         'Do you really want to restore this version of the web service configuration?' =>
             '',
         'Your current web service configuration will be overwritten.' => '',
-        'Restore' => '',
 
         # Template: AdminGroup
-        'WARNING: When you change the name of the group \'admin\', before making the appropriate changes in the SysConfig, you will be locked out of the administrations panel! If this happens, please rename the group back to admin per SQL statement.' =>
-            'BRĪDINĀJUMS! Ja pirms grupas \'admin\' pārdēvēšanas citā vārdā netiks izdarītas izmaiņas sistēmas konfigurācijā, nebūs iespējams pieteikties administrēšanas sadaļā! Ja tā ir gadījies, pārdēvējiet grupu atpakaļ par admin ar SQL teikuma palidzību.',
         'Group Management' => 'Grupu pārvaldība',
         'Add group' => '',
+        'Filter for log entries' => '',
         'The admin group is to get in the admin area and the stats group to get stats area.' =>
             '\'admin\' grupa domāta lai darbotos administrēšanas sadaļā un \'stats\' grupa lai darbotos statistikas sadaļā.',
         'Create new groups to handle access permissions for different groups of agent (e. g. purchasing department, support department, sales department, ...). ' =>
@@ -1479,13 +786,18 @@ sub Data {
 
         # Template: AdminLog
         'System Log' => 'Sistēmas žurnāls',
+        'Filter for Log Entries' => '',
         'Here you will find log information about your system.' => '',
         'Hide this message' => '',
         'Recent Log Entries' => '',
+        'Facility' => 'Iespēja',
+        'Message' => 'Ziņojums',
 
         # Template: AdminMailAccount
         'Mail Account Management' => 'Pasta kontu pārvaldība',
         'Add mail account' => '',
+        'Filter for Mail Accounts' => '',
+        'Filter for mail accounts' => '',
         'All incoming emails with one account will be dispatched in the selected queue!' =>
             'Visi ienākošie e-pasta ziņojumi ar vienu un to pašu lietotāja kontu tiks pārsūtīti uz norādīto rindu!',
         'If your account is trusted, the already existing X-OTRS header at arrival time (for priority, ...) will be used! PostMaster filter will be used anyway.' =>
@@ -1504,6 +816,7 @@ sub Data {
         # Template: AdminNavigationBar
         'Admin' => 'Administrēšana',
         'Agent Management' => '',
+        'Email Settings' => 'E-pasta iestatījumi',
         'Queue Settings' => '',
         'Ticket Settings' => '',
         'System Administration' => '',
@@ -1513,23 +826,27 @@ sub Data {
         'Ticket Notification Management' => '',
         'Add notification' => '',
         'Export Notifications' => '',
-        'Configuration Import' => '',
+        'Filter for Notifications' => '',
+        'Filter for notifications' => '',
         'Here you can upload a configuration file to import Ticket Notifications to your system. The file needs to be in .yml format as exported by the Ticket Notification module.' =>
             '',
         'Overwrite existing notifications?' => '',
         'Upload Notification configuration' => '',
         'Import Notification configuration' => '',
         'Delete this notification' => '',
-        'Do you really want to delete this notification?' => '',
         'Add Notification' => 'Pievienot paziņojumu',
         'Edit Notification' => '',
         'Show in agent preferences' => '',
         'Agent preferences tooltip' => '',
         'This message will be shown on the agent preferences screen as a tooltip for this notification.' =>
             '',
+        'Events' => 'Notikumi',
         'Here you can choose which events will trigger this notification. An additional ticket filter can be applied below to only send for ticket with certain criteria.' =>
             '',
         'Ticket Filter' => '',
+        'Lock' => 'Aizslēgt',
+        'SLA' => 'Servisa līmeņa līgums',
+        'Customer' => 'Klienti',
         'Article Filter' => '',
         'Only for ArticleCreate and ArticleSend event' => '',
         'Article type' => 'Ziņojuma tips',
@@ -1550,20 +867,23 @@ sub Data {
         'Notify user just once per day about a single ticket using a selected transport.' =>
             '',
         'Notification Methods' => '',
-        'These are the possible methods that can be used to send this notification to each of the recipients. Note: Excluding Email, other methods might not reach all selected recipients, please take a look on the documentation of each merthod to get more information. Please select at least one method below.' =>
+        'These are the possible methods that can be used to send this notification to each of the recipients. Please select at least one method below.' =>
             '',
-        'Transport' => '',
         'Enable this notification method' => '',
+        'Transport' => '',
         'At least one method is needed per notification.' => '',
+        'Active by default in agent preferences' => '',
+        'This is the default value for assigned recipient agents who didn\'t make a choice for this notification in their preferences yet. If the box is enabled, the notification will be sent to such agents.' =>
+            '',
         'This feature is currently not available.' => '',
         'No data found' => '',
         'No notification method found.' => '',
         'Notification Text' => '',
+        'This language is not present or enabled on the system. This notification text could be deleted if it is not needed anymore.' =>
+            '',
         'Remove Notification Language' => '',
         'Message body' => '',
         'Add new notification language' => '',
-        'Do you really want to delete this notification language?' => '',
-        'Tag Reference' => '',
         'Notifications are sent to an agent or a customer.' => 'Paziņojumi tiek nosūtīti aģentam vai klientam.',
         'To get the first 20 character of the subject (of the latest agent article).' =>
             'Lai saņemtu pirmās 20 rakstzīmes no tēmas (no pēdējā aģenta ziņojuma)',
@@ -1573,14 +893,27 @@ sub Data {
             'Lai saņemtu pirmās 20 rakstzīmes no tēmas (no pēdējā klienta ziņojuma).',
         'To get the first 5 lines of the body (of the latest customer article).' =>
             'Lai saņemtu pirmās 5 satura rindas (no pēdējā klienta ziņojuma)',
+        'Attributes of the current ticket owner user data' => '',
+        'Attributes of the current ticket responsible user data' => '',
+        'Attributes of the current agent user who requested this action' =>
+            '',
+        'Attributes of the recipient user for the notification' => '',
+        'Ticket dynamic fields display values, useful for Dropdown and Multiselect fields' =>
+            '',
+        'Example notification' => '',
 
         # Template: AdminNotificationEventTransportEmailSettings
-        'Recipient email addresses' => '',
+        'Additional recipient email addresses' => '',
         'Notification article type' => '',
         'An article will be created if the notification is sent to the customer or an additional email address.' =>
             '',
+        'Email template' => '',
         'Use this template to generate the complete email (only for HTML emails).' =>
             '',
+        'Enable email security' => '',
+        'Email security level' => '',
+        'If signing key/certificate is missing' => '',
+        'If encryption key/certificate is missing' => '',
 
         # Template: AdminOTRSBusinessInstalled
         'Manage %s' => '',
@@ -1635,6 +968,7 @@ sub Data {
         'You are about to downgrade to OTRS Free and will lose the following features and all data related to these:' =>
             '',
         'Chat' => '',
+        'Report Generator' => '',
         'Timeline view in ticket zoom' => '',
         'DynamicField ContactWithData' => '',
         'DynamicField Database' => '',
@@ -1644,12 +978,20 @@ sub Data {
 
         # Template: AdminPGP
         'PGP Management' => 'PGP pārvaldība',
-        'Use this feature if you want to work with PGP keys.' => '',
+        'PGP support is disabled' => '',
+        'To be able to use PGP in OTRS, you have to enable it first.' => '',
+        'Enable PGP support' => '',
+        'Faulty PGP configuration' => '',
+        'PGP support is enabled, but the relevant configuration contains errors. Please check the configuration using the button below.' =>
+            '',
+        'Configure it here!' => '',
+        'Check PGP configuration' => '',
         'Add PGP key' => '',
         'In this way you can directly edit the keyring configured in SysConfig.' =>
             'Šādi var tieši labot ar sistēmas konfigurāciju (SysConfig) izveidoto atslēgu saišķi.',
         'Introduction to PGP' => '',
         'Result' => 'Rezultāts',
+        'Status' => 'Statuss',
         'Identifier' => 'Identifikātors',
         'Bit' => 'Bits',
         'Fingerprint' => 'Identificētājsumma',
@@ -1660,8 +1002,9 @@ sub Data {
 
         # Template: AdminPackageManager
         'Package Manager' => 'Pakotņu pārvaldība',
-        'Uninstall package' => '',
+        'Uninstall Package' => '',
         'Do you really want to uninstall this package?' => 'Vai tiešām vēlaties noņemt šo pakotni?',
+        'Uninstall package' => '',
         'Reinstall package' => '',
         'Do you really want to reinstall this package? Any manual changes will be lost.' =>
             '',
@@ -1671,14 +1014,20 @@ sub Data {
         'Install' => 'Instalēt',
         'Install Package' => '',
         'Update repository information' => '',
+        'Cloud services are currently disabled.' => '',
+        'OTRS Verify™ can not continue!' => '',
+        'Enable cloud services' => '',
         'Online Repository' => 'Tiešsaistes repozitorijs',
+        'Action' => 'Darbība',
         'Module documentation' => 'Moduļa dokumentācija',
         'Upgrade' => 'Jaunināt',
         'Local Repository' => 'Lokālais repozitorijs',
         'This package is verified by OTRSverify (tm)' => '',
         'Uninstall' => 'Noņemt',
+        'Package not correctly deployed! Please reinstall the package.' =>
+            '',
         'Reinstall' => 'Pārinstalēt',
-        'Features for %s customers only' => '',
+        'Features for %s Customers Only' => '',
         'With %s, you can benefit from the following optional features. Please make contact with %s if you need more information.' =>
             '',
         'Download package' => '',
@@ -1691,10 +1040,11 @@ sub Data {
         'Download' => 'Lejupielādēt',
         'Download file from package!' => 'Lejupielādēt failu (datni) no pakotnes!',
         'Required' => 'Pieprasīts',
+        'Size' => 'Izmērs',
         'PrimaryKey' => 'Primārā atslēga',
         'AutoIncrement' => 'Autopieaugums',
         'SQL' => 'SQL',
-        'File differences for file %s' => '',
+        'File Differences for File %s' => '',
 
         # Template: AdminPerformanceLog
         'Performance Log' => 'Veiktspējas žurnāls',
@@ -1705,6 +1055,7 @@ sub Data {
         'Disable it here!' => 'Atiestatīt šeit!',
         'Logfile too large!' => 'Žurnāla fails ir pārāk liels!',
         'The logfile is too large, you need to reset it' => '',
+        'Reset' => 'Atiestatīt',
         'Overview' => 'Pārskats',
         'Range' => 'Intervāls',
         'last' => 'pēdējais',
@@ -1714,6 +1065,7 @@ sub Data {
         'Max Response' => 'Maks. atbildes laiks',
         'Average Response' => 'Vidējais atbildes laiks',
         'Period' => 'Periods',
+        'minutes' => 'minūtes',
         'Min' => 'Min.',
         'Max' => 'Maks.',
         'Average' => 'Vidēji',
@@ -1721,11 +1073,15 @@ sub Data {
         # Template: AdminPostMasterFilter
         'PostMaster Filter Management' => 'PostMaster\'a filtru pārvaldība',
         'Add filter' => '',
+        'Filter for Postmaster Filters' => '',
+        'Filter for postmaster filters' => '',
         'To dispatch or filter incoming emails based on email headers. Matching using Regular Expressions is also possible.' =>
             '',
         'If you want to match only the email address, use EMAILADDRESS:info@example.com in From, To or Cc.' =>
             'Ja vēlaties, lai sakristu tikai e-pasta adrese, izmantojiet EMAILADDRESS:info@example.com No, Kam vai Kopija laukos.',
         'If you use Regular Expressions, you also can use the matched value in () as [***] in the \'Set\' action.' =>
+            '',
+        'You can also use \'named captures\' ((?<name>)) and use the names in the \'Set\' action ([**\name**]). (e.g. Regexp: Server: (?<server>\w+), Set action [**\server**]). A matched EMAILADDRESS has the name \'email\'.' =>
             '',
         'Delete this filter' => '',
         'Add PostMaster Filter' => '',
@@ -1742,16 +1098,21 @@ sub Data {
         'Set email header' => '',
         'Set value' => '',
         'The field needs to be a literal word.' => '',
+        'Save changes' => '',
+        'Header' => 'Galvene',
 
         # Template: AdminPriority
         'Priority Management' => 'Prioritāšu pārvaldība',
         'Add priority' => '',
+        'Filter for Priorities' => '',
+        'Filter for priorities' => '',
         'Add Priority' => 'Pievienot prioritāti',
         'Edit Priority' => '',
 
         # Template: AdminProcessManagement
         'Process Management' => '',
         'Filter for Processes' => '',
+        'Filter' => 'Filtrs',
         'Create New Process' => '',
         'Deploy All Processes' => '',
         'Here you can upload a configuration file to import a process to your system. The file needs to be in .yml format as exported by process management module.' =>
@@ -1759,7 +1120,7 @@ sub Data {
         'Overwrite existing entities' => '',
         'Upload process configuration' => '',
         'Import process configuration' => '',
-        'Example processes' => '',
+        'Example Processes' => '',
         'Here you can activate best practice example processes that are part of %s. Please note that some additional configuration may be required.' =>
             '',
         'Import example process' => '',
@@ -1789,10 +1150,10 @@ sub Data {
             '',
         'Filter available Activity Dialogs' => '',
         'Available Activity Dialogs' => '',
+        'Name: %s, EntityID: %s' => '',
+        'Edit' => 'Labot',
         'Create New Activity Dialog' => '',
         'Assigned Activity Dialogs' => '',
-        'As soon as you use this button or link, you will leave this screen and its current state will be saved automatically. Do you want to continue?' =>
-            '',
 
         # Template: AdminProcessManagementActivityDialog
         'Please note that changing this activity dialog will affect the following activities' =>
@@ -1816,12 +1177,10 @@ sub Data {
             '',
         'Filter available fields' => '',
         'Available Fields' => '',
+        'Name: %s' => '',
         'Assigned Fields' => '',
-        'Edit Details for Field' => '',
         'ArticleType' => '',
         'Display' => '',
-        'Edit Field Details' => '',
-        'Customer interface does not support internal article types.' => '',
 
         # Template: AdminProcessManagementPath
         'Path' => '',
@@ -1880,24 +1239,6 @@ sub Data {
             '',
         'Do you really want to remove this transition from the canvas? This can only be undone by leaving this screen without saving.' =>
             '',
-        'Hide EntityIDs' => '',
-        'Delete Entity' => '',
-        'Remove Entity from canvas' => '',
-        'This Activity is already used in the Process. You cannot add it twice!' =>
-            '',
-        'This Activity cannot be deleted because it is the Start Activity.' =>
-            '',
-        'This Transition is already used for this Activity. You cannot use it twice!' =>
-            '',
-        'This TransitionAction is already used in this Path. You cannot use it twice!' =>
-            '',
-        'Remove the Transition from this Process' => '',
-        'No TransitionActions assigned.' => '',
-        'The Start Event cannot loose the Start Transition!' => '',
-        'No dialogs assigned yet. Just pick an activity dialog from the list on the left and drag it here.' =>
-            '',
-        'An unconnected transition is already placed on the canvas. Please connect this transition first before placing another transition.' =>
-            '',
 
         # Template: AdminProcessManagementProcessNew
         'In this screen, you can create a new process. In order to make the new process available to users, please make sure to set its state to \'Active\' and synchronize after completing your work.' =>
@@ -1925,9 +1266,9 @@ sub Data {
         'Type of Linking between Conditions' => '',
         'Remove this Condition' => '',
         'Type of Linking' => '',
+        'Add a new Field' => '',
         'Remove this Field' => '',
         'And can\'t be repeated on the same condition.' => '',
-        'Add a new Field' => '',
         'Add New Condition' => '',
 
         # Template: AdminProcessManagementTransitionAction
@@ -1937,18 +1278,22 @@ sub Data {
         'Transition Action Name' => '',
         'Transition Action Module' => '',
         'Config Parameters' => '',
-        'Remove this Parameter' => '',
         'Add a new Parameter' => '',
+        'Remove this Parameter' => '',
 
         # Template: AdminQueue
         'Manage Queues' => '',
         'Add queue' => '',
+        'Filter for Queues' => '',
+        'Filter for queues' => '',
+        'Group' => 'Grupa',
         'Add Queue' => '',
         'Edit Queue' => '',
         'A queue with this name already exists!' => '',
         'Sub-queue of' => '',
         'Unlock timeout' => 'Atslēgšanas noilgums',
         '0 = no unlock' => '0 = neatslēgt',
+        'hours' => 'stundas',
         'Only business hours are counted.' => 'Tiek uzskaitītas tikai darbalaika stundas.',
         'If an agent locks a ticket and does not close it before the unlock timeout has passed, the ticket will unlock and will become available for other agents.' =>
             '',
@@ -1969,13 +1314,18 @@ sub Data {
         'System address' => '',
         'Will be the sender address of this queue for email answers.' => 'E-pasta atbildēm izmantos šīs rindas nosūtītāja adresi.',
         'Default sign key' => '',
+        'Salutation' => 'Uzruna',
         'The salutation for email answers.' => 'Uzruna e-pasta atbildēm.',
+        'Signature' => 'Paraksts',
         'The signature for email answers.' => 'Paraksts e-pasta atbildēm.',
+        'Calendar' => 'Kalendārs',
 
         # Template: AdminQueueAutoResponse
         'Manage Queue-Auto Response Relations' => '',
-        'Filter for Queues' => '',
-        'Filter for Auto Responses' => '',
+        'This filter allow you to show queues without auto responses' => '',
+        'Queues without auto responses' => '',
+        'This filter allow you to show all queues' => '',
+        'Show all queues' => '',
         'Auto Responses' => 'Automātiskas atbildes',
         'Change Auto Response Relations for Queue' => '',
 
@@ -1983,6 +1333,7 @@ sub Data {
         'Manage Template-Queue Relations' => '',
         'Filter for Templates' => '',
         'Templates' => '',
+        'Queues' => 'Rindas',
         'Change Queue Relations for Template' => '',
         'Change Template Relations for Queue' => '',
 
@@ -1996,11 +1347,11 @@ sub Data {
         'System type' => '',
         'Unique ID' => '',
         'Last communication with registration server' => '',
-        'System registration not possible' => '',
+        'System Registration not Possible' => '',
         'Please note that you can\'t register your system if OTRS Daemon is not running correctly!' =>
             '',
         'Instructions' => '',
-        'System deregistration not possible' => '',
+        'System Deregistration not Possible' => '',
         'Please note that you can\'t deregister your system if you\'re using the %s or having a valid service contract.' =>
             '',
         'OTRS-ID Login' => '',
@@ -2048,11 +1399,13 @@ sub Data {
         'Sign up now' => '',
         'Forgot your password?' => '',
         'Retrieve a new one' => '',
+        'Next' => 'Nākamais',
         'This data will be frequently transferred to OTRS Group when you register this system.' =>
             '',
         'Attribute' => '',
         'FQDN' => '',
         'OTRS Version' => 'OTRS versija',
+        'Database' => 'Datubāze',
         'Operating System' => 'Operētājsistēma',
         'Perl Version' => 'Perl versija',
         'Optional description of this system.' => '',
@@ -2062,7 +1415,7 @@ sub Data {
             '',
         'Deregister' => '',
         'You can modify registration settings here.' => '',
-        'Overview of transmitted data' => '',
+        'Overview of Transmitted Data' => '',
         'There is no data regularly sent from your system to %s.' => '',
         'The following data is sent at minimum every 3 days from your system to %s.' =>
             '',
@@ -2074,6 +1427,8 @@ sub Data {
         # Template: AdminRole
         'Role Management' => 'Lomu pārvaldība',
         'Add role' => '',
+        'Filter for Roles' => '',
+        'Filter for roles' => '',
         'Create a role and put groups in it. Then add the role to the users.' =>
             'Izveidot jaunu lomu un iekļaut tajā grupas. Pēc tam pievienot lomu lietotājiem',
         'There are no roles defined. Please use the \'Add\' button to create a new role.' =>
@@ -2083,7 +1438,6 @@ sub Data {
 
         # Template: AdminRoleGroup
         'Manage Role-Group Relations' => '',
-        'Filter for Roles' => '',
         'Roles' => 'Lomas',
         'Select the role:group permissions.' => '',
         'If nothing is selected, then there are no permissions in this group (tickets will not be available for the role).' =>
@@ -2116,14 +1470,23 @@ sub Data {
         # Template: AdminSLA
         'SLA Management' => 'Servisa līmeņa līgumu pārvaldība',
         'Add SLA' => 'Pievienot servisa līmeņa līgumu',
+        'Filter for SLAs' => '',
         'Edit SLA' => '',
         'Please write only numbers!' => '',
 
         # Template: AdminSMIME
         'S/MIME Management' => 'S/MIME pārvaldība',
+        'SMIME support is disabled' => '',
+        'To be able to use SMIME in OTRS, you have to enable it first.' =>
+            '',
+        'Enable SMIME support' => '',
+        'Faulty SMIME configuration' => '',
+        'SMIME support is enabled, but the relevant configuration contains errors. Please check the configuration using the button below.' =>
+            '',
+        'Check SMIME configuration' => '',
         'Add certificate' => '',
         'Add private key' => '',
-        'Filter for certificates' => '',
+        'Filter for Certificates' => '',
         'Filter for S/MIME certs' => '',
         'To show certificate details click on a certificate icon.' => '',
         'To manage private certificate relations click on a private key icon.' =>
@@ -2134,30 +1497,37 @@ sub Data {
         'In this way you can directly edit the certification and private keys in file system.' =>
             'Šādi var tieši failu sistēmā labot sertifikātus un privātās atslēgas.',
         'Hash' => 'Jaucējsumma',
+        'Create' => 'Izveidot',
         'Handle related certificates' => '',
         'Read certificate' => '',
         'Delete this certificate' => '',
         'Add Certificate' => 'Pievieot sertifikātu',
+        'File' => 'Datu fails',
         'Add Private Key' => 'Pievienot privāto atslēgu',
         'Secret' => 'Slepenais kods',
+        'Submit' => 'Iesniegt',
         'Related Certificates for' => '',
         'Delete this relation' => '',
         'Available Certificates' => '',
         'Relate this certificate' => '',
 
         # Template: AdminSMIMECertRead
-        'Certificate details' => '',
+        'S/MIME Certificate' => 'S/MIME sertifikāts',
+        'Close dialog' => '',
+        'Certificate Details' => '',
 
         # Template: AdminSalutation
         'Salutation Management' => 'Uzrunu pārvaldība',
         'Add salutation' => '',
+        'Filter for Salutations' => '',
+        'Filter for salutations' => '',
         'Add Salutation' => 'Pievienot uzrunu',
         'Edit Salutation' => '',
         'e. g.' => '',
         'Example salutation' => '',
 
         # Template: AdminSecureMode
-        'Secure mode needs to be enabled!' => '',
+        'Secure Mode Needs to be Enabled!' => '',
         'Secure mode will (normally) be set after the initial installation is completed.' =>
             'Parasti drošo režīmu (Secure Mode) uzstāda pēc instalācijas beigām.',
         'If secure mode is not activated, activate it via SysConfig because your application is already running.' =>
@@ -2165,10 +1535,13 @@ sub Data {
 
         # Template: AdminSelectBox
         'SQL Box' => 'SQL pieprasījumi',
+        'Filter for Results' => '',
+        'Filter for results' => '',
         'Here you can enter SQL to send it directly to the application database. It is not possible to change the content of the tables, only select queries are allowed.' =>
             '',
         'Here you can enter SQL to send it directly to the application database.' =>
             '',
+        'Options' => 'Iestatījumi',
         'Only select queries are allowed.' => '',
         'The syntax of your SQL query has a mistake. Please check it.' =>
             '',
@@ -2181,6 +1554,7 @@ sub Data {
         # Template: AdminService
         'Service Management' => 'Servisu pārvaldība',
         'Add service' => '',
+        'Filter for services' => '',
         'Add Service' => 'Pievienot servisu',
         'Edit Service' => '',
         'Sub-service of' => '',
@@ -2194,6 +1568,8 @@ sub Data {
         'Unique customers' => '',
         'Kill all sessions' => 'Apturēt visas sesijas',
         'Kill this session' => '',
+        'Filter for Sessions' => '',
+        'Filter for sessions' => '',
         'Session' => 'Sesija',
         'Kill' => '',
         'Detail View for SessionID' => '',
@@ -2201,6 +1577,8 @@ sub Data {
         # Template: AdminSignature
         'Signature Management' => 'Parakstu pārvaldība',
         'Add signature' => '',
+        'Filter for Signatures' => '',
+        'Filter for signatures' => '',
         'Add Signature' => 'Pievienot parakstu',
         'Edit Signature' => '',
         'Example signature' => '',
@@ -2208,12 +1586,17 @@ sub Data {
         # Template: AdminState
         'State Management' => 'Statusu pārvaldība',
         'Add state' => '',
+        'Filter for States' => '',
+        'Filter for states' => '',
+        'Attention' => 'uzmanību',
         'Please also update the states in SysConfig where needed.' => '',
         'Add State' => 'Pievienot statusu',
         'Edit State' => '',
         'State type' => '',
 
         # Template: AdminSupportDataCollector
+        'Sending support data to OTRS Group is not possible!' => '',
+        'Enable Cloud Services' => '',
         'This data is sent to OTRS Group on a regular basis. To stop sending this data please update your system registration.' =>
             '',
         'You can manually trigger the Support Data sending by pressing this button:' =>
@@ -2232,7 +1615,7 @@ sub Data {
         'Generate Result' => '',
         'Support Bundle' => '',
         'The mail could not be sent' => '',
-        'The support bundle has been generated.' => '',
+        'The Support Bundle has been Generated' => '',
         'Please choose one of the following options.' => '',
         'Send by Email' => '',
         'The support bundle is too large to send it by email, this option has been disabled.' =>
@@ -2262,7 +1645,7 @@ sub Data {
         'Elements' => 'Elementi',
 
         # Template: AdminSysConfigEdit
-        'Edit Config Settings' => '',
+        'Edit Config Settings in %s → %s' => '',
         'This setting is read only.' => '',
         'This config item is only available in a higher config level!' =>
             '',
@@ -2286,21 +1669,25 @@ sub Data {
         'New Loader File' => '',
         'NavBarName' => 'Vadības paneļa nosaukums',
         'NavBar' => 'Vadības panelis',
+        'Link' => 'Saite',
         'LinkOption' => 'Saite',
         'Block' => 'Bloks',
         'AccessKey' => 'Pieejas atslēga',
         'Add NavBar entry' => '',
+        'NavBar module' => '',
         'Year' => 'Gads',
         'Month' => 'Mēnesis',
         'Day' => 'Diena',
+        'Error' => 'kļūda',
         'Invalid year' => '',
         'Invalid month' => '',
         'Invalid day' => '',
-        'Show more' => '',
 
         # Template: AdminSystemAddress
         'System Email Addresses Management' => 'Sistēmas e-pasta adrešu pārvaldība',
         'Add system address' => '',
+        'Filter for System Addresses' => '',
+        'Filter for system addresses' => '',
         'All incoming email with this address in To or Cc will be dispatched to the selected queue.' =>
             '',
         'Email address' => '',
@@ -2313,6 +1700,8 @@ sub Data {
         # Template: AdminSystemMaintenance
         'System Maintenance Management' => '',
         'Schedule New System Maintenance' => '',
+        'Filter for System Maintenances' => '',
+        'Filter for system maintenances' => '',
         'Schedule a system maintenance period for announcing the Agents and Customers the system is down for a time period.' =>
             '',
         'Some time before this system maintenance starts the users will receive a notification on each screen announcing about this fact.' =>
@@ -2320,8 +1709,6 @@ sub Data {
         'Start date' => '',
         'Stop date' => '',
         'Delete System Maintenance' => '',
-        'Do you really want to delete this scheduled system maintenance?' =>
-            '',
 
         # Template: AdminSystemMaintenanceEdit
         'Edit System Maintenance %s' => '',
@@ -2342,6 +1729,7 @@ sub Data {
         'A template is a default text which helps your agents to write faster tickets, answers or forwards.' =>
             '',
         'Don\'t forget to add new templates to queues.' => '',
+        'Attachments' => 'Pielikumi',
         'Add Template' => '',
         'Edit Template' => '',
         'A standard template with this name already exists!' => '',
@@ -2351,8 +1739,7 @@ sub Data {
         'Your email address is' => '',
 
         # Template: AdminTemplateAttachment
-        'Manage Templates <-> Attachments Relations' => '',
-        'Filter for Attachments' => '',
+        'Manage Templates-Attachments Relations' => '',
         'Change Template Relations for Attachment' => '',
         'Change Attachment Relations for Template' => '',
         'Toggle active for all' => '',
@@ -2361,6 +1748,8 @@ sub Data {
         # Template: AdminType
         'Type Management' => 'Tipu pārvaldība',
         'Add ticket type' => '',
+        'Filter for Types' => '',
+        'Filter for types' => '',
         'Add Type' => 'Pievienot tipu',
         'Edit Type' => '',
         'A type with this name already exists!' => '',
@@ -2373,10 +1762,14 @@ sub Data {
         'Switch to agent' => '',
         'Add Agent' => '',
         'Edit Agent' => '',
+        'Title or salutation' => '',
         'Firstname' => 'Vārds',
         'Lastname' => 'Uzvārds',
         'A user with this username already exists!' => '',
         'Will be auto-generated if left empty.' => '',
+        'Mobile' => 'Mobilais telefons',
+        'On' => 'Ieslēgts',
+        'Off' => 'Izslēgts',
         'Start' => 'Sākt',
         'End' => 'Beigt',
 
@@ -2388,6 +1781,7 @@ sub Data {
         # Template: AgentBook
         'Address Book' => 'Adresu grāmata',
         'Search for a customer' => '',
+        'Bcc' => 'Diskrētā kopija',
         'Add email address %s to the To field' => '',
         'Add email address %s to the Cc field' => '',
         'Add email address %s to the Bcc field' => '',
@@ -2399,42 +1793,47 @@ sub Data {
         # Template: AgentCustomerInformationCenterSearch
         'Customer User' => 'Klients',
 
-        # Template: AgentCustomerSearch
-        'Duplicated entry' => '',
-        'This address already exists on the address list.' => '',
-        'It is going to be deleted from the field, please try again.' => '',
-
         # Template: AgentCustomerTableView
         'Note: Customer is invalid!' => '',
 
         # Template: AgentDaemonInfo
-        'General Information' => '',
-        'OTRS Daemon is a separated process that perform asynchronous tasks' =>
+        'The OTRS Daemon is a daemon process that performs asynchronous tasks, e.g. ticket escalation triggering, email sending, etc.' =>
             '',
-        '(e.g. Generic Interface asynchronous invoker tasks, Ticket escalation triggering, Email sending, etc.)' =>
+        'A running OTRS Daemon is mandatory for correct system operation.' =>
             '',
-        'It is necessary to have the OTRS Daemon running to make the system work correctly!' =>
+        'Starting the OTRS Daemon' => '',
+        'Make sure that the file \'%s\' exists (without .dist extension). This cron job will check every 5 minutes if the OTRS Daemon is running and start it if needed.' =>
             '',
-        'Starting OTRS Daemon' => '',
-        'Make sure that %s exists (without .dist extension)' => '',
-        'Check that cron deamon is running in the system' => '',
-        'Confirm that OTRS cron jobs are running, execute %s start' => '',
+        'Execute \'%s start\' to make sure the cron jobs of the \'otrs\' user are active.' =>
+            '',
+        'After 5 minutes, check that the OTRS Daemon is running in the system (\'bin/otrs.Daemon.pl status\').' =>
+            '',
 
         # Template: AgentDashboard
         'Dashboard' => 'Darbvirsmas panelis',
 
         # Template: AgentDashboardCalendarOverview
         'in' => 'iekšā',
+        'none' => 'nav',
 
         # Template: AgentDashboardCommon
+        'Close this widget' => '',
+        'more' => 'vēl',
         'Available Columns' => '',
         'Visible Columns (order by drag & drop)' => '',
 
         # Template: AgentDashboardCustomerIDStatus
         'Escalated tickets' => '',
+        'Open tickets' => 'Atvērtie pieteikumi',
+        'Closed tickets' => 'Aizvērtie pieteikumi',
+        'All tickets' => 'Visi pieteikumi',
+        'Archived tickets' => 'Arhivētie pieteikumi',
 
         # Template: AgentDashboardCustomerUserList
+        'Customer login' => 'Klienta login',
         'Customer information' => '',
+        'Open' => 'Atvērta',
+        'Closed' => 'Aizvērta',
         'Phone ticket' => '',
         'Email ticket' => '',
         'Start Chat' => '',
@@ -2461,10 +1860,6 @@ sub Data {
         'Download as CSV file' => '',
         'Download as Excel file' => '',
         'Download as PDF file' => '',
-        'Grouped' => '',
-        'Stacked' => '',
-        'Expanded' => '',
-        'Stream' => '',
         'Please select a valid graph output format in the configuration of this widget.' =>
             '',
         'The content of this statistic is being prepared for you, please be patient.' =>
@@ -2503,8 +1898,7 @@ sub Data {
         'Link Object: %s' => 'Saistītais objekts: %s',
         'go to link delete screen' => '',
         'Select Target Object' => '',
-        'Link Object' => 'Saistīt ar objektu',
-        'with' => 'ar',
+        'Link object %s with' => '',
         'Unlink Object: %s' => 'Atsaistīt objektu: %s',
         'go to link add screen' => '',
 
@@ -2514,8 +1908,15 @@ sub Data {
 
         # Template: AgentSpelling
         'Spell Checker' => 'Pareizrakstības pārbaude',
-        'spelling error(s)' => 'pareizrakstības kļūda(s)',
+        'Spelling Error(s)' => '',
+        'Language' => 'Valoda',
+        'Line' => 'līnija',
+        'Word' => 'Vārds',
+        'replace with' => 'aizvietot ar',
+        'Change' => 'Mainīt',
+        'Ignore' => 'Ignorēt',
         'Apply these changes' => 'Apstiprināt izmaiņas',
+        'Done' => 'Pabeigts',
 
         # Template: AgentStatisticsAdd
         'Statistics » Add' => '',
@@ -2536,7 +1937,7 @@ sub Data {
         'Statistics » Edit %s%s — %s' => '',
         'Run now' => '',
         'Statistics Preview' => '',
-        'Save statistic' => '',
+        'Save Statistic' => '',
 
         # Template: AgentStatisticsImport
         'Statistics » Import' => '',
@@ -2551,43 +1952,50 @@ sub Data {
         'Export statistic %s' => '',
         'Delete statistic "%s"' => '',
         'Delete statistic %s' => '',
-        'Do you really want to delete this statistic?' => '',
 
         # Template: AgentStatisticsView
         'Statistics » View %s%s — %s' => '',
+        'Statistic Information' => '',
+        'Created by' => 'Izveidojis',
+        'Changed by' => 'Mainījis',
+        'Sum rows' => 'Summēt rindas',
+        'Sum columns' => 'Summēt kolonnas',
+        'Show as dashboard widget' => '',
+        'Cache' => 'Kešatmiņa',
         'This statistic contains configuration errors and can currently not be used.' =>
             '',
 
         # Template: AgentTicketActionCommon
-        'Change Free Text of %s%s' => '',
-        'Change Owner of %s%s' => '',
-        'Close %s%s' => '',
-        'Add Note to %s%s' => '',
-        'Set Pending Time for %s%s' => '',
-        'Change Priority of %s%s' => '',
-        'Change Responsible of %s%s' => '',
+        'Change Free Text of %s%s%s' => '',
+        'Change Owner of %s%s%s' => '',
+        'Close %s%s%s' => '',
+        'Add Note to %s%s%s' => '',
+        'Set Pending Time for %s%s%s' => '',
+        'Change Priority of %s%s%s' => '',
+        'Change Responsible of %s%s%s' => '',
         'All fields marked with an asterisk (*) are mandatory.' => '',
         'Service invalid.' => '',
         'New Owner' => 'Jauns īpašnieks',
         'Please set a new owner!' => '',
         'New Responsible' => '',
+        'Please set a new responsible!' => '',
         'Next state' => 'Nākamais statuss',
         'For all pending* states.' => '',
         'Add Article' => '',
         'Create an Article' => '',
+        'Inform agents' => '',
+        'Inform involved agents' => '',
+        'Here you can select additional agents which should receive a notification regarding the new article.' =>
+            '',
+        'Text will also be received by' => '',
         'Spell check' => '',
         'Text Template' => '',
         'Setting a template will overwrite any text or attachment.' => '',
         'Note type' => 'Piezīmes tips',
-        'Inform Agent' => 'Informēt aģentu',
-        'Optional' => 'Izvēles',
-        'Inform involved Agents' => 'Informēt iesaistītos aģentus',
-        'Here you can select additional agents which should receive a notification regarding the new article.' =>
-            '',
-        'Note will be (also) received by:' => '',
+        'Invalid time!' => 'Nederīgs laiks!',
 
         # Template: AgentTicketBounce
-        'Bounce Ticket' => '',
+        'Bounce %s%s%s' => '',
         'Bounce to' => 'Atleks uz',
         'You need a email address.' => '',
         'Need a valid email address or don\'t use a local email address.' =>
@@ -2599,27 +2007,32 @@ sub Data {
         # Template: AgentTicketBulk
         'Ticket Bulk Action' => 'Labot vairākus pieteikumus',
         'Send Email' => 'Nosūtīt ziņojumu!',
+        'Merge' => 'Apvienot',
         'Merge to' => 'Apvienot ar',
         'Invalid ticket identifier!' => '',
         'Merge to oldest' => 'Apvienot ar vecāko',
         'Link together' => 'Sasaistīt kopā',
         'Link to parent' => '',
         'Unlock tickets' => '',
+        'Execute Bulk Action' => '',
 
         # Template: AgentTicketCompose
-        'Compose Answer for %s%s' => '',
+        'Compose Answer for %s%s%s' => '',
+        'This address is registered as system address and cannot be used: %s' =>
+            '',
         'Please include at least one recipient' => '',
         'Remove Ticket Customer' => '',
         'Please remove this entry and enter a new one with the correct value.' =>
             '',
+        'This address already exists on the address list.' => '',
         'Remove Cc' => '',
         'Remove Bcc' => '',
         'Address book' => '',
         'Date Invalid!' => '',
 
         # Template: AgentTicketCustomer
-        'Change Customer of %s%s' => '',
-        'Customer user' => '',
+        'Change Customer of %s%s%s' => '',
+        'Customer Information' => 'Klienta informācija',
 
         # Template: AgentTicketEmail
         'Create New Email Ticket' => '',
@@ -2630,36 +2043,40 @@ sub Data {
         'Select this customer as the main customer.' => '',
         'Remove Ticket Customer User' => '',
         'Get all' => '',
-        'Do you really want to continue?' => '',
 
         # Template: AgentTicketEmailOutbound
-        'Outbound Email for %s%s' => '',
+        'Outbound Email for %s%s%s' => '',
 
         # Template: AgentTicketEscalation
         'Ticket %s: first response time is over (%s/%s)!' => '',
         'Ticket %s: first response time will be over in %s/%s!' => '',
+        'Ticket %s: update time is over (%s/%s)!' => '',
         'Ticket %s: update time will be over in %s/%s!' => '',
         'Ticket %s: solution time is over (%s/%s)!' => '',
         'Ticket %s: solution time will be over in %s/%s!' => '',
 
         # Template: AgentTicketForward
-        'Forward %s%s' => '',
+        'Forward %s%s%s' => '',
 
         # Template: AgentTicketHistory
-        'History of %s%s' => '',
+        'History of %s%s%s' => '',
         'History Content' => '',
+        'Zoom' => 'Atvērt vaļā',
+        'Createtime' => 'Izveidošanas laiks',
         'Zoom view' => '',
 
         # Template: AgentTicketMerge
-        'Merge %s%s' => '',
+        'Merge %s%s%s' => '',
         'Merge Settings' => '',
         'You need to use a ticket number!' => 'Jālieto pieteikuma numurs!',
         'A valid ticket number is required.' => '',
+        'Inform Sender' => '',
         'Need a valid email address.' => '',
 
         # Template: AgentTicketMove
-        'Move %s%s' => '',
+        'Move %s%s%s' => '',
         'New Queue' => 'Jauna rinda',
+        'Move' => 'Pārvietot',
 
         # Template: AgentTicketOverviewMedium
         'Select all' => '',
@@ -2691,10 +2108,10 @@ sub Data {
         'The chat will be appended as a separate article.' => '',
 
         # Template: AgentTicketPhoneCommon
-        'Phone Call for %s%s' => '',
+        'Phone Call for %s%s%s' => '',
 
         # Template: AgentTicketPlain
-        'View Email Plain Text for %s%s' => '',
+        'View Email Plain Text for %s%s%s' => '',
         'Plain' => 'vienkāršs teksts',
         'Download this email' => '',
 
@@ -2748,11 +2165,6 @@ sub Data {
         'Event Type Filter' => '',
         'Event Type' => '',
         'Save as default' => '',
-        'Archive' => '',
-        'This ticket is archived.' => '',
-        'Locked' => 'Aizslēgts',
-        'Accounted time' => 'Uzskaitītais laiks',
-        'Linked Objects' => '',
         'Change Queue' => '',
         'There are no dialogs available at this point in the process.' =>
             '',
@@ -2764,11 +2176,14 @@ sub Data {
         'Add Filter' => '',
         'Set' => 'Uzstādīt',
         'Reset Filter' => '',
+        'Article' => 'Ziņojums',
+        'View' => 'Skatīt',
         'Show one article' => '',
         'Show all articles' => '',
         'Show Ticket Timeline View' => '',
         'Unread articles' => '',
         'No.' => 'Nē',
+        'Direction' => 'Virziens',
         'Important' => '',
         'Unread Article!' => '',
         'Incoming message' => '',
@@ -2787,6 +2202,17 @@ sub Data {
         'Article could not be opened! Perhaps it is on another article page?' =>
             '',
 
+        # Template: LinkTable
+        'Linked Objects' => '',
+
+        # Template: TicketInformation
+        'Archive' => '',
+        'This ticket is archived.' => '',
+        'Note: Type is invalid!' => '',
+        'Locked' => 'Aizslēgts',
+        'Accounted time' => 'Uzskaitītais laiks',
+        'Pending till' => 'Neizlemts līdz',
+
         # Template: AttachmentBlocker
         'To protect your privacy, remote content was blocked.' => '',
         'Load blocked content.' => '',
@@ -2794,43 +2220,29 @@ sub Data {
         # Template: ChatStartForm
         'First message' => '',
 
+        # Template: CloudServicesDisabled
+        'This Feature Requires Cloud Services' => '',
+        'You can' => '',
+        'go back to the previous page' => '',
+
         # Template: CustomerError
+        'An Error Occurred' => '',
+        'Error Details' => '',
         'Traceback' => 'Izsekot vēsturei',
 
         # Template: CustomerFooter
         'Powered by' => 'Darbina ar',
-
-        # Template: CustomerFooterJS
-        'One or more errors occurred!' => '',
-        'Close this dialog' => '',
-        'Could not open popup window. Please disable any popup blockers for this application.' =>
-            '',
-        'If you now leave this page, all open popup windows will be closed, too!' =>
-            '',
-        'A popup of this screen is already open. Do you want to close it and load this one instead?' =>
-            '',
-        'There are currently no elements available to select from.' => '',
-        'Please turn off Compatibility Mode in Internet Explorer!' => '',
-        'The browser you are using is too old.' => '',
-        'OTRS runs with a huge lists of browsers, please upgrade to one of these.' =>
-            '',
-        'Please see the documentation or ask your admin for further information.' =>
-            '',
-        'Switch to mobile mode' => '',
-        'Switch to desktop mode' => '',
-        'Not available' => '',
-        'Clear all' => '',
-        'Clear search' => '',
-        '%s selection(s)...' => '',
-        'and %s more...' => '',
-        'Filters' => '',
-        'Confirm' => '',
 
         # Template: CustomerLogin
         'JavaScript Not Available' => '',
         'In order to experience OTRS, you\'ll need to enable JavaScript in your browser.' =>
             '',
         'Browser Warning' => '',
+        'The browser you are using is too old.' => '',
+        'OTRS runs with a huge lists of browsers, please upgrade to one of these.' =>
+            '',
+        'Please see the documentation or ask your admin for further information.' =>
+            '',
         'One moment please, you are being redirected...' => '',
         'Login' => 'Pieteikties',
         'User name' => '',
@@ -2841,7 +2253,8 @@ sub Data {
         'Your 2 Factor Token' => '',
         'Log In' => 'Pieteikties',
         'Not yet registered?' => '',
-        'Request new password' => 'Pieprasīt jaunu paroli',
+        'Back' => 'Atpakaļ',
+        'Request New Password' => '',
         'Your User Name' => '',
         'A new password will be sent to your email address.' => '',
         'Create Account' => 'Izveidot lietotāja kontu',
@@ -2853,8 +2266,8 @@ sub Data {
 
         # Template: CustomerNavigationBar
         'Incoming Chat Requests' => '',
-        'You have unanswered chat requests' => '',
         'Edit personal preferences' => '',
+        'Preferences' => 'Iestatījumi',
         'Logout %s %s' => '',
 
         # Template: CustomerRichTextEditor
@@ -2872,17 +2285,21 @@ sub Data {
         'Profile' => 'Profils',
         'e. g. 10*5155 or 105658*' => '',
         'Customer ID' => '',
-        'Fulltext search in tickets (e. g. "John*n" or "Will*")' => '',
+        'Fulltext Search in Tickets (e. g. "John*n" or "Will*")' => '',
+        'Sender' => 'Nosūtītājs',
         'Recipient' => 'Saņēmējs',
         'Carbon Copy' => 'Kopija',
         'e. g. m*file or myfi*' => '',
         'Types' => '',
-        'Time restrictions' => '',
+        'Time Restrictions' => '',
         'No time settings' => '',
+        'All' => 'Visi pieteikumi',
+        'Specific date' => '',
         'Only tickets created' => '',
+        'Date range' => '',
         'Only tickets created between' => '',
-        'Ticket archive system' => '',
-        'Save search as template?' => '',
+        'Ticket Archive System' => '',
+        'Save Search as Template?' => '',
         'Save as Template?' => '',
         'Save as Template' => '',
         'Template Name' => '',
@@ -2902,73 +2319,42 @@ sub Data {
         'Reply' => '',
         'Chat Protocol' => '',
 
+        # Template: CustomerWarning
+        'Warning' => 'brīdinājums',
+
         # Template: DashboardEventsTicketCalendar
-        'All-day' => '',
-        'Sunday' => '',
-        'Monday' => '',
-        'Tuesday' => '',
-        'Wednesday' => '',
-        'Thursday' => '',
-        'Friday' => '',
-        'Saturday' => '',
-        'Su' => '',
-        'Mo' => '',
-        'Tu' => 'Mar',
-        'We' => 'ieslēgts',
-        'Th' => 'līdz',
-        'Fr' => '',
-        'Sa' => '',
         'Event Information' => '',
         'Ticket fields' => '',
         'Dynamic fields' => '',
 
-        # Template: Datepicker
-        'Invalid date (need a future date)!' => '',
-        'Invalid date (need a past date)!' => '',
-        'Previous' => '',
-        'Open date selection' => '',
-
         # Template: Error
-        'Oops! An Error occurred.' => '',
-        'You can' => '',
+        'Really a bug? 5 out of 10 bug reports result from a wrong or incomplete installation of OTRS.' =>
+            '',
+        'With %s, our experts take care of correct installation and cover your back with support and periodic security updates.' =>
+            '',
+        'Contact our service team now.' => '',
         'Send a bugreport' => '',
-        'go back to the previous page' => '',
-        'Error Details' => '',
+        'Expand' => 'Izvērst',
 
         # Template: FooterJS
-        'Please enter at least one search value or * to find anything.' =>
-            '',
-        'Please remove the following words from your search as they cannot be searched for:' =>
-            '',
-        'Please check the fields marked as red for valid inputs.' => '',
-        'Please perform a spell check on the the text first.' => '',
-        'Slide the navigation bar' => '',
-        'Unavailable for chat' => '',
-        'Available for internal chats only' => '',
-        'Available for chats' => '',
-        'Please visit the chat manager' => '',
-        'New personal chat request' => '',
-        'New customer chat request' => '',
-        'New public chat request' => '',
-        'New activity' => '',
-        'New activity on one of your monitored chats.' => '',
         'This feature is part of the %s.  Please contact us at %s for an upgrade.' =>
             '',
         'Find out more about the %s' => '',
 
         # Template: Header
+        'Logout' => 'Atteikties',
         'You are logged in as' => '',
 
         # Template: Installer
         'JavaScript not available' => '',
         'Step %s' => '',
+        'License' => 'Licence',
         'Database Settings' => '',
         'General Specifications and Mail Settings' => '',
         'Finish' => 'Beigas',
         'Welcome to %s' => '',
+        'Phone' => 'Telefons',
         'Web site' => '',
-        'Mail check successful.' => '',
-        'Error in the mail settings. Please correct and try again.' => '',
 
         # Template: InstallerConfigureMail
         'Configure Outbound Mail' => '',
@@ -3006,6 +2392,8 @@ sub Data {
         'Use an existing database for OTRS' => '',
 
         # Template: InstallerDBmssql
+        'If you have set a root password for your database, it must be entered here. If not, leave this field empty.' =>
+            'Ja esat iestatījis root paroli datubāzei, tā jāievada šeit. Ja ne, atstājiet šo lauku tukšu.',
         'Database name' => '',
         'Check database settings' => '',
         'Result of database check' => '',
@@ -3063,16 +2451,16 @@ sub Data {
 
         # Template: Login
         'Lost your password?' => 'Aizmirsta parole?',
-        'Request New Password' => '',
         'Back to login' => '',
 
         # Template: MobileNotAvailableWidget
-        'Feature not available' => '',
+        'Feature not Available' => '',
         'Sorry, but this feature of OTRS is currently not available for mobile devices. If you\'d like to use it, you can either switch to desktop mode or use your regular desktop device.' =>
             '',
 
         # Template: Motd
         'Message of the Day' => '',
+        'This is the message of the day. You can edit this in %s.' => '',
 
         # Template: NoPermission
         'Insufficient Rights' => '',
@@ -3095,35 +2483,297 @@ sub Data {
         'No user configurable notifications found.' => '',
         'Receive messages for notification \'%s\' by transport method \'%s\'.' =>
             '',
+        'Please note that you can\'t completely disable notifications marked as mandatory.' =>
+            '',
+
+        # Template: ActivityDialogHeader
+        'Process Information' => '',
+        'Dialog' => '',
+
+        # Template: Article
+        'Inform Agent' => 'Informēt aģentu',
 
         # Template: PublicDefault
         'Welcome' => '',
+        'This is the default public interface of OTRS! There was no action parameter given.' =>
+            '',
+        'You could install a custom public module (via the package manager), for example the FAQ module, which has a public interface.' =>
+            '',
+
+        # Template: RichTextEditor
+        'Remove Quote' => '',
+
+        # Template: GeneralSpecificationsWidget
+        'Permissions' => 'Tiesības',
+        'You can select one or more groups to define access for different agents.' =>
+            '',
+        'Result formats' => '',
+        'Time Zone' => 'Laika josla',
+        'The selected time periods in the statistic are time zone neutral.' =>
+            '',
+        'Create summation row' => '',
+        'Generate an additional row containing sums for all data rows.' =>
+            '',
+        'Create summation column' => '',
+        'Generate an additional column containing sums for all data columns.' =>
+            '',
+        'Cache results' => '',
+        'Stores statistics result data in a cache to be used in subsequent views with the same configuration.' =>
+            '',
+        'Provide the statistic as a widget that agents can activate in their dashboard.' =>
+            '',
+        'Please note that enabling the dashboard widget will activate caching for this statistic in the dashboard.' =>
+            '',
+        'If set to invalid end users can not generate the stat.' => '',
+
+        # Template: PreviewWidget
+        'There are problems in the configuration of this statistic:' => '',
+        'You may now configure the X-axis of your statistic.' => '',
+        'This statistic does not provide preview data.' => '',
+        'Preview format:' => '',
+        'Please note that the preview uses random data and does not consider data filters.' =>
+            '',
+        'Configure X-Axis' => '',
+        'X-axis' => 'X-ass',
+        'Configure Y-Axis' => '',
+        'Y-axis' => '',
+        'Configure Filter' => '',
+
+        # Template: RestrictionsWidget
+        'Please select only one element or turn off the button \'Fixed\'.' =>
+            'Lūdzu, izvēlieties tikai vienu elementu vai atstatiet pogu \'Fiksēts\'.',
+        'Absolute period' => '',
+        'Between' => 'Starp',
+        'Relative period' => '',
+        'The past complete %s and the current+upcoming complete %s %s' =>
+            '',
+        'Do not allow changes to this element when the statistic is generated.' =>
+            '',
+
+        # Template: StatsParamsWidget
+        'Format' => 'Formāts',
+        'Exchange Axis' => 'Samainīt asis',
+        'Configurable Params of Static Stat' => '',
+        'No element selected.' => 'Nav izvēlēts neviens elements.',
+        'Scale' => 'Mērogs',
+        'show more' => '',
+        'show less' => '',
+
+        # Template: D3
+        'Download SVG' => '',
+        'Download PNG' => '',
+
+        # Template: XAxisWidget
+        'The selected time period defines the default time frame for this statistic to collect data from.' =>
+            '',
+        'Defines the time unit that will be used to split the selected time period into reporting data points.' =>
+            '',
+
+        # Template: YAxisWidget
+        'Please remember that the scale for the Y-axis has to be larger than the scale for the X-axis (e.g. X-axis => Month, Y-Axis => Year).' =>
+            '',
 
         # Template: Test
         'OTRS Test Page' => 'OTRS problēmu pieteikumu sistēmas testa lapa',
+        'Unlock' => 'Atslēgt',
         'Welcome %s %s' => '',
         'Counter' => 'Skaitītājs',
 
         # Template: Warning
         'Go back to the previous page' => '',
 
+        # Perl Module: Kernel/Config/Defaults.pm
+        'CustomerIDs' => 'Klienta identifikatori',
+        'Fax' => 'Fakss',
+        'Street' => 'Iela',
+        'Zip' => 'Pasta indekss',
+        'City' => 'Pilsēta',
+        'Country' => 'Valsts',
+        'Valid' => 'Vai derīgs?',
+        'Mr.' => 'K-gs',
+        'Mrs.' => 'K-dze',
+        'View system log messages.' => '',
+        'Edit the system configuration settings.' => 'Rediģēt sistēmas konfigurācijas iestatījumus.',
+        'Update and extend your system with software packages.' => '',
+
+        # Perl Module: Kernel/Modules/AdminACL.pm
+        'ACL information from database is not in sync with the system configuration, please deploy all ACLs.' =>
+            '',
+        'ACLs could not be Imported due to a unknown error, please check OTRS logs for more information' =>
+            '',
+        'The following ACLs have been added successfully: %s' => '',
+        'The following ACLs have been updated successfully: %s' => '',
+        'There where errors adding/updating the following ACLs: %s. Please check the log file for more information.' =>
+            '',
+        'This field is required' => '',
+        'There was an error creating the ACL' => '',
+        'Need ACLID!' => '',
+        'Could not get data for ACLID %s' => '',
+        'There was an error updating the ACL' => '',
+        'There was an error setting the entity sync status.' => '',
+        'There was an error synchronizing the ACLs.' => '',
+        'ACL %s could not be deleted' => '',
+        'There was an error getting data for ACL with ID %s' => '',
+        'Please note that ACL restrictions will be ignored for the Superuser account (UserID 1).' =>
+            '',
+        'Exact match' => '',
+        'Negated exact match' => '',
+        'Regular expression' => '',
+        'Regular expression (ignore case)' => '',
+        'Negated regular expression' => '',
+        'Negated regular expression (ignore case)' => '',
+
+        # Perl Module: Kernel/Modules/AdminAttachment.pm
+        'Attachment updated!' => 'Pielikums atjaunināts!',
+        'Attachment added!' => 'Pielikums pievienots!',
+
+        # Perl Module: Kernel/Modules/AdminAutoResponse.pm
+        'Response updated!' => 'Atbilde atjaunināta!',
+        'Response added!' => 'Atbilde pievienota!',
+
+        # Perl Module: Kernel/Modules/AdminCustomerCompany.pm
+        'Customer company updated!' => 'Klienta uzņēmums atjaunināts!',
+        'Customer Company %s already exists!' => '',
+        'Customer company added!' => 'Klienta uzņēmums pievienots!',
+
         # Perl Module: Kernel/Modules/AdminCustomerUser.pm
+        'Customer updated!' => 'Klients atjaunināts!',
         'New phone ticket' => '',
         'New email ticket' => '',
+        'Customer %s added' => 'Klients %s pievienots',
+
+        # Perl Module: Kernel/Modules/AdminDynamicField.pm
+        'Fields configuration is not valid' => '',
+        'Objects configuration is not valid' => '',
+        'Could not reset Dynamic Field order properly, please check the error log for more details.' =>
+            '',
 
         # Perl Module: Kernel/Modules/AdminDynamicFieldCheckbox.pm
+        'Undefined subaction.' => '',
+        'Need %s' => '',
+        'The field does not contain only ASCII letters and numbers.' => '',
+        'There is another field with the same name.' => '',
+        'The field must be numeric.' => '',
+        'Need ValidID' => '',
+        'Could not create the new field' => '',
+        'Need ID' => '',
+        'Could not get data for dynamic field %s' => '',
+        'The name for this field should not change.' => '',
+        'Could not update the field %s' => '',
         'Currently' => '',
+        'Unchecked' => '',
+        'Checked' => '',
+
+        # Perl Module: Kernel/Modules/AdminDynamicFieldDateTime.pm
+        'No' => 'Nē',
+        'Yes' => 'Jā',
+        'Prevent entry of dates in the future' => '',
+        'Prevent entry of dates in the past' => '',
+
+        # Perl Module: Kernel/Modules/AdminDynamicFieldDropdown.pm
+        'This field value is duplicated.' => '',
+
+        # Perl Module: Kernel/Modules/AdminEmail.pm
+        'Select at least one recipient.' => '',
 
         # Perl Module: Kernel/Modules/AdminGenericAgent.pm
+        'Time unit' => 'Laika vienība',
+        'within the last ...' => '',
+        'within the next ...' => '',
+        'more than ... ago' => '',
+        'minute(s)' => 'minūte(s)',
+        'hour(s)' => 'stunda(s)',
+        'day(s)' => 'diena(s)',
+        'week(s)' => 'nedēļa(s)',
+        'month(s)' => 'mēnesis(ši)',
+        'year(s)' => 'gads(i)',
+        'Unarchived tickets' => 'Nearhivētie pieteikumi',
+        'archive tickets' => '',
+        'restore tickets from archive' => '',
+        'Need Profile!' => '',
+        'Got no values to check.' => '',
         'Please remove the following words because they cannot be used for the ticket selection:' =>
             '',
 
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceDebugger.pm
+        'Need WebserviceID!' => '',
+        'Could not get data for WebserviceID %s' => '',
+
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceInvokerDefault.pm
+        'Need InvokerType' => '',
+        'Invoker %s is not registered' => '',
+        'InvokerType %s is not registered' => '',
+        'Need Invoker' => '',
+        'Could not determine config for invoker %s' => '',
+
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceMappingSimple.pm
+        'Could not get registered configuration for action type %s' => '',
+        'Could not get backend for %s %s' => '',
+        'Could not update configuration data for WebserviceID %s' => '',
+        'Keep (leave unchanged)' => '',
+        'Ignore (drop key/value pair)' => '',
+        'Map to (use provided value as default)' => '',
+        'Exact value(s)' => '',
+        'Ignore (drop Value/value pair)' => '',
+
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceMappingXSLT.pm
+        'Could not find required library %s' => '',
+
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceOperationDefault.pm
+        'Need OperationType' => '',
+        'Operation %s is not registered' => '',
+        'OperationType %s is not registered' => '',
+        'Need Operation' => '',
+        'Could not determine config for operation %s' => '',
+
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceTransportHTTPREST.pm
+        'Need Subaction!' => '',
+
         # Perl Module: Kernel/Modules/AdminGenericInterfaceWebservice.pm
+        'There is another web service with the same name.' => '',
+        'There was an error updating the web service.' => '',
         'Web service "%s" updated!' => '',
+        'There was an error creating the web service.' => '',
         'Web service "%s" created!' => '',
+        'Need Name!' => '',
+        'Need ExampleWebService!' => '',
+        'Could not read %s!' => '',
+        'Need a file to import!' => '',
+        'The imported file has not valid YAML content! Please check OTRS log for details' =>
+            '',
         'Web service "%s" deleted!' => '',
+        'OTRS as provider' => '',
+        'OTRS as requester' => 'OTRS kā pieprasītājs',
+
+        # Perl Module: Kernel/Modules/AdminGenericInterfaceWebserviceHistory.pm
+        'Got no WebserviceHistoryID!' => '',
+        'Could not get history data for WebserviceHistoryID %s' => '',
+
+        # Perl Module: Kernel/Modules/AdminGroup.pm
+        'Group updated!' => 'Grupa atjaunināta!',
+
+        # Perl Module: Kernel/Modules/AdminMailAccount.pm
+        'Mail account added!' => 'Pasta konts pievienots!',
+        'Mail account updated!' => 'Pasta konts atjaunināts!',
+        'Finished' => 'Pabeigts(i)',
+        'Dispatching by email To: field.' => 'Pārvietot pēc Kam: lauka pazīmes e-pastā.',
+        'Dispatching by selected Queue.' => 'Pārvietot uz norādīto rindu.',
 
         # Perl Module: Kernel/Modules/AdminNotificationEvent.pm
+        'Notification updated!' => '',
+        'Notification added!' => '',
+        'There was an error getting data for Notification with ID:%s!' =>
+            '',
+        'Unknown Notification %s!' => '',
+        'There was an error creating the Notification' => '',
+        'Notifications could not be Imported due to a unknown error, please check OTRS logs for more information' =>
+            '',
+        'The following Notifications have been added successfully: %s' =>
+            '',
+        'The following Notifications have been updated successfully: %s' =>
+            '',
+        'There where errors adding/updating the following Notifications: %s. Please check the log file for more information.' =>
+            '',
         'Agent who owns the ticket' => '',
         'Agent who is responsible for the ticket' => '',
         'All agents watching the ticket' => '',
@@ -3133,117 +2783,827 @@ sub Data {
         'All agents subscribed to both the ticket\'s queue and service' =>
             '',
         'Customer of the ticket' => '',
+        'Yes, but require at least one active notification method' => '',
+
+        # Perl Module: Kernel/Modules/AdminOTRSBusiness.pm
+        'Your system was successfully upgraded to %s.' => 'Jūsu sistēma tika veiksmīgi atjaunināta uz %s.',
+        'There was a problem during the upgrade to %s.' => 'Radās problēma  jaunināšanas laikā uz %s.',
+        '%s was correctly reinstalled.' => '%s tika pareizi pārinstalēta.',
+        'There was a problem reinstalling %s.' => 'Radās problēma pārinstalējot %s.',
+        'Your %s was successfully updated.' => 'Jūsu %s tika veiksmīgi atjaunināts.',
+        'There was a problem during the upgrade of %s.' => 'Radās problēma %s jaunināšanas laikā.',
+        '%s was correctly uninstalled.' => '%s tika pareizi atinstalēta.',
+        'There was a problem uninstalling %s.' => 'Radās problēma atinstalējot %s.',
+
+        # Perl Module: Kernel/Modules/AdminPGP.pm
+        'PGP environment is not working. Please check log for more info!' =>
+            '',
+        'Need param Key to delete!' => '',
+        'Key %s deleted!' => '',
+        'Need param Key to download!' => '',
 
         # Perl Module: Kernel/Modules/AdminPackageManager.pm
+        'Sorry, Apache::Reload is needed as PerlModule and PerlInitHandler in Apache config file. See also scripts/apache2-httpd.include.conf. Alternatively, you can use the command line tool bin/otrs.Console.pl to install packages!' =>
+            '',
+        'No such package!' => '',
+        'No such file %s in package!' => '',
+        'No such file %s in local file system!' => '',
+        'Can\'t read %s!' => '',
+        'Package has locally modified files.' => '',
+        'Package not verified by the OTRS Group! It is recommended not to use this package.' =>
+            'Pakete nav pārbaudīta ar OTRS Group! Nav ieteicams izmantot šo paketi.',
+        'No packages or no new packages found in selected repository.' =>
+            '',
         'Package not verified due a communication issue with verification server!' =>
             '',
+        'Can\'t connect to OTRS Feature Add-on list server!' => '',
+        'Can\'t get OTRS Feature Add-on list from server!' => '',
+        'Can\'t get OTRS Feature Add-on from server!' => '',
+
+        # Perl Module: Kernel/Modules/AdminPostMasterFilter.pm
+        'No such filter: %s' => '',
+
+        # Perl Module: Kernel/Modules/AdminPriority.pm
+        'Priority updated!' => 'Prioritāte atjaunināta!',
+        'Priority added!' => 'Prioritāte pievienota!',
+
+        # Perl Module: Kernel/Modules/AdminProcessManagement.pm
+        'Process Management information from database is not in sync with the system configuration, please synchronize all processes.' =>
+            'Procesu pārvaldības informācija no datu bāzes netiek sinhronizēta ar sistēmas konfigurāciju, lūdzu, sinhronizējiet visus procesus.',
+        'Need ExampleProcesses!' => '',
+        'Need ProcessID!' => '',
+        'Yes (mandatory)' => '',
+        'Unknown Process %s!' => '',
+        'There was an error generating a new EntityID for this Process' =>
+            '',
+        'The StateEntityID for state Inactive does not exists' => '',
+        'There was an error creating the Process' => '',
+        'There was an error setting the entity sync status for Process entity: %s' =>
+            '',
+        'Could not get data for ProcessID %s' => '',
+        'There was an error updating the Process' => '',
+        'Process: %s could not be deleted' => '',
+        'There was an error synchronizing the processes.' => '',
+        'The %s:%s is still in use' => '',
+        'The %s:%s has a different EntityID' => '',
+        'Could not delete %s:%s' => '',
+        'There was an error setting the entity sync status for %s entity: %s' =>
+            '',
+        'Could not get %s' => '',
+        'Need %s!' => '',
+        'Process: %s is not Inactive' => '',
+
+        # Perl Module: Kernel/Modules/AdminProcessManagementActivity.pm
+        'There was an error generating a new EntityID for this Activity' =>
+            '',
+        'There was an error creating the Activity' => '',
+        'There was an error setting the entity sync status for Activity entity: %s' =>
+            '',
+        'Need ActivityID!' => '',
+        'Could not get data for ActivityID %s' => '',
+        'There was an error updating the Activity' => '',
+        'Missing Parameter: Need Activity and ActivityDialog!' => '',
+        'Activity not found!' => '',
+        'ActivityDialog not found!' => '',
+        'ActivityDialog already assigned to Activity. You cannot add an ActivityDialog twice!' =>
+            '',
+        'Error while saving the Activity to the database!' => '',
+        'This subaction is not valid' => '',
+        'Edit Activity "%s"' => '',
+
+        # Perl Module: Kernel/Modules/AdminProcessManagementActivityDialog.pm
+        'There was an error generating a new EntityID for this ActivityDialog' =>
+            '',
+        'There was an error creating the ActivityDialog' => '',
+        'There was an error setting the entity sync status for ActivityDialog entity: %s' =>
+            '',
+        'Need ActivityDialogID!' => '',
+        'Could not get data for ActivityDialogID %s' => '',
+        'There was an error updating the ActivityDialog' => '',
+        'Edit Activity Dialog "%s"' => '',
+        'Agent Interface' => '',
+        'Customer Interface' => '',
+        'Agent and Customer Interface' => '',
+        'Do not show Field' => '',
+        'Show Field' => '',
+        'Show Field As Mandatory' => '',
+        'note-internal' => 'iekšēja piezīme',
+        'note-external' => 'ārēja piezīme',
+        'note-report' => 'piezīmju pārskats',
+        'phone' => 'telefona zvans',
+        'fax' => '',
+        'sms' => 'sms',
+        'webrequest' => 'no pārlūkprogrammas veidots pieteikums',
+
+        # Perl Module: Kernel/Modules/AdminProcessManagementPath.pm
+        'Edit Path' => '',
+
+        # Perl Module: Kernel/Modules/AdminProcessManagementTransition.pm
+        'There was an error generating a new EntityID for this Transition' =>
+            '',
+        'There was an error creating the Transition' => '',
+        'There was an error setting the entity sync status for Transition entity: %s' =>
+            '',
+        'Need TransitionID!' => '',
+        'Could not get data for TransitionID %s' => '',
+        'There was an error updating the Transition' => '',
+        'Edit Transition "%s"' => '',
+        'xor' => '',
+        'String' => '',
+        'Transition validation module' => '',
+
+        # Perl Module: Kernel/Modules/AdminProcessManagementTransitionAction.pm
+        'At least one valid config parameter is required.' => '',
+        'There was an error generating a new EntityID for this TransitionAction' =>
+            '',
+        'There was an error creating the TransitionAction' => '',
+        'There was an error setting the entity sync status for TransitionAction entity: %s' =>
+            '',
+        'Need TransitionActionID!' => '',
+        'Could not get data for TransitionActionID %s' => '',
+        'There was an error updating the TransitionAction' => '',
+        'Edit Transition Action "%s"' => '',
+        'Error: Not all keys seem to have values or vice versa.' => '',
+
+        # Perl Module: Kernel/Modules/AdminQueue.pm
+        'Don\'t use :: in queue name!' => '',
+        'Click back and change it!' => '',
+        'Queue updated!' => 'Rinda atjaunināta!',
+        '-none-' => '-nav-',
+
+        # Perl Module: Kernel/Modules/AdminQueueAutoResponse.pm
+        'Queues ( without auto responses )' => '',
+
+        # Perl Module: Kernel/Modules/AdminRole.pm
+        'Role updated!' => 'Loma atjaunināta!',
+        'Role added!' => 'Loma pievienota!',
+
+        # Perl Module: Kernel/Modules/AdminSLA.pm
+        'Please activate %s first!' => '',
+
+        # Perl Module: Kernel/Modules/AdminSMIME.pm
+        'S/MIME environment is not working. Please check log for more info!' =>
+            '',
+        'Need param Filename to delete!' => '',
+        'Need param Filename to download!' => '',
+        'Needed CertFingerprint and CAFingerprint!' => '',
+        'CAFingerprint must be different than CertFingerprint' => '',
+        'Relation exists!' => '',
+        'Relation added!' => '',
+        'Impossible to add relation!' => '',
+        'Relation doesn\'t exists' => '',
+        'Relation deleted!' => '',
+        'Impossible to delete relation!' => '',
+        'Certificate %s could not be read!' => '',
+        'Needed Fingerprint' => '',
+
+        # Perl Module: Kernel/Modules/AdminSalutation.pm
+        'Salutation updated!' => '',
+        'Salutation added!' => '',
+
+        # Perl Module: Kernel/Modules/AdminSignature.pm
+        'Signature updated!' => 'Paraksts atjaunināts!',
+        'Signature added!' => 'Paraksts pievienots!',
+
+        # Perl Module: Kernel/Modules/AdminState.pm
+        'State updated!' => 'Stāvoklis atjaunināts!',
+        'State added!' => 'Stāvoklis pievienots!',
+
+        # Perl Module: Kernel/Modules/AdminSupportDataCollector.pm
+        'File %s could not be read!' => '',
+
+        # Perl Module: Kernel/Modules/AdminSysConfig.pm
+        'Import not allowed!' => '',
+        'Need File!' => '',
+        'Can\'t write ConfigItem!' => '',
+
+        # Perl Module: Kernel/Modules/AdminSystemAddress.pm
+        'System e-mail address updated!' => 'Sistēmas e-pasta adrese atjaunināta!',
+        'System e-mail address added!' => 'Sistēmas e-pasta adrese pievienota!',
+
+        # Perl Module: Kernel/Modules/AdminSystemMaintenance.pm
+        'Start date shouldn\'t be defined after Stop date!' => '',
+        'There was an error creating the System Maintenance' => '',
+        'Need SystemMaintenanceID!' => '',
+        'Could not get data for SystemMaintenanceID %s' => '',
+        'System Maintenance was saved successfully!' => '',
+        'Session has been killed!' => '',
+        'All sessions have been killed, except for your own.' => '',
+        'There was an error updating the System Maintenance' => '',
+        'Was not possible to delete the SystemMaintenance entry: %s!' => '',
+
+        # Perl Module: Kernel/Modules/AdminTemplate.pm
+        'Template updated!' => '',
+        'Template added!' => '',
+
+        # Perl Module: Kernel/Modules/AdminType.pm
+        'Need Type!' => '',
+        'Type updated!' => '',
+        'Type added!' => '',
+
+        # Perl Module: Kernel/Modules/AdminUser.pm
+        'Agent updated!' => 'Aģents atjaunināts!',
+
+        # Perl Module: Kernel/Modules/AgentCustomerSearch.pm
+        'Customer History' => 'Klienta vēsture',
 
         # Perl Module: Kernel/Modules/AgentDashboardCommon.pm
+        'No such config for %s' => '',
         'Statistic' => '',
+        'No preferences for %s!' => '',
+        'Can\'t get element data of %s!' => '',
+        'Can\'t get filter content data of %s!' => '',
 
         # Perl Module: Kernel/Modules/AgentLinkObject.pm
+        'Need SourceObject and SourceKey!' => '',
+        'Please contact the administrator.' => '',
+        'You need ro permission!' => '',
         'Can not delete link with %s!' => '',
+        'Can not create link with %s! Object already linked as %s.' => '',
         'Can not create link with %s!' => '',
-        'Object already linked as %s.' => '',
+        'The object %s cannot link with other object!' => '',
+
+        # Perl Module: Kernel/Modules/AgentPreferences.pm
+        'Param Group is required!' => '',
+
+        # Perl Module: Kernel/Modules/AgentSpelling.pm
+        'No suggestions' => 'Nav ieteikumu',
 
         # Perl Module: Kernel/Modules/AgentStatistics.pm
+        'Parameter %s is missing.' => '',
+        'Invalid Subaction.' => '',
         'Statistic could not be imported.' => '',
         'Please upload a valid statistic file.' => '',
+        'Export: Need StatID!' => '',
+        'Delete: Get no StatID!' => '',
+        'Need StatID!' => '',
+        'Could not load stat.' => '',
+        'Could not create statistic.' => '',
+        'Run: Get no %s!' => '',
 
         # Perl Module: Kernel/Modules/AgentTicketActionCommon.pm
+        'No TicketID is given!' => '',
+        'You need %s permissions!' => '',
+        'Sorry, you need to be the ticket owner to perform this action.' =>
+            'Atvainojiet, jums ir jābūt pieteikuma īpašniekam, lai veiktu šo darbību.',
+        'Please change the owner first.' => 'Lūdzu, mainiet īpašnieku vispirms.',
+        'Could not perform validation on field %s!' => '',
         'No subject' => '',
         'Previous Owner' => 'Iepriekšējais īpašnieks',
+        'wrote' => 'rakstīja',
+        'Message from' => 'Ziņa no',
+        'End message' => 'Ziņas beigas',
+
+        # Perl Module: Kernel/Modules/AgentTicketBounce.pm
+        '%s is needed!' => '',
+        'Plain article not found for article %s!' => '',
+        'Article does not belong to ticket %s!' => '',
+        'Can\'t bounce email!' => '',
+        'Can\'t send email!' => '',
+        'Wrong Subaction!' => '',
 
         # Perl Module: Kernel/Modules/AgentTicketBulk.pm
+        'Can\'t lock Tickets, no TicketIDs are given!' => '',
+        'Ticket (%s) is not unlocked!' => '',
+        'Bulk feature is not enabled!' => '',
+        'No selectable TicketID is given!' => '',
+        'You either selected no ticket or only tickets which are locked by other agents' =>
+            '',
+        'You need to select at least one ticket' => '',
+        'You don\'t have write access to this ticket.' => 'Jums nav rakstīšanas piekļuve šim pieteikumam.',
+        'Ticket selected.' => 'Pieteikums izvēlēts.',
         'Ticket is locked by another agent and will be ignored!' => '',
+        'Ticket locked.' => 'Pieteikums bloķēts.',
+
+        # Perl Module: Kernel/Modules/AgentTicketCompose.pm
+        'Can not determine the ArticleType!' => '',
+        'Address %s replaced with registered customer address.' => 'Adresi %s aizstāta ar reģistrēta klienta adresi.',
+        'Customer user automatically added in Cc.' => 'Klients automātiski pievienots CC.',
+
+        # Perl Module: Kernel/Modules/AgentTicketEmail.pm
+        'Ticket "%s" created!' => 'Problēmas pieteikums "%s" izveidots!',
+        'No Subaction!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketEmailOutbound.pm
+        'Got no TicketID!' => '',
+        'System Error!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketEscalationView.pm
+        'Today' => 'Šodien',
+        'Tomorrow' => 'Rīt',
+        'Next week' => 'Nākamnedēļ',
+        'Invalid Filter: %s!' => '',
+        'Ticket Escalation View' => 'Pieteikumu eskalācijas skats',
+
+        # Perl Module: Kernel/Modules/AgentTicketForward.pm
+        'Forwarded message from' => 'Pārsūtītā ziņa no',
+        'End forwarded message' => 'Pārsūtītās ziņas beigas',
+
+        # Perl Module: Kernel/Modules/AgentTicketHistory.pm
+        'Can\'t show history, no TicketID is given!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketLock.pm
+        'Can\'t lock Ticket, no TicketID is given!' => '',
+        'Sorry, the current owner is %s!' => '',
+        'Please become the owner first.' => '',
+        'Ticket (ID=%s) is locked by %s!' => '',
+        'Change the owner!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketLockedView.pm
+        'New Article' => 'Jauns ziņojums',
+        'Pending' => 'Neizlemts',
+        'Reminder Reached' => 'Pienācis atgādinājuma laiks',
+        'My Locked Tickets' => 'Mani bloķētie pieteikumi',
+
+        # Perl Module: Kernel/Modules/AgentTicketMerge.pm
+        'Can\'t merge ticket with itself!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketMove.pm
+        'You need move permissions!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketPhone.pm
+        'Chat is not active.' => '',
+        'No permission.' => '',
+        '%s has left the chat.' => '',
+        'This chat has been closed and will be removed in %s hours.' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketPlain.pm
+        'No ArticleID!' => '',
+        'Can\'t read plain article! Maybe there is no plain email in backend! Read backend message.' =>
+            '',
 
         # Perl Module: Kernel/Modules/AgentTicketPrint.pm
+        'Need TicketID!' => '',
         'printed by' => 'drukājis',
         'Ticket Dynamic Fields' => '',
 
         # Perl Module: Kernel/Modules/AgentTicketProcess.pm
+        'Couldn\'t get ActivityDialogEntityID "%s"!' => '',
+        'No Process configured!' => '',
+        'The selected process is invalid!' => 'Atlasītais process ir nederīgs!',
+        'Process %s is invalid!' => '',
+        'Subaction is invalid!' => '',
+        'Parameter %s is missing in %s.' => '',
+        'No ActivityDialog configured for %s in _RenderAjax!' => '',
+        'Got no Start ActivityEntityID or Start ActivityDialogEntityID for Process: %s in _GetParam!' =>
+            '',
+        'Couldn\'t get Ticket for TicketID: %s in _GetParam!' => '',
+        'Couldn\'t determine ActivityEntityID. DynamicField or Config isn\'t set properly!' =>
+            '',
+        'Process::Default%s Config Value missing!' => '',
+        'Got no ProcessEntityID or TicketID and ActivityDialogEntityID!' =>
+            '',
+        'Can\'t get StartActivityDialog and StartActivityDialog for the ProcessEntityID "%s"!' =>
+            '',
+        'Can\'t get Ticket "%s"!' => '',
+        'Can\'t get ProcessEntityID or ActivityEntityID for Ticket "%s"!' =>
+            '',
+        'Can\'t get Activity configuration for ActivityEntityID "%s"!' =>
+            '',
+        'Can\'t get ActivityDialog configuration for ActivityDialogEntityID "%s"!' =>
+            '',
+        'Can\'t get data for Field "%s" of ActivityDialog "%s"!' => '',
+        'PendingTime can just be used if State or StateID is configured for the same ActivityDialog. ActivityDialog: %s!' =>
+            '',
         'Pending Date' => 'Izlemt līdz (datumam)',
         'for pending* states' => 'izlemšanas* stāvokļiem',
+        'ActivityDialogEntityID missing!' => '',
+        'Couldn\'t get Config for ActivityDialogEntityID "%s"!' => '',
+        'Couldn\'t use CustomerID as an invisible field.' => '',
+        'Missing ProcessEntityID, check your ActivityDialogHeader.tt!' =>
+            '',
+        'No StartActivityDialog or StartActivityDialog for Process "%s" configured!' =>
+            '',
+        'Couldn\'t create ticket for Process with ProcessEntityID "%s"!' =>
+            '',
+        'Couldn\'t set ProcessEntityID "%s" on TicketID "%s"!' => '',
+        'Couldn\'t set ActivityEntityID "%s" on TicketID "%s"!' => '',
+        'Could not store ActivityDialog, invalid TicketID: %s!' => '',
+        'Invalid TicketID: %s!' => '',
+        'Missing ActivityEntityID in Ticket %s!' => '',
+        'Missing ProcessEntityID in Ticket %s!' => '',
+        'Could not set DynamicField value for %s of Ticket with ID "%s" in ActivityDialog "%s"!' =>
+            '',
+        'Could not set PendingTime for Ticket with ID "%s" in ActivityDialog "%s"!' =>
+            '',
+        'Wrong ActivityDialog Field config: %s can\'t be Display => 1 / Show field (Please change its configuration to be Display => 0 / Do not show field or Display => 2 / Show field as mandatory)!' =>
+            '',
+        'Could not set %s for Ticket with ID "%s" in ActivityDialog "%s"!' =>
+            '',
+        'Default Config for Process::Default%s missing!' => '',
+        'Default Config for Process::Default%s invalid!' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketQueue.pm
+        'Available tickets' => 'Pieejamie pieteikumi',
+        'including subqueues' => '',
+        'excluding subqueues' => '',
+        'QueueView' => 'Rindas skats',
+
+        # Perl Module: Kernel/Modules/AgentTicketResponsibleView.pm
+        'My Responsible Tickets' => 'Mani atbildīgie pieteikumi',
 
         # Perl Module: Kernel/Modules/AgentTicketSearch.pm
+        'last-search' => 'pēdējā meklēšana',
+        'Untitled' => '',
+        'Ticket Number' => 'Pieteikuma numurs',
+        'Customer Realname' => 'Klienta pilns vārds',
+        'Ticket' => 'Pieteikumi',
         'Invalid Users' => '',
+        'Normal' => 'Normāls',
+        'CSV' => '',
+        'Excel' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketService.pm
+        'Feature not enabled!' => '',
+        'Service View' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketStatusView.pm
+        'Status View' => '',
+
+        # Perl Module: Kernel/Modules/AgentTicketWatchView.pm
+        'My Watched Tickets' => 'Mani vērotie pieteikumi',
+
+        # Perl Module: Kernel/Modules/AgentTicketWatcher.pm
+        'Feature is not active' => '',
 
         # Perl Module: Kernel/Modules/AgentTicketZoom.pm
-        'We are sorry, you do not have permissions anymore to access this ticket in its current state. ' =>
+        'Ticket Created' => '',
+        'Note Added' => '',
+        'Note Added (Customer)' => '',
+        'Outgoing Email' => '',
+        'Outgoing Email (internal)' => '',
+        'Incoming Customer Email' => '',
+        'Dynamic Field Updated' => '',
+        'Outgoing Phone Call' => '',
+        'Incoming Phone Call' => '',
+        'Outgoing Answer' => '',
+        'SLA Updated' => '',
+        'Service Updated' => '',
+        'Customer Updated' => '',
+        'State Updated' => '',
+        'Incoming Follow-Up' => '',
+        'Escalation Update Time Stopped' => '',
+        'Escalation Solution Time Stopped' => '',
+        'Escalation First Response Time Stopped' => '',
+        'Escalation Response Time Stopped' => '',
+        'Link Added' => '',
+        'Link Deleted' => '',
+        'Ticket Merged' => '',
+        'Pending Time Set' => '',
+        'Ticket Locked' => '',
+        'Ticket Unlocked' => '',
+        'Queue Updated' => '',
+        'Priority Updated' => '',
+        'Title Updated' => '',
+        'Type Updated' => '',
+        'Incoming Web Request' => '',
+        'Automatic Follow-Up Sent' => '',
+        'Automatic Reply Sent' => '',
+        'Time Accounted' => '',
+        'External Chat' => '',
+        'Internal Chat' => '',
+        'We are sorry, you do not have permissions anymore to access this ticket in its current state.' =>
             '',
+        'Can\'t get for ArticleID %s!' => '',
+        'Article filter settings were saved.' => '',
+        'Event type filter settings were saved.' => '',
+        'Need ArticleID!' => '',
+        'Invalid ArticleID!' => '',
         'Fields with no group' => '',
+        'Reply All' => 'Atbildēt visiem',
+        'Forward' => 'Pārsūtīt',
+        'Forward article via mail' => 'Pārsūtīt ziņu pa e-pastu',
+        'Bounce Article to a different mail address' => 'Novirzīt ziņu uz citu e-pasta adresi',
+        'Bounce' => 'Pārcelt',
+        'Split this article' => 'Sadalīt šo ziņu',
+        'Split' => 'Sadalīt',
+        'Print this article' => 'Drukāt šo ziņu',
+        'View the source for this Article' => '',
+        'Plain Format' => 'Parasts formāts',
+        'Mark' => 'Atzīmēt',
+        'Unmark' => 'Noņemt atzīmi',
+        'Reply to note' => 'Atbildēt uz vēstuli',
+
+        # Perl Module: Kernel/Modules/CustomerTicketAttachment.pm
+        'FileID and ArticleID are needed!' => '',
+        'No TicketID for ArticleID (%s)!' => '',
+        'No such attachment (%s)!' => '',
+
+        # Perl Module: Kernel/Modules/CustomerTicketMessage.pm
+        'Check SysConfig setting for %s::QueueDefault.' => '',
+        'Check SysConfig setting for %s::TicketTypeDefault.' => '',
+
+        # Perl Module: Kernel/Modules/CustomerTicketOverview.pm
+        'Need CustomerID!' => '',
+        'My Tickets' => '',
+        'Company Tickets' => '',
+        'Untitled!' => '',
 
         # Perl Module: Kernel/Modules/CustomerTicketSearch.pm
+        'Created within the last' => '',
+        'Created more than ... ago' => '',
         'Please remove the following words because they cannot be used for the search:' =>
             '',
 
+        # Perl Module: Kernel/Modules/CustomerTicketZoom.pm
+        'Can\'t reopen ticket, not possible in this queue!' => '',
+        'Create a new ticket!' => '',
+
         # Perl Module: Kernel/Modules/Installer.pm
+        'Directory "%s" doesn\'t exist!' => '',
+        'Configure "Home" in Kernel/Config.pm first!' => '',
+        'File "%s/Kernel/Config.pm" not found!' => '',
+        'Directory "%s" not found!' => '',
+        'Install OTRS' => 'Instalējiet OTRS',
+        'Intro' => '',
+        'Kernel/Config.pm isn\'t writable!' => '',
+        'If you want to use the installer, set the Kernel/Config.pm writable for the webserver user!' =>
+            '',
+        'Database Selection' => 'Datubāzes izvēle',
+        'Unknown Check!' => '',
+        'The check "%s" doesn\'t exist!' => '',
+        'Enter the password for the database user.' => 'Ievadiet paroli datubāzes lietotājam.',
+        'Database %s' => '',
+        'Enter the password for the administrative database user.' => '',
+        'Unknown database type "%s".' => '',
+        'Please go back' => '',
+        'Create Database' => 'Izveidot datubāzi',
+        'Install OTRS - Error' => '',
+        'File "%s/%s.xml" not found!' => '',
+        'Contact your Admin!' => '',
+        'System Settings' => 'Sistēmas iestatījumi',
+        'Configure Mail' => 'Konfigurēt pastu',
+        'Mail Configuration' => 'Pasta konfigurācija',
+        'Can\'t write Config file!' => '',
+        'Unknown Subaction %s!' => '',
+        'Can\'t connect to database, Perl module DBD::%s not installed!' =>
+            '',
+        'Can\'t connect to database, read comment!' => '',
+        'Database already contains data - it should be empty!' => 'Datubāze jau satur datus - tai jābūt tukšai!',
         'Error: Please make sure your database accepts packages over %s MB in size (it currently only accepts packages up to %s MB). Please adapt the max_allowed_packet setting of your database in order to avoid errors.' =>
             '',
         'Error: Please set the value for innodb_log_file_size on your database to at least %s MB (current: %s MB, recommended: %s MB). For more information, please have a look at %s.' =>
             '',
 
+        # Perl Module: Kernel/Modules/PublicRepository.pm
+        'Need config Package::RepositoryAccessRegExp' => '',
+        'Authentication failed from %s!' => '',
+
+        # Perl Module: Kernel/Output/HTML/ArticleCheck/PGP.pm
+        'Crypted' => 'Šifrēts',
+        'Sent message encrypted to recipient!' => '',
+        'Signed' => 'Parakstīts',
+        '"PGP SIGNED MESSAGE" header found, but invalid!' => '',
+
+        # Perl Module: Kernel/Output/HTML/ArticleCheck/SMIME.pm
+        '"S/MIME SIGNED MESSAGE" header found, but invalid!' => '',
+        'Ticket decrypted before' => '',
+        'Impossible to decrypt: private key for email was not found!' => '',
+        'Successful decryption' => '',
+
+        # Perl Module: Kernel/Output/HTML/ArticleCompose/Crypt.pm
+        'Crypt' => 'Šifrēt',
+
+        # Perl Module: Kernel/Output/HTML/ArticleCompose/Sign.pm
+        'Sign' => 'Parakstīt',
+
+        # Perl Module: Kernel/Output/HTML/Dashboard/CustomerUserList.pm
+        'Shown customer users' => 'Parādītie klienti',
+
+        # Perl Module: Kernel/Output/HTML/Dashboard/EventsTicketCalendar.pm
+        'The start time of a ticket has been set after the end time!' => '',
+
         # Perl Module: Kernel/Output/HTML/Dashboard/TicketGeneric.pm
+        'Shown Tickets' => 'Parādītie pieteikumi',
+        'Shown Columns' => 'Parādītās kolonnas',
+        'sorted ascending' => '',
+        'sorted descending' => '',
+        'filter not active' => '',
+        'filter active' => '',
         'This ticket has no title or subject' => '',
 
+        # Perl Module: Kernel/Output/HTML/Dashboard/TicketStatsGeneric.pm
+        '7 Day Stats' => '7 dienu statistika',
+
         # Perl Module: Kernel/Output/HTML/Dashboard/UserOnline.pm
+        'Shown' => 'Parādīts',
         'This user is currently offline' => '',
         'This user is currently active' => '',
         'This user is currently away' => '',
         'This user is currently unavailable' => '',
 
         # Perl Module: Kernel/Output/HTML/Layout.pm
-        'We are sorry, you do not have permissions anymore to access this ticket in its current state.' =>
+        'Standard' => 'Standarta',
+        'h' => 'h',
+        'm' => 'min',
+        'hour' => 'stunda',
+        'minute' => 'minūte',
+        'd' => '',
+        'day' => 'diena',
+        'We are sorry, you do not have permissions anymore to access this ticket in its current state. You can take one of the following actions:' =>
             '',
-        ' You can take one of the next actions:' => '',
+        'This is a' => 'Tas ir',
+        'email' => 'e-pasts',
+        'click here' => 'klikšķināt te',
+        'to open it in a new window.' => 'lai atvērtu jaunā logā',
+        'Hours' => 'Stundas',
+        'Minutes' => 'Minūtes',
+        'Check to activate this date' => 'Atzīmējiet, lai aktivizētu šo datumu',
+        'No Permission!' => 'Nav atļaujas!',
+        'No Permission' => '',
+        'Show Tree Selection' => '',
+
+        # Perl Module: Kernel/Output/HTML/Layout/LinkObject.pm
+        'Linked as' => '',
+        'Search Result' => '',
+        'Linked' => 'Sasaistīts',
+        'Bulk' => '',
+
+        # Perl Module: Kernel/Output/HTML/Layout/Ticket.pm
+        'Lite' => 'Vieglā',
+        'Unread article(s) available' => 'Nelasīta ziņa(s) ir pieejama',
+
+        # Perl Module: Kernel/Output/HTML/Notification/AgentCloudServicesDisabled.pm
+        'Enable cloud services to unleash all OTRS features!' => '',
 
         # Perl Module: Kernel/Output/HTML/Notification/AgentOTRSBusiness.pm
         '%s Upgrade to %s now! %s' => '',
+        'The license for your %s is about to expire. Please make contact with %s to renew your contract!' =>
+            'Jūsu %s licences termiņš drīz beigsies. Lūdzu, sazinieties ar %s, lai atjaunotu savu līgumu!',
+        'An update for your %s is available, but there is a conflict with your framework version! Please update your framework first!' =>
+            '',
+
+        # Perl Module: Kernel/Output/HTML/Notification/AgentOnline.pm
+        'Online Agent: %s' => 'Tiešsaistes atbildīgā persona: %s',
+
+        # Perl Module: Kernel/Output/HTML/Notification/AgentTicketEscalation.pm
+        'There are more escalated tickets!' => 'Ir vēl citi problēmu pieteikumi ar paaugstinātu svarīgumu (?)!',
+
+        # Perl Module: Kernel/Output/HTML/Notification/AgentTimeZoneCheck.pm
+        'Please select a time zone in your preferences and confirm it by clicking "Update".' =>
+            '',
+
+        # Perl Module: Kernel/Output/HTML/Notification/CustomerOnline.pm
+        'Online Customer: %s' => 'Tiešsaistes klients: %s',
 
         # Perl Module: Kernel/Output/HTML/Notification/CustomerSystemMaintenanceCheck.pm
         'A system maintenance period will start at: ' => '',
 
         # Perl Module: Kernel/Output/HTML/Notification/DaemonCheck.pm
-        'Please contact your administrator!' => '',
+        'OTRS Daemon is not running.' => '',
+
+        # Perl Module: Kernel/Output/HTML/Notification/OutofOfficeCheck.pm
+        'You have Out of Office enabled, would you like to disable it?' =>
+            '',
+
+        # Perl Module: Kernel/Output/HTML/Notification/UIDCheck.pm
+        'Don\'t use the Superuser account to work with OTRS! Create new Agents and work with these accounts instead.' =>
+            '',
+
+        # Perl Module: Kernel/Output/HTML/Preferences/ColumnFilters.pm
+        'Preferences updated successfully!' => 'Iestatījumi sekmīgi atjaunoti!',
 
         # Perl Module: Kernel/Output/HTML/Preferences/Language.pm
         '(in process)' => '',
 
+        # Perl Module: Kernel/Output/HTML/Preferences/NotificationEvent.pm
+        'Please make sure you\'ve chosen at least one transport method for mandatory notifications.' =>
+            '',
+
+        # Perl Module: Kernel/Output/HTML/Preferences/OutOfOffice.pm
+        'Please specify an end date that is after the start date.' => '',
+
         # Perl Module: Kernel/Output/HTML/Preferences/Password.pm
+        'Current password' => 'Pašreizējā parole',
+        'New password' => 'Jaunā parole',
+        'Verify password' => 'Apstipriniet paroli',
+        'The current password is not correct. Please try again!' => 'Pašreizējā parole nav pareiza. Lūdzu, mēģiniet vēlreiz!',
         'Please supply your new password!' => '',
+        'Can\'t update password, your new passwords do not match. Please try again!' =>
+            'Nevar atjaunināt paroli, jaunas paroles nesakrīt. Lūdzu, mēģiniet vēlreiz!',
+        'This password is forbidden by the current system configuration. Please contact the administrator if you have additional questions.' =>
+            '',
+        'Can\'t update password, it must be at least %s characters long!' =>
+            'Nevar mainīt paroli, tai jābūt vismaz %s rakstzīmes garai!',
+        'Can\'t update password, it must contain at least 2 lowercase and 2 uppercase letter characters!' =>
+            '',
+        'Can\'t update password, it must contain at least 1 digit!' => 'Nevar mainīt paroli, tajā jābūt vismaz 1 ciparam!',
+        'Can\'t update password, it must contain at least 2 letter characters!' =>
+            '',
+
+        # Perl Module: Kernel/Output/HTML/Preferences/TimeZone.pm
+        'Time zone updated successfully!' => '',
 
         # Perl Module: Kernel/Output/HTML/Statistics/View.pm
-        'X-axis' => 'X-ass',
-        'Y-axis' => '',
-        'The selected start time is before the allowed start time.' => '',
-        'The selected end time is later than the allowed end time.' => '',
+        'invalid' => 'nederīgs',
+        'valid' => 'derīgs',
+        'No (not supported)' => '',
+        'No past complete or the current+upcoming complete relative time value selected.' =>
+            '',
         'The selected time period is larger than the allowed time period.' =>
-            '',
-        'The selected time upcoming period is larger than the allowed time upcoming period.' =>
-            '',
-        'The selected time scale is smaller than the allowed time scale.' =>
             '',
         'No time scale value available for the current selected time scale value on the X axis.' =>
             '',
         'The selected date is not valid.' => '',
         'The selected end time is before the start time.' => '',
         'There is something wrong with your time selection.' => '',
-        'Please select one element for the X-axis.' => '',
-        'You can only use one time element for the Y axis.' => '',
-        'You can only use only one or two elements for the Y axis.' => '',
         'Please select only one element or allow modification at stat generation time.' =>
             '',
+        'Please select at least one value of this field or allow modification at stat generation time.' =>
+            '',
+        'Please select one element for the X-axis.' => '',
+        'You can only use one time element for the Y axis.' => '',
+        'You can only use one or two elements for the Y axis.' => '',
         'Please select at least one value of this field.' => '',
         'Please provide a value or allow modification at stat generation time.' =>
             '',
         'Please select a time scale.' => '',
         'Your reporting time interval is too small, please use a larger time scale.' =>
             '',
+        'second(s)' => 'sekunde(s)',
+        'quarter(s)' => '',
+        'half-year(s)' => '',
         'Please remove the following words because they cannot be used for the ticket restrictions: %s.' =>
             '',
 
+        # Perl Module: Kernel/Output/HTML/TicketMenu/Lock.pm
+        'Unlock to give it back to the queue' => 'Atbloķēt, lai atgrieztu atpakaļ rindā',
+        'Lock it to work on it' => 'Bloķēt, lai strādātu ar to',
+
+        # Perl Module: Kernel/Output/HTML/TicketMenu/TicketWatcher.pm
+        'Unwatch' => 'Nevērot',
+        'Remove from list of watched tickets' => 'Izņemt no vēroto pieteikumu saraksta',
+        'Watch' => 'Vērot',
+        'Add to list of watched tickets' => 'Pievienot vēroto pieteikumu sarakstam',
+
         # Perl Module: Kernel/Output/HTML/TicketOverviewMenu/Sort.pm
         'Order by' => 'Kārtot pēc',
+
+        # Perl Module: Kernel/Output/HTML/TicketZoom/TicketInformation.pm
+        'Ticket Information' => 'Pieteikuma informācija',
+
+        # Perl Module: Kernel/Output/HTML/ToolBar/TicketLocked.pm
+        'Locked Tickets New' => 'Bloķētie pieteikumi: jaunie',
+        'Locked Tickets Reminder Reached' => 'Bloķētie pieteikumi: ir pienācis atgādinājuma laiks',
+        'Locked Tickets Total' => 'Bloķētie pieteikumi: kopā',
+
+        # Perl Module: Kernel/Output/HTML/ToolBar/TicketResponsible.pm
+        'Responsible Tickets New' => 'Atbildīgie pieteikumi: jaunie',
+        'Responsible Tickets Reminder Reached' => 'Atbildīgie pieteikumi: sasniegts atgādinājuma laiks',
+        'Responsible Tickets Total' => 'Atbildīgie pieteikumi: kopā',
+
+        # Perl Module: Kernel/Output/HTML/ToolBar/TicketWatcher.pm
+        'Watched Tickets New' => 'Vērotie pieteikumi: jaunie',
+        'Watched Tickets Reminder Reached' => 'Vērotie pieteikumi: sasniegts atgādinājuma laiks',
+        'Watched Tickets Total' => 'Vērotie pieteikumi: kopā',
+
+        # Perl Module: Kernel/System/Auth.pm
+        'It is currently not possible to login due to a scheduled system maintenance.' =>
+            'Pašlaik nav iespējams pieteikties, jo notiek plānota sistēmas uzturēšana.',
+
+        # Perl Module: Kernel/System/AuthSession/DB.pm
+        'Session invalid. Please log in again.' => 'Nederīga sesija. Lūdzu, piesakieties vēlreiz.',
+        'Session has timed out. Please log in again.' => 'Sesija ir beigusies. Lūdzu, piesakieties vēlreiz.',
+        'Session limit reached! Please try again later.' => 'Sesijas ierobežojums sasniegts! Lūdzu, mēģiniet vēlreiz vēlāk.',
+        'Session per user limit reached!' => '',
+
+        # Perl Module: Kernel/System/Console/Command/Dev/Tools/Config2Docbook.pm
+        'Configuration Options Reference' => '',
+        'This setting can not be changed.' => '',
+        'This setting is not active by default.' => '',
+        'This setting can not be deactivated.' => '',
+
+        # Perl Module: Kernel/System/DynamicField/Driver/BaseDateTime.pm
+        'in more than ...' => '',
+        'before/after' => 'pirms/pēc',
+        'between' => 'starp',
+
+        # Perl Module: Kernel/System/DynamicField/Driver/TextArea.pm
+        'This field is required or' => '',
+        'The field content is too long!' => 'Lauka saturs ir pārāk garš!',
+        'Maximum size is %s characters.' => 'Maksimālais izmērs ir %s zīmes.',
+
+        # Perl Module: Kernel/System/Package.pm
+        'not installed' => '',
+        'installed' => 'instalēts',
+        'Unable to parse repository index document.' => '',
+        'No packages for your framework version found in this repository, it only contains packages for other framework versions.' =>
+            '',
+        '<br>If you continue to install this package, the following issues may occur!<br><br>&nbsp;-Security problems<br>&nbsp;-Stability problems<br>&nbsp;-Performance problems<br><br>Please note that issues that are caused by working with this package are not covered by OTRS service contracts!<br><br>' =>
+            '',
+
+        # Perl Module: Kernel/System/Registration.pm
+        'Can\'t contact registration server. Please try again later.' => '',
+        'No content received from registration server. Please try again later.' =>
+            '',
+        'Can\'t get Token from sever' => '',
+        'Username and password do not match. Please try again.' => 'Lietotājvārds un parole nesakrīt. Lūdzu, mēģiniet vēlreiz.',
+        'Problems processing server result. Please try again later.' => '',
+
+        # Perl Module: Kernel/System/Stats.pm
+        'week' => 'nedēļa',
+        'quarter' => '',
+        'half-year' => '',
 
         # Perl Module: Kernel/System/Stats/Dynamic/Ticket.pm
         'State Type' => '',
@@ -3251,7 +3611,9 @@ sub Data {
         'Created State' => 'Izveidotais statuss',
         'CustomerUserLogin' => 'Klienta lietotājvārds',
         'Create Time' => 'Izveidošanas laiks',
+        'Until Time' => '',
         'Close Time' => 'Aizvēršanas laiks',
+        'Escalation' => 'Eskalācija',
         'Escalation - First Response Time' => '',
         'Escalation - Update Time' => '',
         'Escalation - Solution Time' => '',
@@ -3264,16 +3626,58 @@ sub Data {
         'Ticket Create Time' => 'Pieteikuma izveidošanas laiks',
         'Ticket Close Time' => 'Pieteikuma aizvēršanas laiks',
         'Accounted time by Agent' => 'Uzskaitītais laiks aģentam',
+        'Total Time' => '',
+        'Ticket Average' => '',
+        'Ticket Min Time' => '',
+        'Ticket Max Time' => '',
+        'Number of Tickets' => '',
+        'Article Average' => '',
+        'Article Min Time' => '',
+        'Article Max Time' => '',
+        'Number of Articles' => '',
 
         # Perl Module: Kernel/System/Stats/Dynamic/TicketList.pm
+        'unlimited' => '',
+        'ascending' => '',
+        'descending' => '',
         'Attributes to be printed' => 'Drukājamie atribūti',
         'Sort sequence' => 'kārtošanas secība',
         'State Historic' => '',
         'State Type Historic' => '',
+        'Until times' => '',
         'Historic Time Range' => '',
+
+        # Perl Module: Kernel/System/Stats/Dynamic/TicketSolutionResponseTime.pm
+        'Solution Average' => '',
+        'Solution Min Time' => '',
+        'Solution Max Time' => '',
+        'Solution Average (affected by escalation configuration)' => '',
+        'Solution Min Time (affected by escalation configuration)' => '',
+        'Solution Max Time (affected by escalation configuration)' => '',
+        'Solution Working Time Average (affected by escalation configuration)' =>
+            '',
+        'Solution Min Working Time (affected by escalation configuration)' =>
+            '',
+        'Solution Max Working Time (affected by escalation configuration)' =>
+            '',
+        'Response Average (affected by escalation configuration)' => '',
+        'Response Min Time (affected by escalation configuration)' => '',
+        'Response Max Time (affected by escalation configuration)' => '',
+        'Response Working Time Average (affected by escalation configuration)' =>
+            '',
+        'Response Min Working Time (affected by escalation configuration)' =>
+            '',
+        'Response Max Working Time (affected by escalation configuration)' =>
+            '',
+        'Number of Tickets (affected by escalation configuration)' => '',
 
         # Perl Module: Kernel/System/Stats/Static/StateAction.pm
         'Days' => 'Dienas',
+
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/Database/OutdatedTables.pm
+        'Outdated Tables' => '',
+        'Outdated tables were found in the database. These can be removed if empty.' =>
+            '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/Database/TablePresence.pm
         'Table Presence' => 'Tabulas klātbūtne',
@@ -3349,6 +3753,9 @@ sub Data {
         'The partition where OTRS is located has no disk space problems.' =>
             'Nodalījums, kurā atrodas OTRS nav diska vietas problēmas.',
 
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/OS/DiskSpacePartitions.pm
+        'Operating System/Disk Partitions Usage' => '',
+
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OS/Distribution.pm
         'Distribution' => 'Izplatīšana',
         'Could not determine distribution.' => '',
@@ -3373,6 +3780,7 @@ sub Data {
         'There should be no more than 200 MB swap space used.' => '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/ConfigSettings.pm
+        'OTRS/Config Settings' => '',
         'Could not determine value.' => 'Nevarēja noteikt vērtību.',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/DaemonRunning.pm
@@ -3381,6 +3789,7 @@ sub Data {
         'Daemon is not running.' => '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/DatabaseRecords.pm
+        'OTRS/Database Records' => '',
         'Tickets' => 'Pieteikumu',
         'Ticket History Entries' => '',
         'Articles' => '',
@@ -3419,16 +3828,29 @@ sub Data {
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/PackageDeployment.pm
         'Package Installation Status' => '',
+        'Some packages have locally modified files.' => '',
         'Some packages are not correctly installed.' => '',
+
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/PackageList.pm
+        'OTRS/Package List' => '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/SystemID.pm
         'Your SystemID setting is invalid, it should only contain digits.' =>
+            '',
+
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/Ticket/DefaultType.pm
+        'Default Ticket Type' => '',
+        'The configured default ticket type is invalid or missing. Please change the setting Ticket::Type::Default and select a valid ticket type.' =>
             '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/Ticket/IndexModule.pm
         'Ticket Index Module' => 'Pieteikumu ndekss modulis',
         'You have more than 60,000 tickets and should use the StaticDB backend. See admin manual (Performance Tuning) for more information.' =>
             '',
+
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/Ticket/InvalidUsersWithLockedTickets.pm
+        'Invalid Users with Locked Tickets' => '',
+        'There are invalid users with locked tickets.' => '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/Ticket/OpenTickets.pm
         'Open Tickets' => 'Atvērtie pieteikumi',
@@ -3447,6 +3869,19 @@ sub Data {
         'Orphaned Records In ticket_index Table' => 'Pazaudētie ieraksti ticket_index tabulā',
         'Table ticket_index contains orphaned records. Please run otrs/bin/otrs.CleanTicketIndex.pl to clean the StaticDB index.' =>
             '',
+
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/OTRS/TimeSettings.pm
+        'OTRS/Time Settings' => '',
+        'Server time zone' => '',
+        'OTRS time zone' => '',
+        'OTRS time zone is not set.' => '',
+        'User default time zone' => '',
+        'User default time zone is not set.' => '',
+        'OTRS time zone setting for calendar' => '',
+        'Calendar time zone is not set.' => '',
+
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/Webserver/Apache/LoadedModules.pm
+        'Webserver/Loaded Apache Modules' => '',
 
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/Webserver/Apache/MPMModel.pm
         'Webserver' => '',
@@ -3471,6 +3906,9 @@ sub Data {
         'Apache2::DBI should be used to get a better performance  with pre-established database connections.' =>
             '',
 
+        # Perl Module: Kernel/System/SupportDataCollector/Plugin/Webserver/EnvironmentVariables.pm
+        'Webserver/Environment Variables' => '',
+
         # Perl Module: Kernel/System/SupportDataCollector/Plugin/Webserver/IIS/Performance.pm
         'You should use PerlEx to increase your performance.' => '',
 
@@ -3483,37 +3921,96 @@ sub Data {
         'OK' => 'Labi',
         'Problem' => 'Problēma',
 
-        # Perl Module: Kernel/System/Web/InterfaceCustomer.pm
-        'Reset password unsuccessful. Please contact your administrator' =>
+        # Perl Module: Kernel/System/Ticket.pm
+        'Reset of unlock time.' => '',
+
+        # Perl Module: Kernel/System/Ticket/Event/NotificationEvent/Transport/Email.pm
+        'PGP sign only' => '',
+        'PGP encrypt only' => '',
+        'PGP sign and encrypt' => '',
+        'SMIME sign only' => '',
+        'SMIME encrypt only' => '',
+        'SMIME sign and encrypt' => '',
+        'PGP and SMIME not enabled.' => '',
+        'Skip notification delivery' => '',
+        'Send unsigned notification' => '',
+        'Send unencrypted notification' => '',
+
+        # Perl Module: Kernel/System/Web/InterfaceAgent.pm
+        'Login failed! Your user name or password was entered incorrectly.' =>
+            'Pieteikšanās neizdevās! Jūsu lietotājvārds vai parole ir ievadīta nepareizi.',
+        'Panic, user authenticated but no user data can be found in OTRS DB!! Perhaps the user is invalid.' =>
             '',
+        'Can`t remove SessionID.' => '',
+        'Logout successful.' => '',
+        'Feature not active!' => 'Papildiespēja nav aktivizēta!',
+        'Sent password reset instructions. Please check your email.' => '',
+        'Invalid Token!' => 'Nederīga piekļuves pilnvara!',
+        'Sent new password to %s. Please check your email.' => 'Nosūtīta jauna paroli uz %s. Lūdzu, pārbaudiet savu e-pastu.',
         'Panic! Invalid Session!!!' => '',
+        'No Permission to use this frontend module!' => '',
+
+        # Perl Module: Kernel/System/Web/InterfaceCustomer.pm
+        'Authentication succeeded, but no customer record is found in the customer backend. Please contact the administrator.' =>
+            '',
+        'Reset password unsuccessful. Please contact the administrator.' =>
+            '',
+        'This e-mail address already exists. Please log in or reset your password.' =>
+            '',
+        'This email address is not allowed to register. Please contact support staff.' =>
+            'Šo e-pasta adresi nav atļauts reģistrēt. Lūdzu, sazinieties ar atbalsta personālu.',
+        'Added via Customer Panel (%s)' => '',
+        'Customer user can\'t be added!' => '',
+        'Can\'t send account info!' => '',
+        'New account created. Sent login information to %s. Please check your email.' =>
+            'Jauns konts izveidots. Nosūtīta pieteikšanās informācija uz %s. Lūdzu, pārbaudiet savu e-pastu.',
+
+        # Perl Module: Kernel/System/Web/InterfaceInstaller.pm
+        'SecureMode active!' => '',
+        'If you want to re-run the Installer, disable the SecureMode in the SysConfig.' =>
+            '',
+        'Action "%s" not found!' => '',
 
         # Database XML Definition: scripts/database/otrs-initial_insert.xml
+        'invalid-temporarily' => 'īslaicīgi nederīgs',
         'Group for default access.' => '',
         'Group of all administrators.' => '',
         'Group for statistics access.' => '',
+        'new' => 'jauna',
         'All new state types (default: viewable).' => '',
+        'open' => 'atvērta',
         'All open state types (default: viewable).' => '',
+        'closed' => 'aizvērta',
         'All closed state types (default: not viewable).' => '',
+        'pending reminder' => 'neizlemts - gaida atgādinājumu',
         'All \'pending reminder\' state types (default: viewable).' => '',
+        'pending auto' => 'gaida automātisku darbību',
         'All \'pending auto *\' state types (default: viewable).' => '',
+        'removed' => 'aizvākta',
         'All \'removed\' state types (default: not viewable).' => '',
+        'merged' => 'apvienotie',
         'State type for merged tickets (default: not viewable).' => '',
         'New ticket created by customer.' => '',
+        'closed successful' => 'aizvērta, atrisināta',
         'Ticket is closed successful.' => '',
+        'closed unsuccessful' => 'aizvērta, neatrisināta',
         'Ticket is closed unsuccessful.' => '',
         'Open tickets.' => '',
         'Customer removed ticket.' => '',
         'Ticket is pending for agent reminder.' => '',
+        'pending auto close+' => 'gaida automātisku aizvēršanu+',
         'Ticket is pending for automatic close.' => '',
+        'pending auto close-' => 'gaida automātisku aizvēršanu-',
         'State for merged tickets.' => '',
         'system standard salutation (en)' => '',
         'Standard Salutation.' => '',
         'system standard signature (en)' => '',
         'Standard Signature.' => '',
         'Standard Address.' => '',
+        'possible' => 'iespējams',
         'Follow-ups for closed tickets are possible. Ticket will be reopened.' =>
             '',
+        'reject' => 'nepieņemt',
         'Follow-ups for closed tickets are not possible. No new ticket will be created.' =>
             '',
         'new ticket' => '',
@@ -3523,14 +4020,19 @@ sub Data {
         'All default incoming tickets.' => '',
         'All junk tickets.' => '',
         'All misc tickets.' => '',
+        'auto reply' => 'automātiska atbilde',
         'Automatic reply which will be sent out after a new ticket has been created.' =>
             '',
+        'auto reject' => 'automātisks noraidījums',
         'Automatic reject which will be sent out after a follow-up has been rejected (in case queue follow-up option is "reject").' =>
             '',
+        'auto follow up' => 'automātisks sekojums',
         'Automatic confirmation which is sent out after a follow-up has been received for a ticket (in case queue follow-up option is "possible").' =>
             '',
+        'auto reply/new ticket' => 'automātiska atbilde/jauns pieteikums',
         'Automatic response which will be sent out after a follow-up has been rejected and a new ticket has been created (in case queue follow-up option is "new ticket").' =>
             '',
+        'auto remove' => 'automātiska noņemšana',
         'Auto remove will be sent out after a customer removed the request.' =>
             '',
         'default reply (after new ticket has been created)' => '',
@@ -3540,10 +4042,283 @@ sub Data {
         'default reject/new ticket created (after closed follow-up with new ticket creation)' =>
             '',
         'Unclassified' => '',
+        '1 very low' => '1 ļoti zema',
+        '2 low' => '2 zema',
+        '3 normal' => '3 normāla',
+        '4 high' => '4 augsta',
+        '5 very high' => '5 ļoti augsta',
+        'unlock' => 'atslēgt',
+        'lock' => 'aizslēgt',
         'tmp_lock' => '',
+        'email-external' => 'ārējs e-pasts',
+        'email-internal' => 'iekšējs e-pasts',
         'email-notification-ext' => '',
         'email-notification-int' => '',
-        'fax' => '',
+        'agent' => 'atbildīgais',
+        'system' => 'sistēma',
+        'customer' => 'Klients',
+        'Ticket create notification' => '',
+        'You will receive a notification each time a new ticket is created in one of your "My Queues" or "My Services".' =>
+            '',
+        'Ticket follow-up notification (unlocked)' => '',
+        'You will receive a notification if a customer sends a follow-up to an unlocked ticket which is in your "My Queues" or "My Services".' =>
+            '',
+        'Ticket follow-up notification (locked)' => '',
+        'You will receive a notification if a customer sends a follow-up to a locked ticket of which you are the ticket owner or responsible.' =>
+            '',
+        'Ticket lock timeout notification' => 'Pieteikuma bloķēšanas noilguma paziņojums',
+        'You will receive a notification as soon as a ticket owned by you is automatically unlocked.' =>
+            '',
+        'Ticket owner update notification' => '',
+        'Ticket responsible update notification' => '',
+        'Ticket new note notification' => '',
+        'Ticket queue update notification' => '',
+        'You will receive a notification if a ticket is moved into one of your "My Queues".' =>
+            '',
+        'Ticket pending reminder notification (locked)' => '',
+        'Ticket pending reminder notification (unlocked)' => '',
+        'Ticket escalation notification' => '',
+        'Ticket escalation warning notification' => '',
+        'Ticket service update notification' => '',
+        'You will receive a notification if a ticket\'s service is changed to one of your "My Services".' =>
+            '',
+
+        # JS File: Core.AJAX
+        'Error during AJAX communication. Status: %s, Error: %s' => '',
+
+        # JS File: Core.Agent.Admin.ACL
+        'Add all' => 'Pievienot visus',
+        'An item with this name is already present.' => 'Vienība ar šādu nosaukumu jau pastāv.',
+        'This item still contains sub items. Are you sure you want to remove this item including its sub items?' =>
+            'Šī vienība satur apakšvienības. Vai tiešām vēlaties dzēst šo vienību, ieskaitot tās apakšvienības?',
+
+        # JS File: Core.Agent.Admin.Attachment
+        'Do you really want to delete this attachment?' => '',
+
+        # JS File: Core.Agent.Admin.DynamicField
+        'Do you really want to delete this dynamic field? ALL associated data will be LOST!' =>
+            '',
+        'Delete field' => 'Dzēst lauku',
+        'Deleting the field and its data. This may take a while...' => '',
+
+        # JS File: Core.Agent.Admin.GenericAgent
+        'Remove selection' => 'Noņemt atlasi',
+        'Delete this Event Trigger' => '',
+        'Duplicate event.' => 'Dublēt notikumu',
+        'This event is already attached to the job, Please use a different one.' =>
+            '',
+
+        # JS File: Core.Agent.Admin.GenericInterfaceDebugger
+        'An error occurred during communication.' => '',
+        'Show or hide the content.' => '',
+        'Clear debug log' => '',
+
+        # JS File: Core.Agent.Admin.GenericInterfaceInvoker
+        'Delete this Invoker' => '',
+
+        # JS File: Core.Agent.Admin.GenericInterfaceOperation
+        'Delete this Operation' => '',
+
+        # JS File: Core.Agent.Admin.GenericInterfaceWebservice
+        'Delete webservice' => '',
+        'Clone webservice' => '',
+        'Import webservice' => '',
+        'Delete operation' => '',
+        'Delete invoker' => '',
+
+        # JS File: Core.Agent.Admin.Group
+        'WARNING: When you change the name of the group \'admin\', before making the appropriate changes in the SysConfig, you will be locked out of the administrations panel! If this happens, please rename the group back to admin per SQL statement.' =>
+            'BRĪDINĀJUMS! Ja pirms grupas \'admin\' pārdēvēšanas citā vārdā netiks izdarītas izmaiņas sistēmas konfigurācijā, nebūs iespējams pieteikties administrēšanas sadaļā! Ja tā ir gadījies, pārdēvējiet grupu atpakaļ par admin ar SQL teikuma palidzību.',
+        'Confirm' => '',
+
+        # JS File: Core.Agent.Admin.NotificationEvent
+        'Do you really want to delete this notification language?' => '',
+        'Do you really want to delete this notification?' => '',
+
+        # JS File: Core.Agent.Admin.PostMasterFilter
+        'Do you really want to delete this filter?' => '',
+
+        # JS File: Core.Agent.Admin.ProcessManagement.Canvas
+        'Remove Entity from canvas' => '',
+        'No TransitionActions assigned.' => '',
+        'No dialogs assigned yet. Just pick an activity dialog from the list on the left and drag it here.' =>
+            '',
+        'This Activity cannot be deleted because it is the Start Activity.' =>
+            '',
+        'Remove the Transition from this Process' => '',
+
+        # JS File: Core.Agent.Admin.ProcessManagement
+        'As soon as you use this button or link, you will leave this screen and its current state will be saved automatically. Do you want to continue?' =>
+            '',
+        'Delete Entity' => '',
+        'This Activity is already used in the Process. You cannot add it twice!' =>
+            '',
+        'Error during AJAX communication' => '',
+        'An unconnected transition is already placed on the canvas. Please connect this transition first before placing another transition.' =>
+            '',
+        'This Transition is already used for this Activity. You cannot use it twice!' =>
+            '',
+        'This TransitionAction is already used in this Path. You cannot use it twice!' =>
+            '',
+        'Hide EntityIDs' => '',
+        'Edit Field Details' => '',
+        'Customer interface does not support internal article types.' => '',
+        'Sorry, the only existing condition can\'t be removed.' => '',
+        'Sorry, the only existing field can\'t be removed.' => '',
+        'Sorry, the only existing parameter can\'t be removed.' => '',
+
+        # JS File: Core.Agent.Admin.SMIME
+        'Do you really want to delete this certificate?' => '',
+
+        # JS File: Core.Agent.Admin.SysConfig
+        'Show more' => '',
+
+        # JS File: Core.Agent.Admin.SystemMaintenance
+        'Do you really want to delete this scheduled system maintenance?' =>
+            '',
+
+        # JS File: Core.Agent.CustomerInformationCenterSearch
+        'Loading...' => 'Ielāde...',
+
+        # JS File: Core.Agent.CustomerSearch
+        'Duplicated entry' => '',
+        'It is going to be deleted from the field, please try again.' => '',
+
+        # JS File: Core.Agent.Daemon
+        'Information about the OTRS Daemon' => '',
+
+        # JS File: Core.Agent.Dashboard
+        'Please check the fields marked as red for valid inputs.' => '',
+        'All-day' => '',
+        'Jan' => 'Jan',
+        'Feb' => 'Feb',
+        'Mar' => 'Mar',
+        'Apr' => 'Apr',
+        'May' => 'Mai',
+        'Jun' => 'Jūn',
+        'Jul' => 'Jūl',
+        'Aug' => 'Aug',
+        'Sep' => 'Sep',
+        'Oct' => 'Okt',
+        'Nov' => 'Nov',
+        'Dec' => 'Dec',
+        'January' => 'Janvāris',
+        'February' => 'Februāris',
+        'March' => 'Marts',
+        'April' => 'Aprīlis',
+        'May_long' => 'Maijs',
+        'June' => 'Jūnijs',
+        'July' => 'Jūlijs',
+        'August' => 'Augusts',
+        'September' => 'Septembris',
+        'October' => 'Oktobris',
+        'November' => 'Novembris',
+        'December' => 'Decembris',
+        'Sunday' => '',
+        'Monday' => '',
+        'Tuesday' => '',
+        'Wednesday' => '',
+        'Thursday' => '',
+        'Friday' => '',
+        'Saturday' => '',
+        'Su' => '',
+        'Mo' => '',
+        'Tu' => 'Mar',
+        'We' => 'ieslēgts',
+        'Th' => 'līdz',
+        'Fr' => '',
+        'Sa' => '',
+        'month' => 'mēnesis',
+
+        # JS File: Core.Agent.LinkObject.SearchForm
+        'Please enter at least one search value or * to find anything.' =>
+            '',
+
+        # JS File: Core.Agent.Login
+        'Are you using a browser plugin like AdBlock or AdBlockPlus? This can cause several issues and we highly recommend you to add an exception for this domain.' =>
+            '',
+        'Do not show this warning again.' => '',
+
+        # JS File: Core.Agent.Preferences
+        'Sorry, but you can\'t disable all methods for notifications marked as mandatory.' =>
+            '',
+        'Sorry, but you can\'t disable all methods for this notification.' =>
+            '',
+
+        # JS File: Core.Agent.Responsive
+        'Switch to desktop mode' => '',
+
+        # JS File: Core.Agent.Search
+        'Please remove the following words from your search as they cannot be searched for:' =>
+            '',
+
+        # JS File: Core.Agent.Statistics
+        'Do you really want to delete this statistic?' => '',
+
+        # JS File: Core.Agent.TicketAction
+        'Please perform a spell check on the the text first.' => '',
+        'Close this dialog' => '',
+        'Do you really want to continue?' => '',
+
+        # JS File: Core.Agent
+        'Slide the navigation bar' => '',
+        'Please turn off Compatibility Mode in Internet Explorer!' => '',
+
+        # JS File: Core.App.Responsive
+        'Switch to mobile mode' => '',
+
+        # JS File: Core.Customer
+        'You have unanswered chat requests' => '',
+
+        # JS File: Core.Debug
+        'Namespace %s could not be initialized, because %s could not be found.' =>
+            '',
+
+        # JS File: Core.Exception
+        'An error occurred! Do you want to see the complete error message?' =>
+            '',
+
+        # JS File: Core.Form.Validate
+        'One or more errors occurred!' => '',
+
+        # JS File: Core.Installer
+        'Mail check successful.' => '',
+        'Error in the mail settings. Please correct and try again.' => '',
+
+        # JS File: Core.UI.Datepicker
+        'Previous' => '',
+        'Sun' => 'Sv',
+        'Mon' => 'Pi',
+        'Tue' => 'Ot',
+        'Wed' => 'Tr',
+        'Thu' => 'Ce',
+        'Fri' => 'Pk',
+        'Sat' => 'Se',
+        'Open date selection' => '',
+        'Invalid date (need a future date)!' => '',
+        'Invalid date (need a past date)!' => '',
+        'Invalid date!' => 'Nederīgs datums!',
+
+        # JS File: Core.UI.Dialog
+        'Close' => 'Aizvērt',
+
+        # JS File: Core.UI.InputFields
+        'Not available' => '',
+        'and %s more...' => '',
+        'Clear all' => '',
+        'Filters' => '',
+        'Clear search' => '',
+
+        # JS File: Core.UI.Popup
+        'If you now leave this page, all open popup windows will be closed, too!' =>
+            '',
+        'A popup of this screen is already open. Do you want to close it and load this one instead?' =>
+            '',
+        'Could not open popup window. Please disable any popup blockers for this application.' =>
+            '',
+
+        # JS File: Core.UI.TreeSelection
+        'There are currently no elements available to select from.' => '',
 
         # SysConfig
         '
@@ -3559,11 +4334,24 @@ Thanks for your help!
  Your Helpdesk Team
 ' => '',
         ' (work units)' => '',
+        ' 2 minutes' => ' 2 minūtes',
+        ' 5 minutes' => ' 5 minūtes',
+        ' 7 minutes' => ' 7 minūtes',
         '"%s" notification was sent to "%s" by "%s".' => '',
+        '"Slim" skin which tries to save screen space for power users.' =>
+            '',
         '%s' => '%s',
         '%s time unit(s) accounted. Now total %s time unit(s).' => 'Uzskaitītas %s laika vienība(s). Tagad kopējais laiks ir %s laika vienība(s).',
         '(UserLogin) Firstname Lastname' => '',
+        '(UserLogin) Lastname Firstname' => '',
         '(UserLogin) Lastname, Firstname' => '',
+        '*** out of office until %s (%s d left) ***' => '',
+        '10 minutes' => '10 minūtes',
+        '100 (Expert)' => '',
+        '15 minutes' => '15 minūtes',
+        '200 (Advanced)' => '',
+        '300 (Beginner)' => '',
+        'A TicketWatcher Module.' => '',
         'A Website' => '',
         'A list of dynamic fields that are merged into the main ticket during a merge operation. Only dynamic fields that are empty in the main ticket will be set.' =>
             '',
@@ -3588,12 +4376,14 @@ Thanks for your help!
             '',
         'Activates time accounting.' => '',
         'ActivityID' => '',
+        'Add a note to this ticket' => 'Pievienot piezīmi šim pieteikumam',
         'Add an inbound phone call to this ticket' => '',
         'Add an outbound phone call to this ticket' => '',
         'Added email. %s' => 'E-pasts pievienots. %s',
         'Added link to ticket "%s".' => 'Pievienota saite uz problēmas ziņojumu "%s".',
         'Added note (%s)' => 'Pievienota piezīme (%s)',
         'Added subscription for user "%s".' => 'Pievienota sekošana lietotājam "%s".',
+        'Address book of CustomerUser sources.' => '',
         'Adds a suffix with the actual year and month to the OTRS log file. A logfile for every month will be created.' =>
             '',
         'Adds customers email addresses to recipients in the ticket compose screen of the agent interface. The customers email address won\'t be added if the article type is email-internal.' =>
@@ -3606,29 +4396,50 @@ Thanks for your help!
             '',
         'Adds the permanent vacation days. Please use single digit pattern for numbers from 1 to 9 (instead of 01 - 09).' =>
             '',
+        'Admin Area.' => '',
         'After' => '',
+        'Agent Customer Search' => '',
+        'Agent Customer Search.' => '',
+        'Agent Name' => '',
+        'Agent Name + FromSeparator + System Address Display Name' => '',
+        'Agent Preferences.' => '',
+        'Agent User Search' => '',
+        'Agent User Search.' => '',
         'Agent called customer.' => 'Darbinieka zvans klientam.',
         'Agent interface article notification module to check PGP.' => '',
         'Agent interface article notification module to check S/MIME.' =>
             '',
-        'Agent interface module to access CIC search via nav bar.' => '',
-        'Agent interface module to access fulltext search via nav bar.' =>
+        'Agent interface module to access CIC search via nav bar. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
-        'Agent interface module to access search profiles via nav bar.' =>
+        'Agent interface module to access fulltext search via nav bar. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
+            '',
+        'Agent interface module to access search profiles via nav bar. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
         'Agent interface module to check incoming emails in the Ticket-Zoom-View if the S/MIME-key is available and true.' =>
             '',
-        'Agent interface notification module to see the number of locked tickets.' =>
+        'Agent interface notification module to see the number of locked tickets. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
-        'Agent interface notification module to see the number of tickets an agent is responsible for.' =>
+        'Agent interface notification module to see the number of tickets an agent is responsible for. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
-        'Agent interface notification module to see the number of tickets in My Services.' =>
+        'Agent interface notification module to see the number of tickets in My Services. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
-        'Agent interface notification module to see the number of watched tickets.' =>
+        'Agent interface notification module to see the number of watched tickets. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
-        'Agents <-> Groups' => '',
-        'Agents <-> Roles' => '',
+        'AgentTicketZoom widget that displays a table of objects linked to the ticket.' =>
+            '',
+        'AgentTicketZoom widget that displays customer information for the ticket in the side bar.' =>
+            '',
+        'AgentTicketZoom widget that displays ticket data in the side bar.' =>
+            '',
+        'Agents ↔ Groups' => '',
+        'Agents ↔ Roles' => '',
         'All customer users of a CustomerID' => '',
+        'All escalated tickets' => 'Visi eskalētie pieteikumi',
+        'All new tickets, these tickets have not been worked on yet' => '',
+        'All open tickets, these tickets have already been worked on, but need a response' =>
+            '',
+        'All tickets with a reminder set where the reminder date has been reached' =>
+            '',
         'Allows adding notes in the close ticket screen of the agent interface. Can be overwritten by Ticket::Frontend::NeedAccountedTime.' =>
             '',
         'Allows adding notes in the ticket free text screen of the agent interface. Can be overwritten by Ticket::Frontend::NeedAccountedTime.' =>
@@ -3670,7 +4481,9 @@ Thanks for your help!
             '',
         'Allows extended search conditions in ticket search of the agent interface. With this feature you can search e. g. with this kind of conditions like "(key1&&key2)" or "(key1||key2)".' =>
             '',
-        'Allows extended search conditions in ticket search of the customer interface. With this feature you can search w. g. with this kind of conditions like "(key1&&key2)" or "(key1||key2)".' =>
+        'Allows extended search conditions in ticket search of the customer interface. With this feature you can search e. g. with this kind of conditions like "(key1&&key2)" or "(key1||key2)".' =>
+            '',
+        'Allows extended search conditions in ticket search of the generic agent interface. With this feature you can search e. g. ticket title with this kind of conditions like "(*key1*&&*key2*)" or "(*key1*||*key2*)".' =>
             '',
         'Allows having a medium format ticket overview (CustomerInfo => 1 - shows also the customer information).' =>
             '',
@@ -3683,25 +4496,31 @@ Thanks for your help!
             '',
         'Allows to set a new ticket state in the move ticket screen of the agent interface.' =>
             '',
+        'Always show RichText if available' => '',
+        'Answer' => 'Atbilde',
+        'Arabic (Saudi Arabia)' => '',
         'Archive state changed: "%s"' => '',
         'ArticleTree' => '',
-        'Attachments <-> Templates' => '',
-        'Auto Responses <-> Queues' => '',
+        'Attachments ↔ Templates' => '',
+        'Auto Responses ↔ Queues' => '',
         'AutoFollowUp sent to "%s".' => 'Uz "%s" nosūtīta automātiska sekošanas atbilde.',
         'AutoReject sent to "%s".' => 'Uz "%s" nosūtīts automātisks problēmas pieteikuma noraidījums.',
         'AutoReply sent to "%s".' => 'Uz "%s" nosūtīta automātiska atbilde.',
         'Automated line break in text messages after x number of chars.' =>
             '',
+        'Automatically change the state of a ticket with an invalid owner once it is unlocked. Maps from a state type to a new ticket state.' =>
+            '',
         'Automatically lock and set owner to current Agent after opening the move ticket screen of the agent interface.' =>
             '',
         'Automatically lock and set owner to current Agent after selecting for an Bulk Action.' =>
             '',
-        'Automatically sets the owner of a ticket as the responsible for it (if ticket responsible feature is enabled).' =>
+        'Automatically sets the owner of a ticket as the responsible for it (if ticket responsible feature is enabled). This will only work by manually actions of the logged in user. It does not work for automated actions e.g. GenericAgent, Postmaster and GenericInterface.' =>
             '',
         'Automatically sets the responsible of a ticket (if it is not set yet) after the first owner update.' =>
             '',
         'Balanced white skin by Felix Niklas (slim version).' => '',
         'Balanced white skin by Felix Niklas.' => '',
+        'Based on global RichText setting' => '',
         'Basic fulltext index settings. Execute "bin/otrs.Console.pl Maint::Ticket::FulltextIndexRebuild" in order to generate a new index.' =>
             '',
         'Blocks all the incoming emails that do not have a valid ticket number in subject with From: @example.com address.' =>
@@ -3709,8 +4528,11 @@ Thanks for your help!
         'Bounced to "%s".' => 'Ziņojums pārcelts pie "%s".',
         'Builds an article index right after the article\'s creation.' =>
             '',
+        'Bulgarian' => '',
+        'Bulk Action' => '',
         'CMD example setup. Ignores emails where external CMD returns some output on STDOUT (email will be piped into STDIN of some.bin).' =>
             '',
+        'CSV Separator' => 'CSV atdalītājs',
         'Cache time in seconds for agent authentication in the GenericInterface.' =>
             '',
         'Cache time in seconds for customer authentication in the GenericInterface.' =>
@@ -3721,10 +4543,12 @@ Thanks for your help!
         'Cache time in seconds for the ticket process navigation bar output module.' =>
             '',
         'Cache time in seconds for the web service config backend.' => '',
+        'Catalan' => '',
         'Change password' => '',
         'Change queue!' => '',
         'Change the customer for this ticket' => '',
         'Change the free fields for this ticket' => '',
+        'Change the owner for this ticket' => 'Mainīt īpašnieku šim pieteikumam',
         'Change the priority for this ticket' => '',
         'Change the responsible for this ticket' => '',
         'Changed priority from "%s" (%s) to "%s" (%s).' => 'Prioritāte mainīta no "%s" (%s) uz "%s" (%s).',
@@ -3738,8 +4562,13 @@ Thanks for your help!
         'Checks the availability of OTRS Business Solution™ for this system.' =>
             '',
         'Checks the entitlement status of OTRS Business Solution™.' => '',
+        'Child' => 'Nākamais',
+        'Chinese (Simplified)' => '',
+        'Chinese (Traditional)' => '',
         'Choose for which kind of ticket changes you want to receive notifications.' =>
             '',
+        'Christmas Eve' => 'Ziemassvētku vakars',
+        'Close this ticket' => 'Aizvērt šo pieteikumu',
         'Closed tickets (customer user)' => '',
         'Closed tickets (customer)' => '',
         'Cloud Services' => '',
@@ -3767,9 +4596,12 @@ Thanks for your help!
         'Comment2' => '',
         'Communication' => '',
         'Company Status' => '',
-        'Company Tickets' => '',
+        'Company Tickets.' => '',
         'Company name which will be included in outgoing emails as an X-Header.' =>
             '',
+        'Compat module for AgentZoom to AgentTicketZoom.' => '',
+        'Complex' => '',
+        'Compose' => 'Izveidot',
         'Configure Processes.' => '',
         'Configure and manage ACLs.' => '',
         'Configure any additional readonly mirror databases that you want to use.' =>
@@ -3783,6 +4615,7 @@ Thanks for your help!
             '',
         'Controls how to display the ticket history entries as readable values.' =>
             '',
+        'Controls if CutomerID is editable in the agent interface.' => '',
         'Controls if customers have the ability to sort their tickets.' =>
             '',
         'Controls if more than one from entry can be set in the new phone ticket in the agent interface.' =>
@@ -3794,7 +4627,7 @@ Thanks for your help!
         'Controls if the ticket and article seen flags are removed when a ticket is archived.' =>
             '',
         'Converts HTML mails into text messages.' => '',
-        'Create New process ticket' => '',
+        'Create New process ticket.' => '',
         'Create and manage Service Level Agreements (SLAs).' => '',
         'Create and manage agents.' => '',
         'Create and manage attachments.' => '',
@@ -3814,33 +4647,52 @@ Thanks for your help!
         'Create and manage ticket states.' => '',
         'Create and manage ticket types.' => '',
         'Create and manage web services.' => '',
-        'Create new email ticket and send this out (outbound)' => '',
-        'Create new phone ticket (inbound)' => '',
-        'Create new process ticket' => '',
+        'Create new Ticket.' => '',
+        'Create new email ticket and send this out (outbound).' => '',
+        'Create new email ticket.' => '',
+        'Create new phone ticket (inbound).' => '',
+        'Create new phone ticket.' => '',
+        'Create new process ticket.' => '',
+        'Create tickets.' => '',
+        'Croatian' => '',
         'Custom RSS Feed' => '',
         'Custom text for the page shown to customers that have no tickets yet (if you need those text translated add them to a custom translation module).' =>
             '',
         'Customer Administration' => '',
-        'Customer User <-> Groups' => '',
-        'Customer User <-> Services' => '',
+        'Customer Companies' => 'Klienta uzņēmumi',
+        'Customer Information Center Search.' => '',
+        'Customer Information Center.' => '',
+        'Customer Ticket Print Module.' => '',
         'Customer User Administration' => '',
+        'Customer User ↔ Groups' => '',
+        'Customer User ↔ Services' => '',
         'Customer Users' => 'Klienti',
         'Customer called us.' => 'Klienta zvans mums.',
         'Customer item (icon) which shows the closed tickets of this customer as info block. Setting CustomerUserLogin to 1 searches for tickets based on login name rather than CustomerID.' =>
             '',
         'Customer item (icon) which shows the open tickets of this customer as info block. Setting CustomerUserLogin to 1 searches for tickets based on login name rather than CustomerID.' =>
             '',
+        'Customer preferences.' => '',
         'Customer request via web.' => 'Klienta pieprasījums no pārlūkprogrammas.',
+        'Customer ticket overview' => '',
+        'Customer ticket search.' => '',
+        'Customer ticket zoom' => '',
         'Customer user search' => '',
         'CustomerID search' => '',
         'CustomerName' => '',
-        'Customers <-> Groups' => '',
+        'CustomerUser' => '',
+        'Customers ↔ Groups' => '',
         'Customizable stop words for fulltext index. These words will be removed from the search index.' =>
             '',
+        'Czech' => '',
+        'Danish' => '',
         'Data used to export the search result in CSV format.' => '',
         'Date / Time' => '',
+        'Debug' => '',
         'Debugs the translation set. If this is set to "Yes" all strings (text) without translations are written to STDERR. This can be helpful when you are creating a new translation file. Otherwise, this option should remain set to "No".' =>
             '',
+        'Default' => '',
+        'Default (Slim)' => '',
         'Default ACL values for ticket actions.' => '',
         'Default ProcessManagement entity prefixes for entity IDs that are automatically generated.' =>
             '',
@@ -3857,11 +4709,14 @@ Thanks for your help!
         'Default skin for the agent interface (slim version).' => '',
         'Default skin for the agent interface.' => '',
         'Default skin for the customer interface.' => '',
+        'Default spelling dictionary' => 'Pareizrakstības vārdnīca pēc noklusējuma',
         'Default ticket ID used by the system in the agent interface.' =>
             '',
         'Default ticket ID used by the system in the customer interface.' =>
             '',
         'Default value for NameX' => '',
+        'Define Actions where a settings button is available in the linked objects widget (LinkObject::ViewMode = "complex"). Please note that these Actions must have registered the following JS and CSS files: Core.AllocationList.css, Core.UI.AllocationList.js, Core.UI.Table.Sort.js, Core.Agent.TableFilters.js.' =>
+            '',
         'Define a filter for html output to add links behind a defined string. The element Image allows two input kinds. At once the name of an image (e.g. faq.png). In this case the OTRS image path will be used. The second possiblity is to insert the link to the image.' =>
             '',
         'Define a mapping between variables of the customer user data (keys) and dynamic fields of a ticket (values). The purpose is to store customer user data in ticket dynamic fields. The dynamic fields must be present in the system and should be enabled for AgentTicketFreeText, so that they can be set/updated manually by the agent. They mustn\'t be enabled for AgentTicketPhone, AgentTicketEmail and AgentTicketCustomer. If they were, they would have precedence over the automatically set values. To use this mapping, you have to also activate the next setting below.' =>
@@ -3877,6 +4732,8 @@ Thanks for your help!
         'Define the start day of the week for the date picker for the indicated calendar.' =>
             '',
         'Define the start day of the week for the date picker.' => '',
+        'Define which columns are shown in the linked tickets widget (LinkObject::ViewMode = "complex"). Note: Only Ticket attributes and Dynamic Fields (DynamicField_NameX) are allowed for DefaultColumns. Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default.' =>
+            '',
         'Defines a customer item, which generates a LinkedIn icon at the end of a customer info block.' =>
             '',
         'Defines a customer item, which generates a XING icon at the end of a customer info block.' =>
@@ -3895,6 +4752,8 @@ Thanks for your help!
             '',
         'Defines a filter for html output to add links behind bugtraq numbers. The element Image allows two input kinds. At once the name of an image (e.g. faq.png). In this case the OTRS image path will be used. The second possiblity is to insert the link to the image.' =>
             '',
+        'Defines a filter to collect CVE numbers from article texts in AgentTicketZoom. The results will be displayed in a meta box next to the article. Fill in URLPreview if you would like to see a preview when moving your mouse cursor above the link element. This could be the same URL as in URL, but also an alternate one. Please note that some websites deny being displayed within an iframe (e.g. Google) and thus won\'t work with the preview mode.' =>
+            '',
         'Defines a filter to process the text in the articles, in order to highlight predefined keywords.' =>
             '',
         'Defines a regular expression that excludes some addresses from the syntax check (if "CheckEmailAddresses" is set to "Yes"). Please enter a regex in this field for email addresses, that aren\'t syntactically valid, but are necessary for the system (i.e. "root@localhost").' =>
@@ -3906,13 +4765,17 @@ Thanks for your help!
         'Defines a useful module to load specific user options or to display news.' =>
             '',
         'Defines all the X-headers that should be scanned.' => '',
-        'Defines all the languages that are available to the application. The Key/Content pair links the front-end display name to the appropriate language PM file. The "Key" value should be the base-name of the PM file (i.e. de.pm is the file, then de is the "Key" value). The "Content" value should be the display name for the front-end. Specify any own-defined language here (see the developer documentation http://otrs.github.io/doc/ for more infomation). Please remember to use the HTML equivalents for non-ASCII characters (i.e. for the German oe = o umlaut, it is necessary to use the &ouml; symbol).' =>
+        'Defines all the languages that are available to the application. Specify only English names of languages here.' =>
+            '',
+        'Defines all the languages that are available to the application. Specify only native names of languages here.' =>
             '',
         'Defines all the parameters for the RefreshTime object in the customer preferences of the customer interface.' =>
             '',
         'Defines all the parameters for the ShownTickets object in the customer preferences of the customer interface.' =>
             '',
         'Defines all the parameters for this item in the customer preferences.' =>
+            '',
+        'Defines all the parameters for this item in the customer preferences. \'PasswordRegExp\' allows to match passwords against a regular expression. Define the minimum number of characters using \'PasswordMinSize\'. Define if at least 2 lowercase and 2 uppercase letter characters are needed by setting the appropriate option to \'1\'. \'PasswordMin2Characters\' defines if the password needs to contain at least 2 letter characters (set to 0 or 1). \'PasswordNeedDigit\' controls the need of at least 1 digit (set to 0 or 1 to control).' =>
             '',
         'Defines all the parameters for this notification transport.' => '',
         'Defines all the possible stats output formats.' => '',
@@ -3922,6 +4785,7 @@ Thanks for your help!
         'Defines an alternate logout URL for the customer panel.' => '',
         'Defines an external link to the database of the customer (e.g. \'http://yourhost/customer.php?CID=[% Data.CustomerID %]\' or \'\').' =>
             '',
+        'Defines default headers for outgoing emails.' => '',
         'Defines from which ticket attributes the agent can select the result order.' =>
             '',
         'Defines how the From field from the emails (sent from answers and email tickets) should look like.' =>
@@ -3968,13 +4832,15 @@ Thanks for your help!
             '',
         'Defines if the enhanced mode should be used (enables use of table, replace, subscript, superscript, paste from word, etc.).' =>
             '',
-        'Defines if the list for filters should be retrieve just from current tickets in system. Just for clarification, Customers list will always came from system\'s tickets.' =>
-            '',
         'Defines if the previously valid token should be accepted for authentication. This is slightly less secure but gives users 30 seconds more time to enter their one-time password.' =>
+            '',
+        'Defines if the values for filters should be retrieved from all available tickets. If set to "Yes", only values which are actually used in any ticket will be available for filtering. Please note: The list of customers will always be retrieved like this.' =>
             '',
         'Defines if time accounting is mandatory in the agent interface. If activated, a note must be entered for all ticket actions (no matter if the note itself is configured as active or is originally mandatory for the individual ticket action screen).' =>
             '',
         'Defines if time accounting must be set to all tickets in bulk action.' =>
+            '',
+        'Defines out of office message template. Two string parameters (%s) available: end date and number of days left.' =>
             '',
         'Defines queues that\'s tickets are used for displaying as calendar events.' =>
             '',
@@ -4007,6 +4873,8 @@ Thanks for your help!
             '',
         'Defines the config options for the autocompletion feature.' => '',
         'Defines the config parameters of this item, to be shown in the preferences view.' =>
+            '',
+        'Defines the config parameters of this item, to be shown in the preferences view. \'PasswordRegExp\' allows to match passwords against a regular expression. Define the minimum number of characters using \'PasswordMinSize\'. Define if at least 2 lowercase and 2 uppercase letter characters are needed by setting the appropriate option to \'1\'. \'PasswordMin2Characters\' defines if the password needs to contain at least 2 letter characters (set to 0 or 1). \'PasswordNeedDigit\' controls the need of at least 1 digit (set to 0 or 1 to control). \'PasswordMaxLoginFailed\' allows to set an agent to invalid-temporarily if max failed logins reached.' =>
             '',
         'Defines the config parameters of this item, to be shown in the preferences view. Take care to maintain the dictionaries installed in the system in the data section.' =>
             '',
@@ -4077,6 +4945,8 @@ Thanks for your help!
         'Defines the default sender type for phone tickets in the ticket phone outbound screen of the agent interface.' =>
             '',
         'Defines the default sender type for tickets in the ticket zoom screen of the customer interface.' =>
+            '',
+        'Defines the default shown ticket search attribute for ticket search screen (AllTickets/ArchivedTickets/NotArchivedTickets).' =>
             '',
         'Defines the default shown ticket search attribute for ticket search screen.' =>
             '',
@@ -4158,6 +5028,7 @@ Thanks for your help!
             '',
         'Defines the default ticket type for new customer tickets in the customer interface.' =>
             '',
+        'Defines the default ticket type.' => '',
         'Defines the default type for article in the customer interface.' =>
             '',
         'Defines the default type of forwarded message in the ticket forward screen of the agent interface.' =>
@@ -4278,7 +5149,7 @@ Thanks for your help!
             '',
         'Defines the list of online repositories. Another installations can be used as repository, for example: Key="http://example.com/otrs/public.pl?Action=PublicRepository;File=" and Content="Some Name".' =>
             '',
-        'Defines the list of possible next actions on an error screen.' =>
+        'Defines the list of possible next actions on an error screen, a full path is required, then is possible to add external links if needed.' =>
             '',
         'Defines the list of types for templates.' => '',
         'Defines the location to get online repository list for additional packages. The first available result will be used.' =>
@@ -4309,15 +5180,23 @@ Thanks for your help!
         'Defines the module that shows the currently loged in customers in the customer interface.' =>
             '',
         'Defines the module to authenticate customers.' => '',
+        'Defines the module to display a notification if cloud services are disabled.' =>
+            '',
         'Defines the module to display a notification in different interfaces on different occasions for OTRS Business Solution™.' =>
             '',
         'Defines the module to display a notification in the agent interface if the OTRS Daemon is not running.' =>
+            '',
+        'Defines the module to display a notification in the agent interface, if the agent has not yet selected a time zone.' =>
             '',
         'Defines the module to display a notification in the agent interface, if the agent is logged in while having out-of-office active.' =>
             '',
         'Defines the module to display a notification in the agent interface, if the agent is logged in while having system maintenance active.' =>
             '',
         'Defines the module to display a notification in the agent interface, if the system is used by the admin user (normally you shouldn\'t work as admin).' =>
+            '',
+        'Defines the module to display a notification in the customer interface, if the customer is logged in while having system maintenance active.' =>
+            '',
+        'Defines the module to display a notification in the customer interface, if the customer user has not yet selected a time zone.' =>
             '',
         'Defines the module to generate code for periodic page reloads.' =>
             '',
@@ -4335,7 +5214,7 @@ Thanks for your help!
         'Defines the name of the key for customer sessions.' => '',
         'Defines the name of the session key. E.g. Session, SessionID or OTRS.' =>
             '',
-        'Defines the name of the table, where the customer preferences are stored.' =>
+        'Defines the name of the table where the user preferences are stored.' =>
             '',
         'Defines the next possible states after composing / answering a ticket in the ticket compose screen of the agent interface.' =>
             '',
@@ -4367,6 +5246,7 @@ Thanks for your help!
             '',
         'Defines the number of character per line used in case an HTML article preview replacement on TemplateGenerator for EventNotifications.' =>
             '',
+        'Defines the number of days to keep the daemon log files.' => '',
         'Defines the number of header fields in frontend modules for add and update postmaster filters. It can be up to 99 fields.' =>
             '',
         'Defines the parameters for the customer preferences table.' => '',
@@ -4406,9 +5286,9 @@ Thanks for your help!
         'Defines the postmaster default queue.' => '',
         'Defines the priority in which the information is logged and presented.' =>
             '',
-        'Defines the receipent target of the phone ticket and the sender of the email ticket ("Queue" shows all queues, "System address" displays all system addresses) in the agent interface.' =>
+        'Defines the recipient target of the phone ticket and the sender of the email ticket ("Queue" shows all queues, "System address" displays all system addresses) in the agent interface.' =>
             '',
-        'Defines the receipent target of the tickets ("Queue" shows all queues, "SystemAddress" displays all system addresses) in the customer interface.' =>
+        'Defines the recipient target of the tickets ("Queue" shows all queues, "SystemAddress" shows only the queues which are assigned to system addresses) in the customer interface.' =>
             '',
         'Defines the required permission to show a ticket in the escalation view of the agent interface.' =>
             '',
@@ -4481,10 +5361,14 @@ Thanks for your help!
         'Delete expired cache from core modules.' => '',
         'Delete expired loader cache weekly (Sunday mornings).' => '',
         'Delete expired sessions.' => '',
+        'Delete expired upload cache hourly.' => '',
+        'Delete this ticket' => 'Dzēst šo pieteikumu',
         'Deleted link to ticket "%s".' => 'Dzēsta saite uz problēmas ziņojumu "%s".',
         'Deletes a session if the session id is used with an invalid remote IP address.' =>
             '',
         'Deletes requested sessions if they have timed out.' => '',
+        'Delivers extended debugging information in the frontend in case any AJAX errors occur, if enabled.' =>
+            '',
         'Deploy and manage OTRS Business Solution™.' => '',
         'Determines if the list of possible queues to move to ticket into should be displayed in a dropdown list or in a new window in the agent interface. If "New Window" is set you can add a move note to the ticket.' =>
             '',
@@ -4504,19 +5388,21 @@ Thanks for your help!
             '',
         'Determines the possible states for pending tickets that changed state after reaching time limit.' =>
             '',
-        'Determines the strings that will be shown as receipent (To:) of the phone ticket and as sender (From:) of the email ticket in the agent interface. For Queue as NewQueueSelectionType "<Queue>" shows the names of the queues and for SystemAddress "<Realname> <<Email>>" shows the name and email of the receipent.' =>
+        'Determines the strings that will be shown as recipient (To:) of the phone ticket and as sender (From:) of the email ticket in the agent interface. For Queue as NewQueueSelectionType "<Queue>" shows the names of the queues and for SystemAddress "<Realname> <<Email>>" shows the name and email of the recipient.' =>
             '',
-        'Determines the strings that will be shown as receipent (To:) of the ticket in the customer interface. For Queue as CustomerPanelSelectionType, "<Queue>" shows the names of the queues, and for SystemAddress, "<Realname> <<Email>>" shows the name and email of the receipent.' =>
+        'Determines the strings that will be shown as recipient (To:) of the ticket in the customer interface. For Queue as CustomerPanelSelectionType, "<Queue>" shows the names of the queues, and for SystemAddress, "<Realname> <<Email>>" shows the name and email of the recipient.' =>
             '',
         'Determines the way the linked objects are displayed in each zoom mask.' =>
             '',
-        'Determines which options will be valid of the recepient (phone ticket) and the sender (email ticket) in the agent interface.' =>
+        'Determines which options will be valid of the recipient (phone ticket) and the sender (email ticket) in the agent interface.' =>
             '',
         'Determines which queues will be valid for ticket\'s recepients in the customer interface.' =>
             '',
-        'Disable restricted security for IFrames in IE. May be required for SSO to work in IE8.' =>
+        'Disable HTTP header "X-Frame-Options: SAMEORIGIN" to allow OTRS to be included as an IFrame in other websites. Disabling this HTTP header can be a security issue! Only disable it, if you know what you are doing!' =>
             '',
         'Disables sending reminder notifications to the responsible agent of a ticket (Ticket::Responsible needs to be activated).' =>
+            '',
+        'Disables the communication between this system and OTRS Group servers that provides cloud services. If active, some functionality will be lost such as system registration, support data sending, upgrading to and use of OTRS Business Solution™, OTRS Verify™, OTRS News and product News dashboard widgets, among others.' =>
             '',
         'Disables the web installer (http://yourhost.example.com/otrs/installer.pl), to prevent the system from being hijacked. If set to "No", the system can be reinstalled and the current basic configuration will be used to pre-populate the questions within the installer script. If not active, it also disables the GenericAgent, PackageManager and SQL Box.' =>
             '',
@@ -4525,7 +5411,10 @@ Thanks for your help!
         'Display settings to override defaults for Process Tickets.' => '',
         'Displays the accounted time for an article in the ticket zoom view.' =>
             '',
+        'Down' => 'uz leju',
         'Dropdown' => '',
+        'Dutch stop words for fulltext index. These words will be removed from the search index.' =>
+            '',
         'Dynamic Fields Checkbox Backend GUI' => '',
         'Dynamic Fields Date Time Backend GUI' => '',
         'Dynamic Fields Drop-down Backend GUI' => '',
@@ -4596,10 +5485,15 @@ Thanks for your help!
             '',
         'Dynamic fields shown in the ticket zoom screen of the customer interface. Possible settings: 0 = Disabled, 1 = Enabled.' =>
             '',
+        'DynamicField' => '',
         'DynamicField backend registration.' => '',
         'DynamicField object registration.' => '',
+        'E-Mail Outbound' => '',
+        'Edit Customer Companies.' => '',
+        'Edit Customer Users.' => '',
         'Edit customer company' => '',
         'Email Addresses' => 'E-pasta adreses',
+        'Email Outbound' => '',
         'Email sent to "%s".' => 'Uz "%s" nosūtīts e-pasts.',
         'Email sent to customer.' => 'Klientam nosūtīts e-pasts.',
         'Enable keep-alive connection header for SOAP responses.' => '',
@@ -4626,9 +5520,15 @@ Thanks for your help!
         'Enables ticket responsible feature, to keep track of a specific ticket.' =>
             '',
         'Enables ticket watcher feature only for the listed groups.' => '',
+        'English (Canada)' => '',
+        'English (United Kingdom)' => '',
+        'English (United States)' => '',
+        'English stop words for fulltext index. These words will be removed from the search index.' =>
+            '',
         'Enroll process for this ticket' => '',
         'Enter your shared secret to enable two factor authentication.' =>
             '',
+        'Escalated Tickets' => 'Eskalētie pieteikumi',
         'Escalation response time finished' => '',
         'Escalation response time forewarned' => '',
         'Escalation response time in effect' => '',
@@ -4640,11 +5540,18 @@ Thanks for your help!
         'Escalation update time in effect' => '',
         'Escalation view' => '',
         'EscalationTime' => '',
+        'Estonian' => '',
         'Event module registration. For more performance you can define a trigger event (e. g. Event => TicketCreate).' =>
             '',
         'Event module registration. For more performance you can define a trigger event (e. g. Event => TicketCreate). This is only possible if all Ticket dynamic fields need the same event.' =>
             '',
         'Event module that performs an update statement on TicketIndex to rename the queue name there if needed and if StaticDB is actually used.' =>
+            '',
+        'Event module that updates customer company object name for dynamic fields.' =>
+            '',
+        'Event module that updates customer user object name for dynamic fields.' =>
+            '',
+        'Event module that updates customer user search profiles if login changes.' =>
             '',
         'Event module that updates customer user service membership if login changes.' =>
             '',
@@ -4680,6 +5587,8 @@ Thanks for your help!
         'Filter for debugging Transitions. Note: More filters can be added in the format <OTRS_TICKET_Attribute> e.g. <OTRS_TICKET_Priority>.' =>
             '',
         'Filter incoming emails.' => '',
+        'Finnish' => '',
+        'First Christmas Day' => 'Pirmie Ziemassvētki',
         'First Queue' => '',
         'FirstLock' => '',
         'FirstResponse' => '',
@@ -4688,6 +5597,8 @@ Thanks for your help!
         'Firstname Lastname' => '',
         'Firstname Lastname (UserLogin)' => '',
         'FollowUp for [%s]. %s' => 'Sekošana pieteikumam [%s]. %s',
+        'For these state types the ticket numbers are striked through in the link table.' =>
+            '',
         'Forces encoding of outgoing emails (7bit|8bit|quoted-printable|base64).' =>
             '',
         'Forces to choose a different ticket state (from current) after lock action. Define the current state as key, and the next state after lock action as content.' =>
@@ -4695,8 +5606,12 @@ Thanks for your help!
         'Forces to unlock tickets after being moved to another queue.' =>
             '',
         'Forwarded to "%s".' => 'Pārsūtīts uz "%s".',
+        'Free Fields' => 'Neaizpildītie lauki',
+        'French' => '',
+        'French (Canada)' => '',
         'French stop words for fulltext index. These words will be removed from the search index.' =>
             '',
+        'Frontend' => '',
         'Frontend module registration (disable AgentTicketService link if Ticket Serivice feature is not used).' =>
             '',
         'Frontend module registration (disable company link if no company feature is used).' =>
@@ -4711,9 +5626,11 @@ Thanks for your help!
         'Full value' => '',
         'Fulltext index regex filters to remove parts of the text.' => '',
         'Fulltext search' => '',
+        'Galician' => '',
         'General ticket data shown in the ticket overviews (fall-back). Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default. Note that TicketNumber can not be disabled, because it is necessary.' =>
             '',
         'Generate dashboard statistics.' => '',
+        'Generic Info module.' => '',
         'GenericAgent' => 'Vispārīgais uzdevums',
         'GenericInterface Debugger GUI' => '',
         'GenericInterface Invoker GUI' => '',
@@ -4729,16 +5646,26 @@ Thanks for your help!
             '',
         'GenericInterface module registration for the transport layer.' =>
             '',
+        'German' => '',
         'German stop words for fulltext index. These words will be removed from the search index.' =>
             '',
         'Gives end users the possibility to override the separator character for CSV files, defined in the translation files.' =>
             '',
+        'Global Search Module.' => '',
         'Go back' => '',
+        'Go to dashboard!' => '',
         'Google Authenticator' => '',
-        'Grants access, if the customer ID of the ticket matches the customer user\'s ID and the customer user has group permissions on the queue the ticket is in.' =>
-            '',
+        'Graph: Bar Chart' => '',
+        'Graph: Line Chart' => '',
+        'Graph: Stacked Area Chart' => '',
+        'Greek' => '',
+        'HTML Reference' => '',
+        'HTML Reference.' => '',
+        'Hebrew' => '',
         'Helps to extend your articles full-text search (From, To, Cc, Subject and Body search). Runtime will do full-text searches on live data (it works fine for up to 50.000 tickets). StaticDB will strip all articles and will build an index after article creation, increasing fulltext searches about 50%. To create an initial index use "bin/otrs.Console.pl Maint::Ticket::FulltextIndexRebuild".' =>
             '',
+        'Hindi' => '',
+        'Hungarian' => '',
         'If "DB" was selected for Customer::AuthModule, a database driver (normally autodetection is used) can be specified.' =>
             '',
         'If "DB" was selected for Customer::AuthModule, a password to connect to the customer table can be specified.' =>
@@ -4749,7 +5676,7 @@ Thanks for your help!
             '',
         'If "DB" was selected for Customer::AuthModule, the column name for the CustomerPassword in the customer table must be specified.' =>
             '',
-        'If "DB" was selected for Customer::AuthModule, the crypt type of passwords must be specified.' =>
+        'If "DB" was selected for Customer::AuthModule, the encryption type of passwords must be specified.' =>
             '',
         'If "DB" was selected for Customer::AuthModule, the name of the column for the CustomerKey in the customer table must be specified.' =>
             '',
@@ -4797,8 +5724,6 @@ Thanks for your help!
             '',
         'If "SysLog" was selected for LogModule, a special log facility can be specified.' =>
             '',
-        'If "SysLog" was selected for LogModule, a special log sock can be specified (on solaris you may need to use \'stream\').' =>
-            '',
         'If "SysLog" was selected for LogModule, the charset that should be used for logging can be specified.' =>
             '',
         'If "file" was selected for LogModule, a logfile must be specified. If the file doesn\'t exist, it will be created by the system.' =>
@@ -4833,7 +5758,11 @@ Thanks for your help!
             '',
         'If enabled debugging information for ACLs is logged.' => '',
         'If enabled debugging information for transitions is logged.' => '',
-        'If enabled, OTRS will deliver all CSS files in minified form. WARNING: If you turn this off, there will likely be problems in IE 7, because it cannot load more than 32 CSS files.' =>
+        'If enabled the daemon will redirect the standard error stream to a log file.' =>
+            '',
+        'If enabled the daemon will redirect the standard output stream to a log file.' =>
+            '',
+        'If enabled, OTRS will deliver all CSS files in minified form.' =>
             '',
         'If enabled, OTRS will deliver all JavaScript files in minified form.' =>
             '',
@@ -4847,6 +5776,8 @@ Thanks for your help!
             '',
         'If enabled, the first level of the main menu opens on mouse hover (instead of click only).' =>
             '',
+        'If enabled, users that haven\'t selected a time zone yet will be notified to do so. Note: Notification will not be shown if (1) user has not yet selected a time zone and (2) OTRSTimeZone and UserDefaultTimeZone do match and (3) are not set to UTC.' =>
+            '',
         'If set, this address is used as envelope sender header in outgoing notifications. If no address is specified, the envelope sender header is empty.' =>
             '',
         'If set, this address is used as envelope sender in outgoing messages (not notifications - see below). If no address is specified, the envelope sender is equal to queue e-mail address.' =>
@@ -4857,29 +5788,47 @@ Thanks for your help!
             '',
         'If this regex matches, no message will be send by the autoresponder.' =>
             '',
+        'If this setting is active, local modifications will not be highlighted as errors in the package manager and support data collector.' =>
+            '',
         'Ignore article with system sender type for new article feature (e. g. auto responses or email notifications).' =>
             '',
         'Include tickets of subqueues per default when selecting a queue.' =>
             '',
+        'Include unknown customers in ticket filter.' => '',
         'Includes article create times in the ticket search of the agent interface.' =>
             '',
+        'Incoming Phone Call.' => '',
         'IndexAccelerator: to choose your backend TicketViewAccelerator module. "RuntimeDB" generates each queue view on the fly from ticket table (no performance problems up to approx. 60.000 tickets in total and 6.000 open tickets in the system). "StaticDB" is the most powerful module, it uses an extra ticket-index table that works like a view (recommended if more than 80.000 and 6.000 open tickets are stored in the system). Use the command "bin/otrs.Console.pl Maint::Ticket::QueueIndexRebuild" for initial index creation.' =>
             '',
+        'Indonesian' => '',
+        'Input' => '',
         'Install ispell or aspell on the system, if you want to use a spell checker. Please specify the path to the aspell or ispell binary on your operating system.' =>
             '',
         'Interface language' => '',
+        'International Workers\' Day' => 'Darba svēki',
         'It is possible to configure different skins, for example to distinguish between diferent agents, to be used on a per-domain basis within the application. Using a regular expression (regex), you can configure a Key/Content pair to match a domain. The value in "Key" should match the domain, and the value in "Content" should be a valid skin on your system. Please see the example entries for the proper form of the regex.' =>
             '',
         'It is possible to configure different skins, for example to distinguish between diferent customers, to be used on a per-domain basis within the application. Using a regular expression (regex), you can configure a Key/Content pair to match a domain. The value in "Key" should match the domain, and the value in "Content" should be a valid skin on your system. Please see the example entries for the proper form of the regex.' =>
             '',
         'It is possible to configure different themes, for example to distinguish between agents and customers, to be used on a per-domain basis within the application. Using a regular expression (regex), you can configure a Key/Content pair to match a domain. The value in "Key" should match the domain, and the value in "Content" should be a valid theme on your system. Please see the example entries for the proper form of the regex.' =>
             '',
+        'Italian' => '',
         'Italian stop words for fulltext index. These words will be removed from the search index.' =>
             '',
+        'Ivory' => '',
+        'Ivory (Slim)' => '',
+        'Japanese' => '',
         'JavaScript function for the search frontend.' => '',
+        'Large' => 'Liels',
+        'Last customer subject' => '',
+        'Lastname Firstname' => '',
+        'Lastname Firstname (UserLogin)' => '',
         'Lastname, Firstname' => '',
         'Lastname, Firstname (UserLogin)' => '',
+        'Latvian' => '',
         'Left' => '',
+        'Link Object' => 'Saistīt ar objektu',
+        'Link Object.' => '',
         'Link agents to groups.' => '',
         'Link agents to roles.' => '',
         'Link attachments to templates.' => '',
@@ -4888,6 +5837,7 @@ Thanks for your help!
         'Link queues to auto responses.' => '',
         'Link roles to groups.' => '',
         'Link templates to queues.' => '',
+        'Link this ticket to other objects' => 'Saistīt šo pieteikumu ar citiem objektiem',
         'Links 2 tickets with a "Normal" type link.' => '',
         'Links 2 tickets with a "ParentChild" type link.' => '',
         'List of CSS files to always be loaded for the agent interface.' =>
@@ -4913,9 +5863,14 @@ Thanks for your help!
         'List of responsive CSS files to always be loaded for the customer interface.' =>
             '',
         'List view' => '',
+        'Lithuanian' => '',
         'Lock / unlock this ticket' => '',
+        'Locked Tickets' => 'Bloķētie pieteikumi',
+        'Locked Tickets.' => '',
         'Locked ticket.' => 'Problēmas pieteikums aizslēgts.',
         'Log file for the ticket counter.' => '',
+        'Logout of customer panel.' => '',
+        'Look into a ticket!' => 'Apskatīt pieteikumu!',
         'Loop-Protection! No auto-response sent to "%s".' => 'Cilpas aizsardzība! Automātiska atbilde uz "%s" nav nosūtīta.',
         'Mail Accounts' => '',
         'Main menu registration.' => '',
@@ -4924,6 +5879,7 @@ Thanks for your help!
         'Makes the application check the syntax of email addresses.' => '',
         'Makes the session management use html cookies. If html cookies are disabled or if the client browser disabled html cookies, then the system will work as usual and append the session id to the links.' =>
             '',
+        'Malay' => '',
         'Manage OTRS Group cloud services.' => '',
         'Manage PGP keys for email encryption.' => '',
         'Manage POP3 or IMAP accounts to fetch email from.' => '',
@@ -4932,6 +5888,7 @@ Thanks for your help!
         'Manage support data.' => '',
         'Manage system registration.' => '',
         'Manage tasks triggered by event or time based execution.' => '',
+        'Mark as Spam!' => 'Iezīmēt kā mēstuli (spamu)!',
         'Mark this ticket as junk!' => '',
         'Max size (in characters) of the customer information table (phone and email) in the compose screen.' =>
             '',
@@ -4939,11 +5896,13 @@ Thanks for your help!
             '',
         'Max size (in rows) of the involved agents box in the agent interface.' =>
             '',
-        'Max size of the subjects in an email reply.' => '',
+        'Max size of the subjects in an email reply and in some overview screens.' =>
+            '',
         'Maximal auto email responses to own email-address a day (Loop-Protection).' =>
             '',
         'Maximal size in KBytes for mails that can be fetched via POP3/POP3S/IMAP/IMAPS (KBytes).' =>
             '',
+        'Maximum Number of a calendar shown in a dropdown.' => '',
         'Maximum length (in characters) of the dynamic field in the article of the ticket zoom view.' =>
             '',
         'Maximum length (in characters) of the dynamic field in the sidebar of the ticket zoom view.' =>
@@ -4956,23 +5915,20 @@ Thanks for your help!
             '',
         'Maximum size (in characters) of the customer information table in the ticket zoom view.' =>
             '',
+        'Medium' => 'Vidējs',
         'Merge this ticket and all articles into a another ticket' => '',
         'Merged Ticket <OTRS_TICKET> to <OTRS_MERGE_TO_TICKET>.' => '',
         'Miscellaneous' => '',
         'Module for To-selection in new ticket screen in the customer interface.' =>
             '',
-        'Module to check customer permissions.' => '',
-        'Module to check if a user is in a special group. Access is granted, if the user is in the specified group and has ro and rw permissions.' =>
-            '',
         'Module to check if arrived emails should be marked as email-internal (because of original forwarded internal email). ArticleType and SenderType define the values for the arrived email/article.' =>
             '',
-        'Module to check the agent responsible of a ticket.' => '',
-        'Module to check the group permissions for the access to customer tickets.' =>
+        'Module to check the group permissions for customer access to tickets.' =>
             '',
-        'Module to check the owner of a ticket.' => '',
-        'Module to check the watcher agents of a ticket.' => '',
+        'Module to check the group permissions for the access to tickets.' =>
+            '',
         'Module to compose signed messages (PGP or S/MIME).' => '',
-        'Module to crypt composed messages (PGP or S/MIME).' => '',
+        'Module to encrypt composed messages (PGP or S/MIME).' => '',
         'Module to filter and manipulate incoming messages. Block/ignore all spam email with From: noreply@ address.' =>
             '',
         'Module to filter and manipulate incoming messages. Get a 4 digit number to ticket free text, use regex in Match e. g. From => \'(.+?)@.+?\', and use () as [***] in Set =>.' =>
@@ -4985,27 +5941,47 @@ Thanks for your help!
         'Module to generate ticket solution and response time statistics.' =>
             '',
         'Module to generate ticket statistics.' => '',
+        'Module to grant access if the CustomerID of the ticket matches the CustomerID of the customer.' =>
+            '',
+        'Module to grant access if the CustomerUserID of the ticket matches the CustomerUserID of the customer.' =>
+            '',
+        'Module to grant access to any agent that has been involved in a ticket in the past (based on ticket history entries).' =>
+            '',
+        'Module to grant access to the agent responsible of a ticket.' =>
+            '',
+        'Module to grant access to the creator of a ticket.' => '',
+        'Module to grant access to the owner of a ticket.' => '',
+        'Module to grant access to the watcher agents of a ticket.' => '',
         'Module to show notifications and escalations (ShownMax: max. shown escalations, EscalationInMinutes: Show ticket which will escalation in, CacheTime: Cache of calculated escalations in seconds).' =>
             '',
         'Module to use database filter storage.' => '',
         'Multiselect' => '',
+        'My Queues' => 'Manas rindas',
         'My Services' => '',
-        'My Tickets' => '',
+        'My Tickets.' => '',
         'Name of custom queue. The custom queue is a queue selection of your preferred queues and can be selected in the preferences settings.' =>
             '',
         'Name of custom service. The custom service is a service selection of your preferred services and can be selected in the preferences settings.' =>
             '',
         'NameX' => '',
+        'Nederlands' => '',
+        'New Ticket' => 'Jaunie pieteikumi',
         'New Ticket [%s] created (Q=%s;P=%s;S=%s).' => 'Izveidots jauns problēmas pieteikums [%s] (Q=%s;P=%s;S=%s).',
+        'New Tickets' => 'Jaunie pieteikumi',
         'New Window' => '',
+        'New Year\'s Day' => 'Jaungada diena',
+        'New Year\'s Eve' => 'Vecgada diena',
         'New owner is "%s" (ID=%s).' => 'Jaunais atbildīgas par problēmu ir "%s" (ID=%s).',
         'New process ticket' => '',
         'New responsible is "%s" (ID=%s).' => '',
+        'News about OTRS releases!' => 'Ziņas par OTRS relīzēm!',
         'Next possible ticket states after adding a phone note in the ticket phone inbound screen of the agent interface.' =>
             '',
         'Next possible ticket states after adding a phone note in the ticket phone outbound screen of the agent interface.' =>
             '',
         'None' => '',
+        'Norwegian' => '',
+        'Notification Settings' => '',
         'Notification sent to "%s".' => 'Uz "%s" nosūtīts paziņojums.',
         'Number of displayed tickets' => '',
         'Number of lines (per ticket) that are shown by the search utility in the agent interface.' =>
@@ -5014,23 +5990,40 @@ Thanks for your help!
             '',
         'Number of tickets to be displayed in each page of a search result in the customer interface.' =>
             '',
+        'OTRS News' => 'OTRS jaunumi',
         'OTRS can use one or more readonly mirror databases for expensive operations like fulltext search or statistics generation. Here you can specify the DSN for the first mirror database.' =>
             '',
         'Old: "%s" New: "%s"' => 'Vecais: "%s" Jaunais: "%s"',
         'Online' => '',
+        'Open Tickets / Need to be answered' => 'Atvētie pieteikumi/nepieciešama atbilde',
         'Open tickets (customer user)' => '',
         'Open tickets (customer)' => '',
+        'Option' => '',
+        'Optional queue limitation for the CreatorCheck permission module. If set, permission is only granted for tickets in the specified queues.' =>
+            '',
+        'Optional queue limitation for the InvolvedCheck permission module. If set, permission is only granted for tickets in the specified queues.' =>
+            '',
+        'Optional queue limitation for the OwnerCheck permission module. If set, permission is only granted for tickets in the specified queues.' =>
+            '',
+        'Optional queue limitation for the ResponsibleCheck permission module. If set, permission is only granted for tickets in the specified queues.' =>
+            '',
+        'Other Settings' => 'Citi iestatījumi',
         'Out Of Office' => '',
+        'Out Of Office Time' => 'Ārpus darba laika',
         'Overloads (redefines) existing functions in Kernel::System::Ticket. Used to easily add customizations.' =>
             '',
-        'Overview Escalated Tickets' => '',
+        'Overview Escalated Tickets.' => '',
         'Overview Refresh Time' => '',
+        'Overview of all escalated tickets.' => '',
         'Overview of all open Tickets.' => '',
+        'Overview of all open tickets.' => '',
+        'Overview of customer tickets.' => '',
+        'PGP Key' => 'PGP atslēga',
         'PGP Key Management' => '',
         'PGP Key Upload' => '',
+        'PGP Keys' => 'PGP atslēgas',
         'Package event module file a scheduler task for update registration.' =>
             '',
-        'Parameters for .' => '',
         'Parameters for the CreateNextMask object in the preference view of the agent interface.' =>
             '',
         'Parameters for the CustomQueue object in the preference view of the agent interface.' =>
@@ -5038,6 +6031,8 @@ Thanks for your help!
         'Parameters for the CustomService object in the preference view of the agent interface.' =>
             '',
         'Parameters for the RefreshTime object in the preference view of the agent interface.' =>
+            '',
+        'Parameters for the column filters of the small ticket overview.' =>
             '',
         'Parameters for the dashboard backend of the customer company information of the agent interface . "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
             '',
@@ -5047,19 +6042,21 @@ Thanks for your help!
             '',
         'Parameters for the dashboard backend of the new tickets overview of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin. Note: Only Ticket attributes and Dynamic Fields (DynamicField_NameX) are allowed for DefaultColumns. Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default.' =>
             '',
+        'Parameters for the dashboard backend of the open tickets overview of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin. Note: Only Ticket attributes and Dynamic Fields (DynamicField_NameX) are allowed for DefaultColumns. Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default.' =>
+            '',
         'Parameters for the dashboard backend of the queue overview widget of the agent interface. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "QueuePermissionGroup" is not mandatory, queues are only listed if they belong to this permission group if you enable it. "States" is a list of states, the key is the sort order of the state in the widget. "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
             '',
         'Parameters for the dashboard backend of the running process tickets overview of the agent interface . "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
             '',
-        'Parameters for the dashboard backend of the ticket calendar of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
-            '',
         'Parameters for the dashboard backend of the ticket escalation overview of the agent interface . "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin. Note: Only Ticket attributes and Dynamic Fields (DynamicField_NameX) are allowed for DefaultColumns. Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default.' =>
+            '',
+        'Parameters for the dashboard backend of the ticket events calendar of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
             '',
         'Parameters for the dashboard backend of the ticket pending reminder overview of the agent interface . "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin. Note: Only Ticket attributes and Dynamic Fields (DynamicField_NameX) are allowed for DefaultColumns. Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default.' =>
             '',
-        'Parameters for the dashboard backend of the ticket pending reminder overview of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin. Note: Only Ticket attributes and Dynamic Fields (DynamicField_NameX) are allowed for DefaultColumns. Possible settings: 0 = Disabled, 1 = Available, 2 = Enabled by default.' =>
-            '',
         'Parameters for the dashboard backend of the ticket stats of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
+            '',
+        'Parameters for the dashboard backend of the upcoming events widget of the agent interface. "Limit" is the number of entries shown by default. "Group" is used to restrict the access to the plugin (e. g. Group: admin;group1;group2;). "Default" determines if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" is the cache time in minutes for the plugin.' =>
             '',
         'Parameters for the pages (in which the dynamic fields are shown) of the dynamic fields overview.' =>
             '',
@@ -5072,6 +6069,8 @@ Thanks for your help!
         'Parameters of the example SLA attribute Comment2.' => '',
         'Parameters of the example queue attribute Comment2.' => '',
         'Parameters of the example service attribute Comment2.' => '',
+        'Parent' => 'Sākotnējais',
+        'ParentChild' => '',
         'Path for the log file (it only applies if "FS" was selected for LoopProtectionModule and it is mandatory).' =>
             '',
         'People' => '',
@@ -5079,26 +6078,42 @@ Thanks for your help!
             '',
         'Permitted width for compose email windows.' => '',
         'Permitted width for compose note windows.' => '',
+        'Persian' => '',
+        'Phone Call Inbound' => '',
+        'Phone Call Outbound' => '',
+        'Phone Call.' => '',
+        'Phone call' => 'Telefona zvans',
+        'Phone-Ticket' => 'Telefonisks pieteikums',
+        'Picture Upload' => '',
+        'Picture upload module.' => '',
         'Picture-Upload' => '',
+        'Polish' => '',
+        'Portuguese' => '',
+        'Portuguese (Brasil)' => '',
         'PostMaster Filters' => '',
         'PostMaster Mail Accounts' => '',
-        'Process Information' => '',
+        'Print this ticket' => 'Drukāt šo pieteikumu',
+        'Priorities' => 'Prioritāte',
         'Process Management Activity Dialog GUI' => '',
         'Process Management Activity GUI' => '',
         'Process Management Path GUI' => '',
         'Process Management Transition Action GUI' => '',
         'Process Management Transition GUI' => '',
+        'Process Ticket.' => '',
         'Process pending tickets.' => '',
+        'Process ticket' => '',
         'ProcessID' => '',
+        'Product News' => 'Izstrādes jaunumi',
         'Protection against CSRF (Cross Site Request Forgery) exploits (for more info see http://en.wikipedia.org/wiki/Cross-site_request_forgery).' =>
             '',
-        'Provides a matrix overview of the tickets per state per queue.' =>
+        'Provides a matrix overview of the tickets per state per queue' =>
             '',
         'Queue view' => '',
         'Rebuild the ticket index for AgentTicketQueue.' => '',
         'Recognize if a ticket is a follow-up to an existing ticket using an external ticket number.' =>
             '',
         'Refresh interval' => '',
+        'Reminder Tickets' => 'Pieteikumi ar atgādinājumiem',
         'Removed subscription for user "%s".' => 'Noņemta sekošana lietotājam "%s".',
         'Removes the ticket watcher information when a ticket is archived.' =>
             '',
@@ -5140,12 +6155,14 @@ Thanks for your help!
             '',
         'Resets and unlocks the owner of a ticket if it was moved to another queue.' =>
             '',
+        'Responsible Tickets' => '',
+        'Responsible Tickets.' => '',
         'Restores a ticket from the archive (only if the event is a state change, from closed to any open available state).' =>
             '',
         'Retains all services in listings even if they are children of invalid elements.' =>
             '',
         'Right' => '',
-        'Roles <-> Groups' => 'Lomas <-> Grupas',
+        'Roles ↔ Groups' => '',
         'Run file based generic agent jobs (Note: module name need needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").' =>
             '',
         'Running Process Tickets' => '',
@@ -5155,18 +6172,29 @@ Thanks for your help!
             '',
         'Runs the system in "Demo" mode. If set to "Yes", agents can change preferences, such as selection of language and theme via the agent web interface. These changes are only valid for the current session. It will not be possible for agents to change their passwords.' =>
             '',
+        'Russian' => '',
         'S/MIME Certificate Upload' => '',
+        'S/MIME Certificates' => 'S/MIME sertifikāti',
         'SMS' => '',
+        'SMS (Short Message Service)' => '',
+        'Salutations' => 'Uzrunas',
         'Sample command output' => '',
         'Saves the attachments of articles. "DB" stores all data in the database (not recommended for storing big attachments). "FS" stores the data on the filesystem; this is faster but the webserver should run under the OTRS user. You can switch between the modules even on a system that is already in production without any loss of data. Note: Searching for attachment names is not supported when "FS" is used.' =>
             '',
         'Schedule a maintenance period.' => '',
         'Screen' => '',
+        'Screen after new ticket' => 'Ekrāns pēc jauna pieteikuma izveidošanas',
         'Search Customer' => 'Meklēt klientu',
+        'Search Ticket.' => '',
+        'Search Tickets.' => '',
         'Search User' => '',
         'Search backend default router.' => '',
         'Search backend router.' => '',
+        'Search.' => '',
+        'Second Christmas Day' => 'Otrie Ziemassvētki',
         'Second Queue' => '',
+        'Select the separator character used in CSV files (stats and searches). If you don\'t select a separator here, the default separator for your language will be used.' =>
+            '',
         'Select your frontend Theme.' => 'Izvēlieties interfeisa tēmu.',
         'Selects the cache backend to use.' => '',
         'Selects the module to handle uploads via the web interface. "DB" stores all uploads in the database, "FS" uses the file system.' =>
@@ -5187,14 +6215,21 @@ Thanks for your help!
             '',
         'Sends the notifications which are configured in the admin interface under "Notfication (Event)".' =>
             '',
+        'Serbian Cyrillic' => '',
+        'Serbian Latin' => '',
+        'Service Level Agreements' => 'Servisa līmeņa līgums',
         'Service view' => '',
+        'ServiceView' => '',
         'Set minimum loglevel. If you select \'error\', just errors are logged. With \'debug\' you get all logging messages.' =>
             '',
         'Set sender email addresses for this system.' => '',
         'Set the default height (in pixels) of inline HTML articles in AgentTicketZoom.' =>
             '',
+        'Set the limit of tickets that will be executed on a single genericagent job execution.' =>
+            '',
         'Set the maximum height (in pixels) of inline HTML articles in AgentTicketZoom.' =>
             '',
+        'Set this ticket to pending' => 'Iestatīt šo pieteikumu gaidīšanā',
         'Set this to yes if you trust in all your public and private pgp keys, even if they are not certified with a trusted signature.' =>
             '',
         'Sets if SLA must be selected by the agent.' => '',
@@ -5204,6 +6239,7 @@ Thanks for your help!
         'Sets if service must be selected by the agent.' => '',
         'Sets if service must be selected by the customer.' => '',
         'Sets if ticket owner must be selected by the agent.' => '',
+        'Sets if ticket responsible must be selected by the agent.' => '',
         'Sets the PendingTime of a ticket to 0 if the state is changed to a non-pending state.' =>
             '',
         'Sets the age in minutes (first level) for highlighting queues that contain untouched tickets.' =>
@@ -5286,7 +6322,7 @@ Thanks for your help!
             '',
         'Sets the maximum number of active sessions per customers within the timespan defined in SessionActiveTime.' =>
             '',
-        'Sets the minimal ticket counter size (if "AutoIncrement" was selected as TicketNumberGenerator). Default is 5, this means the counter starts from 10000.' =>
+        'Sets the minimal ticket counter size if "AutoIncrement" was selected as TicketNumberGenerator. Default is 5, this means the counter starts from 10000.' =>
             '',
         'Sets the minutes a notification is shown for notice about upcoming system maintenance period.' =>
             '',
@@ -5298,6 +6334,7 @@ Thanks for your help!
         'Sets the password for private PGP key.' => '',
         'Sets the prefered time units (e.g. work units, hours, minutes).' =>
             '',
+        'Sets the preferred digest to be used for PGP binary.' => '',
         'Sets the prefix to the scripts folder on the server, as configured on the web server. This setting is used as a variable, OTRS_CONFIG_ScriptAlias which is found in all forms of messaging used by the application, to build links to the tickets within the system.' =>
             '',
         'Sets the queue in the ticket close screen of a zoomed ticket in the agent interface.' =>
@@ -5345,8 +6382,6 @@ Thanks for your help!
         'Sets the service in the ticket responsible screen of the agent interface (Ticket::Service needs to be activated).' =>
             '',
         'Sets the stats hook.' => '',
-        'Sets the system time zone (required a system with UTC as system time). Otherwise this is a diff time to the local time.' =>
-            '',
         'Sets the ticket owner in the close ticket screen of the agent interface.' =>
             '',
         'Sets the ticket owner in the ticket bulk screen of the agent interface.' =>
@@ -5380,24 +6415,26 @@ Thanks for your help!
         'Sets the ticket type in the ticket responsible screen of the agent interface (Ticket::Type needs to be activated).' =>
             '',
         'Sets the time (in seconds) a user is marked as active.' => '',
+        'Sets the time zone being used internally by OTRS to e. g. store dates and times in the database. WARNING: This setting must not be changed once set and tickets or any other data containing date/time have been created.' =>
+            '',
+        'Sets the time zone that will be assigned to newly created users and will be used for users that haven\'t yet set a time zone. This is the time zone being used as default to convert date and time between the OTRS time zone and the user\'s time zone.' =>
+            '',
         'Sets the timeout (in seconds) for http/ftp downloads.' => '',
         'Sets the timeout (in seconds) for package downloads. Overwrites "WebUserAgent::Timeout".' =>
             '',
-        'Sets the user time zone per user (required a system with UTC as system time and UTC under TimeZone). Otherwise this is a diff time to the local time.' =>
-            '',
-        'Sets the user time zone per user based on java script / browser time zone offset feature at login time.' =>
-            '',
         'Shared Secret' => '',
-        'Should the cache data be help in memory?' => '',
+        'Should the cache data be held in memory?' => '',
         'Should the cache data be stored in the selected cache backend?' =>
             '',
         'Show a responsible selection in phone and email tickets in the agent interface.' =>
             '',
         'Show article as rich text even if rich text writing is disabled.' =>
             '',
+        'Show queues even when only locked tickets are in.' => '',
         'Show the current owner in the customer interface.' => '',
         'Show the current queue in the customer interface.' => '',
         'Show the history for this ticket' => '',
+        'Show the ticket history' => 'Parādīt pieteikuma vēsturi',
         'Shows a count of icons in the ticket zoom, if the article has attachments.' =>
             '',
         'Shows a link in the menu for subscribing / unsubscribing from a ticket in the ticket zoom view of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2". To cluster menu items use for Key "ClusterName" and for the Content any name you want to see in the UI. Use "ClusterPriority" to configure the order of a certain cluster within the toolbar.' =>
@@ -5446,9 +6483,9 @@ Thanks for your help!
             '',
         'Shows a link in the menu to send an outbound email in the ticket zoom view of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2". To cluster menu items use for Key "ClusterName" and for the Content any name you want to see in the UI. Use "ClusterPriority" to configure the order of a certain cluster within the toolbar.' =>
             '',
-        'Shows a link in the menu to set a ticket as pending in the ticket zoom view of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2". To cluster menu items use for Key "ClusterName" and for the Content any name you want to see in the UI. Use "ClusterPriority" to configure the order of a certain cluster within the toolbar.' =>
+        'Shows a link in the menu to set a ticket as junk in every ticket overview of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
             '',
-        'Shows a link in the menu to set a ticket as spam in every ticket overview of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
+        'Shows a link in the menu to set a ticket as pending in the ticket zoom view of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2". To cluster menu items use for Key "ClusterName" and for the Content any name you want to see in the UI. Use "ClusterPriority" to configure the order of a certain cluster within the toolbar.' =>
             '',
         'Shows a link in the menu to set the priority of a ticket in every ticket overview of the agent interface.' =>
             '',
@@ -5563,7 +6600,13 @@ Thanks for your help!
             '',
         'Shows time use complete description (days, hours, minutes), if set to "Yes"; or just first letter (d, h, m), if set to "No".' =>
             '',
+        'Signatures' => 'Paraksti',
+        'Simple' => '',
         'Skin' => '',
+        'Slovak' => '',
+        'Slovenian' => '',
+        'Small' => 'Mazs',
+        'Software Package Manager.' => '',
         'SolutionDiffInMin' => '',
         'SolutionInMin' => '',
         'Some description!' => '',
@@ -5572,10 +6615,14 @@ Thanks for your help!
             '',
         'Sorts the tickets (ascendingly or descendingly) when a single queue is selected in the service view and after the tickets are sorted by priority. Values: 0 = ascending (oldest on top, default), 1 = descending (youngest on top). Use the ServiceID for the key and 0 or 1 for value.' =>
             '',
+        'Spam' => '',
         'Spam Assassin example setup. Ignores emails that are marked with SpamAssassin.' =>
             '',
         'Spam Assassin example setup. Moves marked mails to spam queue.' =>
             '',
+        'Spanish' => '',
+        'Spanish (Colombia)' => '',
+        'Spanish (Mexico)' => '',
         'Spanish stop words for fulltext index. These words will be removed from the search index.' =>
             '',
         'Specifies if an agent should receive email notification of his own actions.' =>
@@ -5617,7 +6664,7 @@ Thanks for your help!
         'Specifies the text that should appear in the log file to denote a CGI script entry.' =>
             '',
         'Specifies user id of the postmaster data base.' => '',
-        'Specifies whether all storage backends should be checked when looking for attachements. This is only required for installations where some attachements are in the file system, and others in the database.' =>
+        'Specifies whether all storage backends should be checked when looking for attachments. This is only required for installations where some attachments are in the file system, and others in the database.' =>
             '',
         'Specify how many sub directory levels to use when creating cache files. This should prevent too many cache files being in one directory.' =>
             '',
@@ -5627,6 +6674,8 @@ Thanks for your help!
             '',
         'Specify the username to authenticate for the first mirror database.' =>
             '',
+        'Spell checker.' => '',
+        'Spelling Dictionary' => 'Pareizrakstības vārdnīca',
         'Standard available permissions for agents within the application. If more permissions are needed, they can be entered here. Permissions must be defined to be effective. Some other good permissions have also been provided built-in: note, close, pending, customer, freetext, move, compose, responsible, forward, and bounce. Make sure that "rw" is always the last registered permission.' =>
             '',
         'Start number for statistics counting. Every new stat increments this number.' =>
@@ -5634,15 +6683,21 @@ Thanks for your help!
         'Starts a wildcard search of the active object after the link object mask is started.' =>
             '',
         'Stat#' => 'Atskaite Nr.',
+        'States' => 'Statuss',
         'Status view' => '',
         'Stores cookies after the browser has been closed.' => '',
         'Strips empty lines on the ticket preview in the queue view.' => '',
         'Strips empty lines on the ticket preview in the service view.' =>
             '',
+        'Swahili' => '',
+        'Swedish' => '',
+        'System Address Display Name' => '',
         'System Maintenance' => '',
         'System Request (%s).' => 'Sistēmas pieprasījums (%s).',
-        'Templates <-> Queues' => '',
+        'Target' => '',
+        'Templates ↔ Queues' => '',
         'Textarea' => '',
+        'Thai' => '',
         'The agent skin\'s InternalName which should be used in the agent interface. Please check the available skins in Frontend::Agent::Skins.' =>
             '',
         'The customer skin\'s InternalName which should be used in the customer interface. Please check the available skins in Frontend::Customer::Skins.' =>
@@ -5687,10 +6742,15 @@ Thanks for your help!
             '',
         'The text at the beginning of the subject when an email is forwarded, e.g. FW, Fwd, or WG.' =>
             '',
+        'Theme' => 'Tēma',
         'This event module stores attributes from CustomerUser as DynamicFields tickets. Please see the setting above for how to configure the mapping.' =>
             '',
+        'This is the default orange - black skin for the customer interface.' =>
+            '',
+        'This is the default orange - black skin.' => '',
         'This module and its PreRun() function will be executed, if defined, for every request. This module is useful to check some user options or to display news about new applications.' =>
             '',
+        'This module is part of the admin area of OTRS.' => '',
         'This option defines the dynamic field in which a Process Management activity entity id is stored.' =>
             '',
         'This option defines the dynamic field in which a Process Management process entity id is stored.' =>
@@ -5703,37 +6763,74 @@ Thanks for your help!
             '',
         'This setting allows you to override the built-in country list with your own list of countries. This is particularly handy if you just want to use a small select group of countries.' =>
             '',
-        'This will allow the system to send SMS messages.' => '',
+        'This setting is deprecated. Set OTRSTimeZone instead.' => '',
+        'This will allow the system to send text messages via SMS.' => '',
+        'Ticket Close.' => '',
+        'Ticket Compose Bounce Email.' => '',
+        'Ticket Compose email Answer.' => '',
+        'Ticket Customer.' => '',
+        'Ticket Forward Email.' => '',
+        'Ticket FreeText.' => '',
+        'Ticket History.' => '',
+        'Ticket Lock.' => '',
+        'Ticket Merge.' => '',
+        'Ticket Move.' => '',
+        'Ticket Note.' => '',
         'Ticket Notifications' => '',
+        'Ticket Outbound Email.' => '',
+        'Ticket Overview "Medium" Limit' => 'Pieteikuma pārskats "Medium" ierobežojums',
+        'Ticket Overview "Preview" Limit' => 'Pieteikuma pārskats "Preview" ierobežojums',
+        'Ticket Overview "Small" Limit' => 'Pieteikuma pārskats "Small" ierobežojums',
+        'Ticket Owner.' => '',
+        'Ticket Pending.' => '',
+        'Ticket Print.' => '',
+        'Ticket Priority.' => '',
         'Ticket Queue Overview' => '',
+        'Ticket Responsible.' => '',
+        'Ticket Watcher' => '',
+        'Ticket Zoom.' => '',
+        'Ticket bulk module.' => '',
         'Ticket event module that triggers the escalation stop events.' =>
             '',
+        'Ticket limit per page for Ticket Overview "Medium"' => 'Pieteikumu ierobežojums vienā lappusē pieteikuma pārskatam "Medium"',
+        'Ticket limit per page for Ticket Overview "Preview"' => 'Pieteikumu ierobežojums vienā lappusē pieteikuma pārskatam "Preview"',
+        'Ticket limit per page for Ticket Overview "Small"' => 'Pieteikumu ierobežojums vienā lappusē pieteikuma pārskatam "Small"',
         'Ticket moved into Queue "%s" (%s) from Queue "%s" (%s).' => 'Problēmas pieteikums ievietots rindā "%s" (%s) pārceļot no rindas "%s" (%s).',
         'Ticket notifications' => '',
         'Ticket overview' => '',
+        'Ticket plain view of an email.' => '',
+        'Ticket title' => '',
+        'Ticket zoom view.' => '',
         'TicketNumber' => '',
+        'Tickets.' => '',
         'Time in seconds that gets added to the actual time if setting a pending-state (default: 86400 = 1 day).' =>
             '',
         'Title updated: Old: "%s", New: "%s"' => '',
+        'To accept login information, such as an EULA or license.' => '',
+        'To download attachments.' => '',
         'Toggles display of OTRS FeatureAddons list in PackageManager.' =>
             '',
-        'Toolbar Item for a shortcut.' => '',
+        'Toolbar Item for a shortcut. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2".' =>
+            '',
         'Transport selection for ticket notifications.' => '',
         'Tree view' => '',
+        'Triggers ticket escalation events and notification events for escalation.' =>
+            '',
+        'Turkish' => '',
         'Turns off SSL certificate validation, for example if you use a transparent HTTPS proxy. Use at your own risk!' =>
             '',
         'Turns on drag and drop for the main navigation.' => '',
-        'Turns on the animations used in the GUI. If you have problems with these animations (e.g. performance issues), you can turn them off here.' =>
-            '',
         'Turns on the remote ip address check. It should be set to "No" if the application is used, for example, via a proxy farm or a dialup connection, because the remote ip address is mostly different for the requests.' =>
             '',
+        'Ukrainian' => '',
         'Unlock tickets that are past their unlock timeout.' => '',
         'Unlock tickets whenever a note is added and the owner is out of office.' =>
             '',
         'Unlocked ticket.' => 'Problēmas pieteikums atslēgts.',
+        'Up' => 'uz augšu',
+        'Upcoming Events' => 'Nākamie notikumi',
         'Update Ticket "Seen" flag if every article got seen or a new Article got created.' =>
             '',
-        'Update and extend your system with software packages.' => '',
         'Updated SLA to %s (ID=%s).' => 'SLA mainīts uz %s (ID=%s).',
         'Updated Service to %s (ID=%s).' => 'Serviss mainīts uz%s (ID=%s).',
         'Updated Type to %s (ID=%s).' => 'Tips mainīts uz %s (ID=%s).',
@@ -5746,31 +6843,216 @@ Thanks for your help!
             '',
         'Use new type of select and autocomplete fields in customer interface, where applicable (InputFields).' =>
             '',
+        'User Profile' => 'Lietotāja profils',
         'UserFirstname' => '',
         'UserLastname' => '',
-        'Uses Cc recipients in reply Cc list on compose an email answer in the ticket compose screen of the agent interface.' =>
-            '',
         'Uses richtext for viewing and editing ticket notification.' => '',
         'Uses richtext for viewing and editing: articles, salutations, signatures, standard templates, auto responses and notifications.' =>
             '',
+        'Vietnam' => '',
         'View performance benchmark results.' => '',
-        'View system log messages.' => '',
         'Watch this ticket' => '',
+        'Watched Tickets' => 'Vērotie pieteikumi',
+        'Watched Tickets.' => '',
+        'We are performing scheduled maintenance.' => '',
+        'We are performing scheduled maintenance. Login is temporarily not available.' =>
+            '',
+        'We are performing scheduled maintenance. We should be back online shortly.' =>
+            '',
+        'Web View' => '',
         'When tickets are merged, a note will be added automatically to the ticket which is no longer active. Here you can define the body of this note (this text cannot be changed by the agent).' =>
             '',
         'When tickets are merged, a note will be added automatically to the ticket which is no longer active. Here you can define the subject of this note (this subject cannot be changed by the agent).' =>
             '',
         'When tickets are merged, the customer can be informed per email by setting the check box "Inform Sender". In this text area, you can define a pre-formatted text which can later be modified by the agents.' =>
             '',
+        'Whether or not to collect meta information from articles using filters configured in Ticket::Frontend::ZoomCollectMetaFilters.' =>
+            '',
         'Yes, but hide archived tickets' => '',
         'Your email with ticket number "<OTRS_TICKET>" is bounced to "<OTRS_BOUNCE_TO>". Contact this address for further information.' =>
             '',
+        'Your email with ticket number "<OTRS_TICKET>" is merged to "<OTRS_MERGE_TO_TICKET>".' =>
+            'Jūsu e-pasts ar pieteikuma numuru "<OTRS_TICKET>" ir apvienots ar pieteikumu nr. "<OTRS_MERGE_TO_TICKET>"!',
         'Your queue selection of your favorite queues. You also get notified about those queues via email if enabled.' =>
             'Izvēlētās prioritārās rindas. Ja ir iestatīts, tad jūs saņemsiet par šīm rindām paziņojumus arī e-pastā.',
         'Your service selection of your favorite services. You also get notified about those services via email if enabled.' =>
             '',
+        'attachment' => '',
+        'debug' => '',
+        'error' => '',
+        'info' => '',
+        'inline' => '',
+        'normal' => 'normāla',
+        'notice' => '',
+        'off' => 'izslēgts',
+        'reverse' => 'pretēji',
 
     };
+
+    $Self->{JavaScriptStrings} = [
+        'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        'Add all',
+        'All-day',
+        'An error occurred during communication.',
+        'An error occurred! Do you want to see the complete error message?',
+        'An item with this name is already present.',
+        'An unconnected transition is already placed on the canvas. Please connect this transition first before placing another transition.',
+        'Apply',
+        'Apr',
+        'April',
+        'Are you using a browser plugin like AdBlock or AdBlockPlus? This can cause several issues and we highly recommend you to add an exception for this domain.',
+        'As soon as you use this button or link, you will leave this screen and its current state will be saved automatically. Do you want to continue?',
+        'Attachments',
+        'Aug',
+        'August',
+        'Cancel',
+        'Clear',
+        'Clear all',
+        'Clear debug log',
+        'Clear search',
+        'Clone webservice',
+        'Close',
+        'Close this dialog',
+        'Confirm',
+        'Could not open popup window. Please disable any popup blockers for this application.',
+        'Customer interface does not support internal article types.',
+        'Data Protection',
+        'Dec',
+        'December',
+        'Delete',
+        'Delete Entity',
+        'Delete field',
+        'Delete invoker',
+        'Delete operation',
+        'Delete this Event Trigger',
+        'Delete this Invoker',
+        'Delete this Operation',
+        'Delete webservice',
+        'Deleting the field and its data. This may take a while...',
+        'Do not show this warning again.',
+        'Do you really want to continue?',
+        'Do you really want to delete this attachment?',
+        'Do you really want to delete this certificate?',
+        'Do you really want to delete this dynamic field? ALL associated data will be LOST!',
+        'Do you really want to delete this filter?',
+        'Do you really want to delete this notification language?',
+        'Do you really want to delete this notification?',
+        'Do you really want to delete this scheduled system maintenance?',
+        'Do you really want to delete this statistic?',
+        'Duplicate event.',
+        'Duplicated entry',
+        'Edit Field Details',
+        'Edit this transition',
+        'Error',
+        'Error during AJAX communication',
+        'Error during AJAX communication. Status: %s, Error: %s',
+        'Error in the mail settings. Please correct and try again.',
+        'Feb',
+        'February',
+        'Filters',
+        'Fr',
+        'Fri',
+        'Friday',
+        'Hide EntityIDs',
+        'If you now leave this page, all open popup windows will be closed, too!',
+        'Import webservice',
+        'Information about the OTRS Daemon',
+        'Invalid date (need a future date)!',
+        'Invalid date (need a past date)!',
+        'Invalid date!',
+        'It is going to be deleted from the field, please try again.',
+        'Jan',
+        'January',
+        'Jul',
+        'July',
+        'Jun',
+        'June',
+        'Loading...',
+        'Mail check successful.',
+        'Mar',
+        'March',
+        'May',
+        'May_long',
+        'Mo',
+        'Mon',
+        'Monday',
+        'Namespace %s could not be initialized, because %s could not be found.',
+        'Next',
+        'No TransitionActions assigned.',
+        'No data found.',
+        'No dialogs assigned yet. Just pick an activity dialog from the list on the left and drag it here.',
+        'No matches found.',
+        'Not available',
+        'Nov',
+        'November',
+        'OTRS runs with a huge lists of browsers, please upgrade to one of these.',
+        'Oct',
+        'October',
+        'One or more errors occurred!',
+        'Open date selection',
+        'Please check the fields marked as red for valid inputs.',
+        'Please enter at least one search value or * to find anything.',
+        'Please perform a spell check on the the text first.',
+        'Please remove the following words from your search as they cannot be searched for:',
+        'Please see the documentation or ask your admin for further information.',
+        'Please turn off Compatibility Mode in Internet Explorer!',
+        'Previous',
+        'Remove Entity from canvas',
+        'Remove selection',
+        'Remove the Transition from this Process',
+        'Restore web service configuration',
+        'Sa',
+        'Sat',
+        'Saturday',
+        'Save',
+        'Search',
+        'Select all',
+        'Sep',
+        'September',
+        'Setting a template will overwrite any text or attachment.',
+        'Settings',
+        'Show EntityIDs',
+        'Show more',
+        'Show or hide the content.',
+        'Slide the navigation bar',
+        'Sorry, but you can\'t disable all methods for notifications marked as mandatory.',
+        'Sorry, but you can\'t disable all methods for this notification.',
+        'Sorry, the only existing condition can\'t be removed.',
+        'Sorry, the only existing field can\'t be removed.',
+        'Sorry, the only existing parameter can\'t be removed.',
+        'Su',
+        'Sun',
+        'Sunday',
+        'Switch to desktop mode',
+        'Switch to mobile mode',
+        'System Registration',
+        'Th',
+        'The browser you are using is too old.',
+        'There are currently no elements available to select from.',
+        'This Activity cannot be deleted because it is the Start Activity.',
+        'This Activity is already used in the Process. You cannot add it twice!',
+        'This Transition is already used for this Activity. You cannot use it twice!',
+        'This TransitionAction is already used in this Path. You cannot use it twice!',
+        'This address already exists on the address list.',
+        'This event is already attached to the job, Please use a different one.',
+        'This item still contains sub items. Are you sure you want to remove this item including its sub items?',
+        'Thu',
+        'Thursday',
+        'Today',
+        'Tu',
+        'Tue',
+        'Tuesday',
+        'WARNING: When you change the name of the group \'admin\', before making the appropriate changes in the SysConfig, you will be locked out of the administrations panel! If this happens, please rename the group back to admin per SQL statement.',
+        'We',
+        'Wed',
+        'Wednesday',
+        'You have unanswered chat requests',
+        'and %s more...',
+        'day',
+        'month',
+        'week',
+    ];
+
     # $$STOP$$
     return;
 }

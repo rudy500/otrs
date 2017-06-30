@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,13 +14,12 @@ use warnings;
 use Digest::SHA qw(sha1);
 use Digest::HMAC qw(hmac_hex);
 
-use base qw(Kernel::System::Auth::TwoFactor::GoogleAuthenticator);
+use parent qw(Kernel::System::Auth::TwoFactor::GoogleAuthenticator);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::CustomerUser',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 sub new {
@@ -95,14 +94,24 @@ sub Auth {
     if ( $Param{TwoFactorToken} ne $OTP ) {
 
         # check if previous token is also to be accepted
-        return if !$ConfigObject->Get("Customer::AuthTwoFactorModule$Self->{Count}::AllowPreviousToken");
+        if ( $ConfigObject->Get("Customer::AuthTwoFactorModule$Self->{Count}::AllowPreviousToken") ) {
 
-        # try again with previous otp (from 30 seconds ago)
-        $OTP = $Self->_GenerateOTP(
-            Secret   => $UserPreferences{$SecretPreferencesKey},
-            Previous => 1,
-        );
-        return if $Param{TwoFactorToken} ne $OTP;
+            # try again with previous otp (from 30 seconds ago)
+            $OTP = $Self->_GenerateOTP(
+                Secret   => $UserPreferences{$SecretPreferencesKey},
+                Previous => 1,
+            );
+        }
+
+        if ( $Param{TwoFactorToken} ne $OTP ) {
+
+            # log failure
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'notice',
+                Message  => "CustomerUser: $Param{User} two factor customer authentication failed (non-matching otp).",
+            );
+            return;
+        }
     }
 
     # log success

@@ -40,10 +40,11 @@ ActivityDialogs:
       FieldOrder:
       - Priority
       - Article
+      - DynamicField_TestTextZeroProcess
       Fields:
         Article:
           Config:
-            ArticleType: phone
+            IsVisibleForCustomer: 1
           DefaultValue: ''
           DescriptionLong: ''
           DescriptionShort: ''
@@ -53,6 +54,11 @@ ActivityDialogs:
           DescriptionLong: ''
           DescriptionShort: ''
           Display: '2'
+        DynamicField_TestTextZeroProcess:
+          DefaultValue: '0'
+          DescriptionLong: ''
+          DescriptionShort: ''
+          Display: '0'
       Interface:
       - AgentInterface
       - CustomerInterface
@@ -72,10 +78,11 @@ ActivityDialogs:
       FieldOrder:
       - Queue
       - Article
+      - DynamicField_TestDropdownACLProcess
       Fields:
         Article:
           Config:
-            ArticleType: note-internal
+            IsVisibleForCustomer: 0
           DefaultValue: ''
           DescriptionLong: ''
           DescriptionShort: ''
@@ -85,6 +92,11 @@ ActivityDialogs:
           DescriptionLong: ''
           DescriptionShort: ''
           Display: '2'
+        DynamicField_TestDropdownACLProcess:
+          DefaultValue: ''
+          DescriptionLong: ''
+          DescriptionShort: ''
+          Display: '1'
       Interface:
       - AgentInterface
       - CustomerInterface

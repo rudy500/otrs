@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,37 +7,25 @@
 # --
 
 package Kernel::System::PostMaster::LoopProtection::FS;
-## nofilter(TidyAll::Plugin::OTRS::Perl::Time)
 
 use strict;
 use warnings;
 
+use parent 'Kernel::System::PostMaster::LoopProtection::Common';
+
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Log',
+    'Kernel::System::DateTime',
 );
 
 sub new {
     my ( $Type, %Param ) = @_;
+    my $Self = $Type->SUPER::new(%Param);
 
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get config object
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
-    # get config options
-    $Self->{LoopProtectionLog} = $ConfigObject->Get('LoopProtectionLog')
+    $Self->{LoopProtectionLog} = $Kernel::OM->Get('Kernel::Config')->Get('LoopProtectionLog')
         || die 'No Config option "LoopProtectionLog"!';
-
-    $Self->{PostmasterMaxEmails} = $ConfigObject->Get('PostmasterMaxEmails') || 40;
-
-    # create logfile name
-    my ( $Sec, $Min, $Hour, $Day, $Month, $Year ) = localtime(time);    ## no critic
-    $Year = $Year + 1900;
-    $Month++;
-    $Self->{LoopProtectionLog} .= '-' . $Year . '-' . $Month . '-' . $Day . '.log';
+    $Self->{LoopProtectionLog} .= '-' . $Self->{LoopProtectionDate} . '.log';
 
     return $Self;
 }
@@ -50,8 +38,9 @@ sub SendEmail {
     # write log
     ## no critic
     if ( open( my $Out, '>>', $Self->{LoopProtectionLog} ) ) {
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
         ## use critic
-        print $Out "$To;" . localtime() . ";\n";    ## no critic
+        print $Out "$To;" . $DateTimeObject->Format( Format => '%a %b %{day} %H:%M:%S %Y' ) . ";\n";    ## no critic
         close($Out);
     }
     else {
@@ -101,7 +90,9 @@ sub Check {
     }
 
     # check possible loop
-    if ( $Count >= $Self->{PostmasterMaxEmails} ) {
+    my $Max = $Self->{PostmasterMaxEmailsPerAddress}{ lc $To } // $Self->{PostmasterMaxEmails};
+
+    if ( $Max && $Count >= $Max ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'notice',
             Message =>

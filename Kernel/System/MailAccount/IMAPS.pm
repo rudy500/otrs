@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use IO::Socket::SSL;
 
-use base qw(Kernel::System::MailAccount::IMAP);
+use parent qw(Kernel::System::MailAccount::IMAP);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',

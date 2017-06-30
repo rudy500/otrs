@@ -1,17 +1,15 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-[% InsertTemplate("AgentCustomerSearch.tt") %]
-
 [% RenderBlockStart("Customer") %]
 <div class="LayoutPopup ARIARoleMain">
     <div class="Header">
-        <h1>[% Translate("Change Customer of %s%s", Config('Ticket::Hook'), Data.TicketNumber) | html %] &mdash; [% Data.Title | html %]</h1>
+        <h1>[% Translate("Change Customer of %s%s%s", Config('Ticket::Hook'), Config('Ticket::HookDivider'), Data.TicketNumber) | html %] &mdash; [% Data.Title | html %]</h1>
         <p class="AsteriskExplanation">[% Translate("All fields marked with an asterisk (*) are mandatory.") | html %]</p>
         <p>
             <a class="CancelClosePopup" href="#">[% Translate("Cancel & close") | html %]</a>
@@ -47,13 +45,8 @@
                             </div>
                             <div class="Clear"></div>
 
-                            <label for="CustomerID" class="Mandatory"><span class="Marker">*</span> [% Translate("CustomerID") | html %]:</label>
-                            <div class="Field">
-                                <input type="text" id="CustomerID" name="CustomerID" value="[% Data.CustomerID | html %]" class="W75pc Validate_Required [% Data.CustomerIDInvalid | html %]"/>
-                                <div id="CustomerIDError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
-                                <div id="CustomerIDServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
-                            </div>
-                            <div class="Clear"></div>
+                            [% INCLUDE "CustomerCompany/TicketCustomerIDSelection.tt" Required = 1 Readonly = Config("Ticket::Frontend::AgentTicketCustomer::CustomerIDReadOnly") %]
+
                             <div class="Field">
 <!-- put the button here and not into the footer, because the CustomerTickets table can be very long -->
                                 <button class="CallForAction Primary" id="Submit" accesskey="g" title="[% Translate("Submit") | html %] (g)" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>

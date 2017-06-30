@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,22 +23,16 @@ our @ObjectDependencies = (
 
 Kernel::System::MailAccount - to manage mail accounts
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All functions to manage the mail accounts.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $MailAccountObject = $Kernel::OM->Get('Kernel::System::MailAccount');
 
 =cut
@@ -53,7 +47,7 @@ sub new {
     return $Self;
 }
 
-=item MailAccountAdd()
+=head2 MailAccountAdd()
 
 adds a new mail account
 
@@ -147,7 +141,7 @@ sub MailAccountAdd {
     return $ID;
 }
 
-=item MailAccountGet()
+=head2 MailAccountGet()
 
 returns a hash of mail account data
 
@@ -221,7 +215,7 @@ sub MailAccountGet {
     return %Data;
 }
 
-=item MailAccountUpdate()
+=head2 MailAccountUpdate()
 
 update a new mail account
 
@@ -293,7 +287,7 @@ sub MailAccountUpdate {
     return 1;
 }
 
-=item MailAccountDelete()
+=head2 MailAccountDelete()
 
 deletes a mail account
 
@@ -324,7 +318,7 @@ sub MailAccountDelete {
     return 1;
 }
 
-=item MailAccountList()
+=head2 MailAccountList()
 
 returns a list (Key, Name) of all mail accounts
 
@@ -359,7 +353,7 @@ sub MailAccountList {
     return %Data;
 }
 
-=item MailAccountBackendList()
+=head2 MailAccountBackendList()
 
 returns a list of usable backends
 
@@ -395,7 +389,7 @@ sub MailAccountBackendList {
     return %Backends;
 }
 
-=item MailAccountFetch()
+=head2 MailAccountFetch()
 
 fetch emails by using backend
 
@@ -440,7 +434,7 @@ sub MailAccountFetch {
     return $Backend->Fetch(%Param);
 }
 
-=item MailAccountCheck()
+=head2 MailAccountCheck()
 
 Check inbound mail configuration
 
@@ -493,8 +487,6 @@ sub MailAccountCheck {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,17 +12,8 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::Output::HTML::Layout;
-
-# get needed objects
-my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
-
-my $LayoutObject = Kernel::Output::HTML::Layout->new(
-    UserChallengeToken => 'TestToken',
-    UserID             => 1,
-    Lang               => 'de',
-    SessionID          => 123,
-);
+# get layout object
+my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
 # rich text tests
 my @Tests = (
@@ -61,6 +52,30 @@ my @Tests = (
             '<img width="140" vspace="10" hspace="1" height="38" border="0" alt="AltText" src="http://www.otrs.com/fileadmin/templates/skins/skin_otrs/css/images/logo.gif" /> This text should be displayed <img width="400" height="81" border="0" alt="Description: cid:image001.jpg@01CC3AFE.F81F0B30" src="/otrs/index.pl?Action=PictureUpload&amp;FormID=1311080525.12118416.3676164&amp;ContentID=image001.jpg@01CC4216.1E22E9A0" id="Picture_x0020_1"/>',
         Result =>
             '<img width="140" vspace="10" hspace="1" height="38" border="0" alt="AltText" src="http://www.otrs.com/fileadmin/templates/skins/skin_otrs/css/images/logo.gif" /> This text should be displayed <img width="400" height="81" border="0" alt="Description: cid:image001.jpg@01CC3AFE.F81F0B30" src="cid:image001.jpg@01CC4216.1E22E9A0" id="Picture_x0020_1"/>',
+    },
+    {
+        Name =>
+            '_RichTextReplaceLinkOfInlineContent() - generated itself, ContentID in src, > just after src',
+        String =>
+            '<img src="/app/index.pl?Action=PictureUpload&amp;FormID=1111111111.2222222.33333333&amp;ContentID=test1@test"></img>',
+        Result =>
+            '<img src="cid:test1@test"></img>',
+    },
+    {
+        Name =>
+            '_RichTextReplaceLinkOfInlineContent() - generated itself, ContentID in other attribute than src, ContentID in src also',
+        String =>
+            '<img src="/app/index.pl?Action=PictureUpload&amp;FormID=1111111111.2222222.33333333&amp;ContentID=test1@test" other_attribute_with_different_contentid="ContentID=test2@test" style="color: #000;">',
+        Result =>
+            '<img src="cid:test1@test" other_attribute_with_different_contentid="ContentID=test2@test" style="color: #000;">',
+    },
+    {
+        Name =>
+            '_RichTextReplaceLinkOfInlineContent() - generated itself, ContentID in other attribute than src, no ContentID in src',
+        String =>
+            '<img src="/app/index.pl?Action=PictureUpload&amp;FormID=1111111111.2222222.33333333" other_attribute_with_different_contentid="ContentID=test2@test" style="color: #000;">',
+        Result =>
+            '<img src="/app/index.pl?Action=PictureUpload&amp;FormID=1111111111.2222222.33333333" other_attribute_with_different_contentid="ContentID=test2@test" style="color: #000;">',
     },
 );
 

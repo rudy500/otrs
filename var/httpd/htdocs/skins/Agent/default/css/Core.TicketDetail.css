@@ -56,6 +56,16 @@ div.Headline .Flag {
 }
 
 /**
+ * @subsection  Article view settings
+ */
+
+.ArticleView {
+    position: absolute;
+    right: 3px;
+    top: 7px;
+}
+
+/**
  * @subsection  Article table head
  */
 
@@ -71,6 +81,10 @@ div.Headline .Flag {
     float: left;
 }
 
+#ArticleItems .WidgetSimple {
+    border-left: 5px solid #E8E8E8;
+}
+
 #ArticleItems .WidgetSimple .Header {
     overflow: hidden;
 }
@@ -84,6 +98,11 @@ div.Headline .Flag {
     line-height: 22px;
     font-size: 11px;
     float: right;
+}
+
+#ArticleItems .WidgetMenu .LightRow {
+    background: #E8E8E8;
+    border-bottom: none;
 }
 
 #ArticleTableBody {
@@ -107,9 +126,8 @@ div.Headline .Flag {
 
 .ArticleMailHeader {
     margin: 0 8px;
-    padding: 2px 0 7px;
+    padding: 2px 0 0;
     font-size: 11px;
-    border-bottom: 1px solid #C6C5C4;
 }
 
 .ArticleMailContent {
@@ -117,9 +135,119 @@ div.Headline .Flag {
     line-height: 1.3;
 }
 
-.ArticleMailContent iframe {
+.ArticleMailContent .ArticleMeta {
     background: #fff;
     border: 1px solid #eee;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.ArticleMailContent .ArticleMeta h2 {
+    font-size: 13px;
+    font-weight: bold;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.ArticleMailContent .ArticleMeta ul + h2 {
+    margin-top: 10px;
+}
+
+.ArticleMailContent .ArticleMeta ul li {
+    display: inline-block;
+}
+
+.ArticleMailContent .ArticleMeta ul li a {
+    white-space: nowrap;
+    display: block;
+    background: #eee;
+    color: #333;
+    font-size: 11px;
+    padding: 3px 7px;
+    margin-bottom: 4px;
+}
+
+.ArticleMailContentHTMLWrapper {
+    -webkit-overflow-scrolling: touch;
+   overflow: auto;
+}
+
+.ArticleSenderLeft {
+    float: left;
+    width: 103px;
+    position: relative;
+}
+.ArticleSenderRight {
+    float: right;
+    width: 103px;
+    position: relative;
+}
+
+.ArticleSenderInitials,
+.ArticleSenderImage {
+    width: 80px;
+    height: 80px;
+    padding: 5px;
+    background: #FFF;
+    border: 1px solid #EEE;
+}
+
+.ArticleSenderLeft > .ArticleSenderInitials,
+.ArticleSenderLeft > .ArticleSenderImage {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+}
+
+.ArticleSenderRight > .ArticleSenderInitials,
+.ArticleSenderRight > .ArticleSenderImage {
+    position: absolute;
+    right: 0px;
+    top: 0px;
+}
+
+.ArticleSenderInitials {
+    text-align: center;
+}
+
+.ArticleSenderInitials span {
+    font-size: 36px;
+    line-height: 80px;
+    color: #CCC;
+}
+
+.ArticleSenderTongueRight {
+  width: 0px;
+  height: 0px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 10px solid #FFF;
+  float: left;
+  top: 35px;
+  position: relative;
+}
+
+.ArticleSenderTongueLeft {
+  width: 0px;
+  height: 0px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 10px solid #FFF;
+  float: right;
+  top: 35px;
+  position: relative;
+}
+
+.ArticleSenderChannelIcon {
+    position: absolute;
+    left: 8px;
+    bottom: 7px;
+    color: #444;
+    text-shadow: 0px 0px 3px rgba(255, 255, 255, 0.618);
+}
+
+.ArticleMailContent iframe {
+    background: #fff;
 }
 
 .DataTable tbody td a.Attachment {
@@ -135,15 +263,13 @@ div.Headline .Flag {
  */
 
 .ArticleFilter,
-.ArticlePages,
-.ArticleView {
+.ArticlePages {
     float: left;
     margin-left: 10px;
 }
 
 .RTL .ArticleFilter,
-.RTL .ArticlePages,
-.RTL .ArticleView {
+.RTL .ArticlePages {
     float: right;
 }
 
@@ -309,6 +435,24 @@ div.Headline .Flag {
  * @subsection  ArticleColors
  * @note        article colors
  */
+
+.UseArticleColors #ArticleItems .NotVisibleForCustomer {
+    border-left-color: #DD6666;
+    background: #FFCCCC;
+}
+
+.UseArticleColors .NotVisibleForCustomer .Header,
+.UseArticleColors #ArticleItems .NotVisibleForCustomer .WidgetMenu .LightRow {
+    background: #EE9999;
+}
+
+.UseArticleColors .NotVisibleForCustomer .WidgetAction i {
+    color: #474747;
+}
+
+.UseArticleColors tr.NotVisibleForCustomer > td {
+    background: #FFCCCC;
+}
 
 .UseArticleColors #ArticleTable a {
     color: #000;
@@ -824,6 +968,14 @@ div.Headline .Flag {
     border-right-color: #B7C3E8;
 }
 
+.UseArticleColors .TimelineView .TypeIncoming.SenderType_customer.ArticleType_email-internal h3 {
+    background-color: #fff;
+}
+
+.UseArticleColors .TimelineView .TypeIncoming.SenderType_customer.ArticleType_email-internal h3:after {
+    border-right-color: #ddd;
+}
+
 .UseArticleColors .TimelineView .TypeTicketAutoAction h3 {
     background-color: #ffffd1;
     color: #000;
@@ -871,6 +1023,38 @@ div.Headline .Flag {
 
 .TimelineView div.UnreadArticles i {
     font-size: 11px;
+}
+
+.ItemRow i.Unsupported,
+.ItemRow a.Unsupported {
+    opacity: 0.4;
+}
+
+.ArticleAttachments .Attachment {
+    background-color: silver;
+    float: left;
+    height: 40px;
+    margin: 3px;
+    padding: 3px;
+    width: 200px;
+    text-align: center;
+}
+
+.ArticleAttachments .Attachment i {
+    color: black;
+    float: right;
+}
+
+.ArticleAttachments span {
+    float: left;
+}
+
+.ArticleAttachments .ContentType {
+    clear: both;
+}
+
+.ArticleAttachments .Attachment:hover {
+    background-color: lightgray;
 }
 
 } /* end @media */

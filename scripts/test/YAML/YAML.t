@@ -1,20 +1,22 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
 
+use Kernel::System::ObjectManager;
+
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $YAMLObject   = $Kernel::OM->Get('Kernel::System::YAML');
+# get YAML object
+my $YAMLObject = $Kernel::OM->Get('Kernel::System::YAML');
 
 my @Tests = (
     {
@@ -124,6 +126,51 @@ my @Tests = (
             PossibleValues => '-',
         },
         YAMLString    => "---\nPossibleValues: '-'\n",
+        SuccessDecode => 1,
+    },
+
+    {
+        Name          => 'Simple String 0',
+        Data          => '0',
+        SuccessDecode => 1,
+    },
+    {
+        Name          => 'Number 0',
+        Data          => 0,
+        SuccessDecode => 1,
+    },
+    {
+        Name          => 'Simple String 1',
+        Data          => '1',
+        SuccessDecode => 1,
+    },
+    {
+        Name          => 'Number 1',
+        Data          => 1,
+        SuccessDecode => 1,
+    },
+    {
+        Name          => 'Simple String 01',
+        Data          => '01',
+        SuccessDecode => 1,
+    },
+    {
+        Name          => 'Number 01',
+        Data          => 01,            ## no critic
+        SuccessDecode => 1,
+    },
+    {
+        Name          => 'Simple Empty String',
+        Data          => '',
+        SuccessDecode => 1,
+    },
+    {
+        Name => 'Complex Structure with 0',
+        Data => {
+            Value1 => '0',
+            Value2 => 0,
+        },
+        YAMLString    => "---\nValue1: 0\nValue2: 0\n",
         SuccessDecode => 1,
     },
 );

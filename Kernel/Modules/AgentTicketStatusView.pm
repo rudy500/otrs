@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -97,10 +98,12 @@ sub Run {
 
         if ( $ColumnName eq 'CustomerID' ) {
             push @{ $ColumnFilter{$ColumnName} }, $FilterValue;
+            push @{ $ColumnFilter{ $ColumnName . 'Raw' } }, $FilterValue;
             $GetColumnFilter{$ColumnName} = $FilterValue;
         }
         elsif ( $ColumnName eq 'CustomerUserID' ) {
-            push @{ $ColumnFilter{CustomerUserLogin} }, $FilterValue;
+            push @{ $ColumnFilter{CustomerUserLogin} },    $FilterValue;
+            push @{ $ColumnFilter{CustomerUserLoginRaw} }, $FilterValue;
             $GetColumnFilter{$ColumnName} = $FilterValue;
         }
         else {
@@ -160,7 +163,7 @@ sub Run {
     # define filter
     my %Filters = (
         Open => {
-            Name   => 'Open tickets',
+            Name   => Translatable('Open tickets'),
             Prio   => 1000,
             Search => {
                 StateType  => 'Open',
@@ -171,7 +174,7 @@ sub Run {
             },
         },
         Closed => {
-            Name   => 'Closed tickets',
+            Name   => Translatable('Closed tickets'),
             Prio   => 1001,
             Search => {
                 StateType  => 'Closed',
@@ -187,7 +190,9 @@ sub Run {
 
     # check if filter is valid
     if ( !$Filters{$Filter} ) {
-        $LayoutObject->FatalError( Message => "Invalid Filter: $Filter!" );
+        $LayoutObject->FatalError(
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Invalid Filter: %s!', $Filter ),
+        );
     }
 
     # do shown tickets lookup
@@ -233,7 +238,7 @@ sub Run {
             %{ $Filters{$Filter}->{Search} },
             %ColumnFilter,
             Result => 'COUNT',
-        );
+        ) || 0;
     }
 
     my $View = $ParamObject->GetParam( Param => 'View' ) || '';
@@ -253,7 +258,8 @@ sub Run {
 
         if ( !$FilterContent ) {
             $LayoutObject->FatalError(
-                Message => "Can't get filter content data of $HeaderColumn!",
+                Message => $LayoutObject->{LanguageObject}
+                    ->Translate( 'Can\'t get filter content data of %s!', $HeaderColumn ),
             );
         }
 
@@ -288,7 +294,7 @@ sub Run {
             %{ $Filters{$Filter}->{Search} },
             %ColumnFilter,
             Result => 'COUNT',
-        );
+        ) || 0;
         if ( $Count > $Limit ) {
             $Count = $Limit;
         }
@@ -353,7 +359,7 @@ sub Run {
         View       => $View,
         Bulk       => 1,
         Limit      => $Limit,
-        TitleName  => 'Status View',
+        TitleName  => Translatable('Status View'),
         TitleValue => $Filters{$Filter}->{Name},
 
         Filter     => $Filter,

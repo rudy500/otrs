@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,7 @@ use warnings;
 use Mail::Address;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -35,6 +36,14 @@ sub new {
         FieldFilter => $ConfigObject->Get("Ticket::Frontend::$Self->{Action}")->{DynamicField} || {},
     );
 
+    # get form id
+    $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
+
+    # create form id
+    if ( !$Self->{FormID} ) {
+        $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
+    }
+
     return $Self;
 }
 
@@ -52,7 +61,7 @@ sub Run {
         From Subject Body NextStateID TimeUnits
         Year Month Day Hour Minute
         NewResponsibleID ResponsibleAll OwnerAll TypeID ServiceID SLAID
-        StandardTemplateID FromChatID
+        StandardTemplateID FromChatID Dest
         )
         )
     {
@@ -93,7 +102,12 @@ sub Run {
                 my $CustomerDisabled = '';
 
                 if ( !$IsUpload ) {
-                    $GetParam{From} .= $CustomerElement . ',';
+                    if ( $GetParam{From} ) {
+                        $GetParam{From} .= ', ' . $CustomerElement;
+                    }
+                    else {
+                        $GetParam{From} = $CustomerElement;
+                    }
 
                     # check email address
                     for my $Email ( Mail::Address->parse($CustomerElement) ) {
@@ -143,14 +157,6 @@ sub Run {
     my $TicketObject              = $Kernel::OM->Get('Kernel::System::Ticket');
     my $QueueObject               = $Kernel::OM->Get('Kernel::System::Queue');
 
-    # get form id
-    my $FormID = $ParamObject->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $UploadCacheObject->FormIDCreate();
-    }
-
     my $Config = $ConfigObject->Get("Ticket::Frontend::$Self->{Action}");
 
     # cycle trough the activated Dynamic Fields for this screen
@@ -158,7 +164,7 @@ sub Run {
     for my $DynamicFieldConfig ( @{ $Self->{DynamicField} } ) {
         next DYNAMICFIELD if !IsHashRefWithData($DynamicFieldConfig);
 
-        # extract the dynamic field value form the web request
+        # extract the dynamic field value from the web request
         $DynamicFieldValues{ $DynamicFieldConfig->{Name} } = $DynamicFieldBackendObject->EditFieldValueGet(
             DynamicFieldConfig => $DynamicFieldConfig,
             ParamObject        => $ParamObject,
@@ -194,7 +200,7 @@ sub Run {
     if ( $GetParam{FromChatID} ) {
         if ( !$ConfigObject->Get('ChatEngine::Active') ) {
             return $LayoutObject->FatalError(
-                Message => "Chat is not active.",
+                Message => Translatable('Chat is not active.'),
             );
         }
 
@@ -208,7 +214,7 @@ sub Run {
 
         if ( !%ChatParticipant ) {
             return $LayoutObject->FatalError(
-                Message => "No permission.",
+                Message => Translatable('No permission.'),
             );
         }
 
@@ -221,7 +227,8 @@ sub Run {
         # Check if observer
         if ( $PermissionLevel ne 'Owner' && $PermissionLevel ne 'Participant' ) {
             return $LayoutObject->FatalError(
-                Message => "No permission. $PermissionLevel",
+                Message => Translatable('No permission.'),
+                Comment => $PermissionLevel,
             );
         }
     }
@@ -277,32 +284,49 @@ sub Run {
 
             if ( !$Access ) {
                 return $LayoutObject->NoPermission(
-                    Message    => "You need ro permission!",
+                    Message    => Translatable('You need ro permission!'),
                     WithHeader => 'yes',
                 );
             }
 
-            %Article = $TicketObject->ArticleGet(
+            # Get information from original ticket (SplitTicket).
+            my %SplitTicketData = $TicketObject->TicketGet(
+                TicketID      => $Self->{TicketID},
+                DynamicFields => 1,
+                UserID        => $Self->{UserID},
+            );
+
+            my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForArticle(
+                TicketID  => $Self->{TicketID},
+                ArticleID => $GetParam{ArticleID},
+            );
+
+            %Article = $ArticleBackendObject->ArticleGet(
+                TicketID      => $Self->{TicketID},
                 ArticleID     => $GetParam{ArticleID},
                 DynamicFields => 0,
+                UserID        => $Self->{UserID},
             );
 
             # check if article is from the same TicketID as we checked permissions for.
             if ( $Article{TicketID} ne $Self->{TicketID} ) {
                 return $LayoutObject->ErrorScreen(
-                    Message => "Article does not belong to ticket $Self->{TicketID}!",
+                    Message => $LayoutObject->{LanguageObject}
+                        ->Translate( 'Article does not belong to ticket %s!', $Self->{TicketID} ),
                 );
             }
 
             $Article{Subject} = $TicketObject->TicketSubjectClean(
-                TicketNumber => $Article{TicketNumber},
-                Subject      => $Article{Subject} || '',
+                TicketNumber => $Article{TicketNumber} || '',
+                Subject      => $Article{Subject}      || '',
             );
 
             # save article from for addresses list
             $ArticleFrom = $Article{From};
 
-            # if To is present and is no a queue
+            # if To is present
+            # and is no a queue
+            # and also is no a system address
             # set To as article from
             if ( IsStringWithData( $Article{To} ) ) {
                 my %Queues = $QueueObject->QueueList();
@@ -315,16 +339,27 @@ sub Run {
                 }
 
                 my %QueueLookup = reverse %Queues;
-                if ( !defined $QueueLookup{ $Article{To} } ) {
+                my %SystemAddressLookup
+                    = reverse $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressList();
+                my @ArticleFromAddress;
+                my $SystemAddressEmail;
+
+                if ($ArticleFrom) {
+                    @ArticleFromAddress = Mail::Address->parse($ArticleFrom);
+                    $SystemAddressEmail = $ArticleFromAddress[0]->address();
+                }
+
+                if ( !defined $QueueLookup{ $Article{To} } && defined $SystemAddressLookup{$SystemAddressEmail} ) {
                     $ArticleFrom = $Article{To};
                 }
+
             }
 
             # body preparation for plain text processing
             $Article{Body} = $LayoutObject->ArticleQuote(
                 TicketID           => $Article{TicketID},
                 ArticleID          => $GetParam{ArticleID},
-                FormID             => $FormID,
+                FormID             => $Self->{FormID},
                 UploadCacheObject  => $UploadCacheObject,
                 AttachmentsInclude => 1,
             );
@@ -337,20 +372,20 @@ sub Run {
 
             # show customer info
             if ( $ConfigObject->Get('Ticket::Frontend::CustomerInfoCompose') ) {
-                if ( $Article{CustomerUserID} ) {
+                if ( $SplitTicketData{CustomerUserID} ) {
                     %CustomerData = $CustomerUserObject->CustomerUserDataGet(
-                        User => $Article{CustomerUserID},
+                        User => $SplitTicketData{CustomerUserID},
                     );
                 }
-                elsif ( $Article{CustomerID} ) {
+                elsif ( $SplitTicketData{CustomerID} ) {
                     %CustomerData = $CustomerUserObject->CustomerUserDataGet(
-                        CustomerID => $Article{CustomerID},
+                        CustomerID => $SplitTicketData{CustomerID},
                     );
                 }
             }
-            if ( $Article{CustomerUserID} ) {
+            if ( $SplitTicketData{CustomerUserID} ) {
                 my %CustomerUserList = $CustomerUserObject->CustomerSearch(
-                    UserLogin => $Article{CustomerUserID},
+                    UserLogin => $SplitTicketData{CustomerUserID},
                 );
                 for my $KeyCustomerUserList ( sort keys %CustomerUserList ) {
                     $Article{From} = $CustomerUserList{$KeyCustomerUserList};
@@ -403,9 +438,14 @@ sub Run {
                 $CustomerKey = $Article{CustomerUserID};
             }
 
+            my $CustomerElement = $EmailAddress;
+            if ( $Email->phrase() ) {
+                $CustomerElement = $Email->phrase() . " <$EmailAddress>";
+            }
+
             push @MultipleCustomer, {
                 Count            => $CountAux,
-                CustomerElement  => $Email->address(),
+                CustomerElement  => $CustomerElement,
                 CustomerSelected => $CustomerSelected,
                 CustomerKey      => $CustomerKey,
                 CustomerError    => $CustomerError,
@@ -463,7 +503,7 @@ sub Run {
         # this information will be available in the SplitTicketParam hash
         if ( $SplitTicketParam{TicketID} ) {
 
-            # get information from original ticket (SplitTicket)
+            # Get information from original ticket (SplitTicket).
             my %SplitTicketData = $TicketObject->TicketGet(
                 TicketID      => $SplitTicketParam{TicketID},
                 DynamicFields => 1,
@@ -590,7 +630,7 @@ sub Run {
 
         # get all attachments meta data
         my @Attachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
         # get and format default subject and body
@@ -623,6 +663,14 @@ sub Run {
             )
         {
             $Self->{QueueID} = $SplitTicketParam{QueueID};
+        }
+
+        # Get predefined QueueID (if no queue from split ticket is set).
+        if ( !$Self->{QueueID} && $GetParam{Dest} ) {
+
+            my @QueueParts = split( /\|\|/, $GetParam{Dest} );
+            $Self->{QueueID} = $QueueParts[0];
+            $SplitTicketParam{ToSelected} = $GetParam{Dest};
         }
 
         # html output
@@ -796,7 +844,7 @@ sub Run {
             next COUNT if !$Delete;
             $Error{AttachmentDelete} = 1;
             $UploadCacheObject->FormIDRemoveFile(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
                 FileID => $Count,
             );
             $IsUpload = 1;
@@ -811,7 +859,7 @@ sub Run {
                 Param => 'FileUpload',
             );
             $UploadCacheObject->FormIDAddFile(
-                FormID      => $FormID,
+                FormID      => $Self->{FormID},
                 Disposition => 'attachment',
                 %UploadStuff,
             );
@@ -819,27 +867,30 @@ sub Run {
 
         # get all attachments meta data
         my @Attachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
-
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
 
         # check pending date
         if ( !$ExpandCustomerName && $StateData{TypeName} && $StateData{TypeName} =~ /^pending/i ) {
-            if ( !$TimeObject->Date2SystemTime( %GetParam, Second => 0 ) ) {
-                if ( $IsUpload == 0 ) {
-                    $Error{DateInvalid} = ' ServerError';
-                }
-            }
+
+            # create a datetime object based on pending date
+            my $PendingDateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    %GetParam,
+                    Second => 0,
+                },
+            );
+
+            # get current system epoch
+            my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
             if (
-                $TimeObject->Date2SystemTime( %GetParam, Second => 0 )
-                < $TimeObject->SystemTime()
+                ( !$PendingDateTimeObject || $PendingDateTimeObject < $CurSystemDateTimeObject )
+                && !$IsUpload
                 )
             {
-                if ( $IsUpload == 0 ) {
-                    $Error{DateInvalid} = ' ServerError';
-                }
+                $Error{'DateInvalid'} = 'ServerError';
             }
         }
 
@@ -908,8 +959,9 @@ sub Run {
                 if ( !IsHashRefWithData($ValidationResult) ) {
                     return $LayoutObject->ErrorScreen(
                         Message =>
-                            "Could not perform validation on field $DynamicFieldConfig->{Label}!",
-                        Comment => 'Please contact the admin.',
+                            $LayoutObject->{LanguageObject}
+                            ->Translate( 'Could not perform validation on field %s!', $DynamicFieldConfig->{Label} ),
+                        Comment => Translatable('Please contact the administrator.'),
                     );
                 }
 
@@ -940,7 +992,8 @@ sub Run {
             # search customer
             my %CustomerUserList;
             %CustomerUserList = $CustomerUserObject->CustomerSearch(
-                Search => $GetParam{From},
+                Search           => $GetParam{From},
+                CustomerUserOnly => 1,
             );
 
             # check if just one customer user exists
@@ -1012,7 +1065,7 @@ sub Run {
                 my %ExternalCustomerUserData = $CustomerUserObject->CustomerUserDataGet(
                     User => $FromExternalCustomer{Customer},
                 );
-                $FromExternalCustomer{Email} = $ExternalCustomerUserData{UserEmail};
+                $FromExternalCustomer{Email} = $ExternalCustomerUserData{UserMailString};
             }
             $Error{ExpandCustomerName} = 1;
         }
@@ -1261,7 +1314,7 @@ sub Run {
 
         # get pre loaded attachment
         my @AttachmentData = $UploadCacheObject->FormIDGetAllFilesData(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
         # get submit attachment
@@ -1322,21 +1375,23 @@ sub Run {
         if ( $GetParam{NewUserID} ) {
             $NoAgentNotify = 1;
         }
-        my $ArticleID = $TicketObject->ArticleCreate(
-            NoAgentNotify    => $NoAgentNotify,
-            TicketID         => $TicketID,
-            ArticleType      => $Config->{ArticleType},
-            SenderType       => $Config->{SenderType},
-            From             => $GetParam{From},
-            To               => $To,
-            Subject          => $GetParam{Subject},
-            Body             => $GetParam{Body},
-            MimeType         => $MimeType,
-            Charset          => $LayoutObject->{UserCharset},
-            UserID           => $Self->{UserID},
-            HistoryType      => $Config->{HistoryType},
-            HistoryComment   => $Config->{HistoryComment} || '%%',
-            AutoResponseType => ( $ConfigObject->Get('AutoResponseForWebTickets') )
+        my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+        my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Phone' );
+        my $ArticleID            = $ArticleBackendObject->ArticleCreate(
+            NoAgentNotify        => $NoAgentNotify,
+            TicketID             => $TicketID,
+            SenderType           => $Config->{SenderType},
+            IsVisibleForCustomer => $Config->{IsVisibleForCustomer},
+            From                 => $GetParam{From},
+            To                   => $To,
+            Subject              => $GetParam{Subject},
+            Body                 => $GetParam{Body},
+            MimeType             => $MimeType,
+            Charset              => $LayoutObject->{UserCharset},
+            UserID               => $Self->{UserID},
+            HistoryType          => $Config->{HistoryType},
+            HistoryComment       => $Config->{HistoryComment} || '%%',
+            AutoResponseType     => ( $ConfigObject->Get('AutoResponseForWebTickets') )
             ? 'auto reply'
             : '',
             OrigHeader => {
@@ -1380,40 +1435,106 @@ sub Run {
             my $ChatArticleID;
 
             if (@ChatMessageList) {
-                my $JSONBody = $Kernel::OM->Get('Kernel::System::JSON')->Encode(
-                    Data => \@ChatMessageList,
-                );
-
-                my $ChatArticleType = 'chat-internal';
-                if (
-                    $Chat{RequesterType} eq 'Customer'
-                    || $Chat{TargetType} eq 'Customer'
-                    )
-                {
-                    $ChatArticleType = 'chat-external';
+                for my $Message (@ChatMessageList) {
+                    $Message->{MessageText} = $LayoutObject->Ascii2Html(
+                        Text        => $Message->{MessageText},
+                        LinkFeature => 1,
+                    );
                 }
 
-                $ChatArticleID = $TicketObject->ArticleCreate(
-                    NoAgentNotify  => $NoAgentNotify,
-                    TicketID       => $TicketID,
-                    ArticleType    => $ChatArticleType,
-                    SenderType     => $Config->{SenderType},
-                    From           => $GetParam{From},
-                    To             => $GetParam{To},
-                    Subject        => $Kernel::OM->Get('Kernel::Language')->Translate('Chat'),
-                    Body           => $JSONBody,
-                    MimeType       => 'application/json',
-                    Charset        => $LayoutObject->{UserCharset},
-                    UserID         => $Self->{UserID},
-                    HistoryType    => $Config->{HistoryType},
-                    HistoryComment => $Config->{HistoryComment} || '%%',
-                    Queue          => $QueueObject->QueueLookup( QueueID => $NewQueueID ),
+                my $ArticleChatBackend = $ArticleObject->BackendForChannel( ChannelName => 'Chat' );
+                $ChatArticleID = $ArticleChatBackend->ArticleCreate(
+                    TicketID             => $TicketID,
+                    SenderType           => $Config->{SenderType},
+                    ChatMessageList      => \@ChatMessageList,
+                    IsVisibleForCustomer => $Config->{IsVisibleForCustomer},
+                    UserID               => $Self->{UserID},
+                    HistoryType          => $Config->{HistoryType},
+                    HistoryComment       => $Config->{HistoryComment} || '%%',
                 );
             }
             if ($ChatArticleID) {
-                $ChatObject->ChatDelete(
+
+                # check is customer actively present
+                # it means customer has accepted this chat and not left it!
+                my $CustomerPresent = $ChatObject->CustomerPresent(
                     ChatID => $GetParam{FromChatID},
+                    Active => 1,
                 );
+
+                my $Success;
+
+                # if there is no customer present in the chat
+                # just remove the chat
+                if ( !$CustomerPresent ) {
+                    $Success = $ChatObject->ChatDelete(
+                        ChatID => $GetParam{FromChatID},
+                    );
+                }
+
+                # otherwise set chat status to closed and inform other agents
+                else {
+                    $Success = $ChatObject->ChatUpdate(
+                        ChatID     => $GetParam{FromChatID},
+                        Status     => 'closed',
+                        Deprecated => 1,
+                    );
+
+                    # get user data
+                    my %User = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
+                        UserID => $Self->{UserID},
+                    );
+
+                    my $RequesterName = $User{UserFullname};
+                    $RequesterName ||= $Self->{UserID};
+
+                    my $LeaveMessage = $Kernel::OM->Get('Kernel::Language')->Translate(
+                        "%s has left the chat.",
+                        $RequesterName,
+                    );
+
+                    $Success = $ChatObject->ChatMessageAdd(
+                        ChatID          => $GetParam{FromChatID},
+                        ChatterID       => $Self->{UserID},
+                        ChatterType     => 'User',
+                        MessageText     => $LeaveMessage,
+                        SystemGenerated => 1,
+                    );
+
+                    # time after chat will be removed
+                    my $ChatTTL = $Kernel::OM->Get('Kernel::Config')->Get('ChatEngine::ChatTTL');
+
+                    my $ChatClosedMessage = $Kernel::OM->Get('Kernel::Language')->Translate(
+                        "This chat has been closed and will be removed in %s hours.",
+                        $ChatTTL,
+                    );
+
+                    $Success = $ChatObject->ChatMessageAdd(
+                        ChatID          => $GetParam{FromChatID},
+                        ChatterID       => $Self->{UserID},
+                        ChatterType     => 'User',
+                        MessageText     => $ChatClosedMessage,
+                        SystemGenerated => 1,
+                    );
+
+                    # remove all AGENT participants from chat
+                    my @ParticipantsList = $ChatObject->ChatParticipantList(
+                        ChatID => $GetParam{FromChatID},
+                    );
+                    CHATPARTICIPANT:
+                    for my $ChatParticipant (@ParticipantsList) {
+
+                        # skip it this participant is not agent
+                        next CHATPARTICIPANT if $ChatParticipant->{ChatterType} ne 'User';
+
+                        # remove this participants from the chat
+                        $Success = $ChatObject->ChatParticipantRemove(
+                            ChatID      => $GetParam{FromChatID},
+                            ChatterID   => $ChatParticipant->{ChatterID},
+                            ChatterType => 'User',
+                        );
+                    }
+                }
             }
         }
 
@@ -1464,15 +1585,16 @@ sub Run {
 
         # write attachments
         for my $Attachment (@AttachmentData) {
-            $TicketObject->ArticleWriteAttachment(
+            $ArticleBackendObject->ArticleWriteAttachment(
                 %{$Attachment},
+                TicketID  => $TicketID,
                 ArticleID => $ArticleID,
                 UserID    => $Self->{UserID},
             );
         }
 
         # remove pre submited attachments
-        $UploadCacheObject->FormIDRemove( FormID => $FormID );
+        $UploadCacheObject->FormIDRemove( FormID => $Self->{FormID} );
 
         # link tickets
         if (
@@ -1490,7 +1612,7 @@ sub Run {
 
             if ( !$Access ) {
                 return $LayoutObject->NoPermission(
-                    Message    => "You need ro permission!",
+                    Message    => Translatable('You need ro permission!'),
                     WithHeader => 'yes',
                 );
             }
@@ -1694,7 +1816,7 @@ sub Run {
 
             # remove all attachments from the Upload cache
             my $RemoveSuccess = $UploadCacheObject->FormIDRemove(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
             );
             if ( !$RemoveSuccess ) {
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1723,7 +1845,7 @@ sub Run {
                 for ( sort keys %AllStdAttachments ) {
                     my %AttachmentsData = $StdAttachmentObject->StdAttachmentGet( ID => $_ );
                     $UploadCacheObject->FormIDAddFile(
-                        FormID      => $FormID,
+                        FormID      => $Self->{FormID},
                         Disposition => 'attachment',
                         %AttachmentsData,
                     );
@@ -1732,7 +1854,7 @@ sub Run {
                 # send a list of attachments in the upload cache back to the clientside JavaScript
                 # which renders then the list of currently uploaded attachments
                 @TicketAttachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-                    FormID => $FormID,
+                    FormID => $Self->{FormID},
                 );
             }
 
@@ -1840,8 +1962,8 @@ sub Run {
     }
     else {
         return $LayoutObject->ErrorScreen(
-            Message => 'No Subaction!!',
-            Comment => 'Please contact your administrator',
+            Message => Translatable('No Subaction!'),
+            Comment => Translatable('Please contact the administrator.'),
         );
     }
 }
@@ -1911,6 +2033,7 @@ sub _GetUsers {
     # workflow
     my $ACL = $TicketObject->TicketAcl(
         %Param,
+        Action        => $Self->{Action},
         ReturnType    => 'Ticket',
         ReturnSubType => 'Owner',
         Data          => \%ShownUsers,
@@ -1973,6 +2096,7 @@ sub _GetResponsibles {
     # workflow
     my $ACL = $TicketObject->TicketAcl(
         %Param,
+        Action        => $Self->{Action},
         ReturnType    => 'Ticket',
         ReturnSubType => 'Responsible',
         Data          => \%ShownUsers,
@@ -2087,12 +2211,7 @@ sub _GetTos {
             );
         }
         else {
-            %Tos = $Kernel::OM->Get('Kernel::System::DB')->GetTableData(
-                Table => 'system_address',
-                What  => 'queue_id, id',
-                Valid => 1,
-                Clamp => 1,
-            );
+            %Tos = $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressQueueList();
         }
 
         # get create permission queues
@@ -2113,6 +2232,10 @@ sub _GetTos {
                 || '<Realname> <<Email>> - Queue: <Queue>';
             $String =~ s/<Queue>/$QueueData{Name}/g;
             $String =~ s/<QueueComment>/$QueueData{Comment}/g;
+
+            # remove trailing spaces
+            $String =~ s{\s+\z}{} if !$QueueData{Comment};
+
             if ( $ConfigObject->Get('Ticket::Frontend::NewQueueSelectionType') ne 'Queue' )
             {
                 my %SystemAddressData = $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressGet(
@@ -2167,15 +2290,7 @@ sub _GetStandardTemplates {
 sub _MaskPhoneNew {
     my ( $Self, %Param ) = @_;
 
-    # get form id
-    my $FormID = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
-    }
-
-    $Param{FormID} = $FormID;
+    $Param{FormID} = $Self->{FormID};
 
     # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -2189,9 +2304,13 @@ sub _MaskPhoneNew {
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
-    # build customer search autocomplete field
-    $LayoutObject->Block(
-        Name => 'CustomerSearchAutoComplete',
+    # set JS data
+    $LayoutObject->AddJSData(
+        Key   => 'CustomerSearch',
+        Value => {
+            ShowCustomerTickets => $ConfigObject->Get('Ticket::Frontend::ShowCustomerTickets'),
+            AllowMultipleFrom   => $ConfigObject->Get('Ticket::Frontend::AgentTicketPhone::AllowMultipleFrom'),
+        },
     );
 
     # build string
@@ -2273,9 +2392,13 @@ sub _MaskPhoneNew {
         )
     {
         $ShowErrors = 0;
-        $LayoutObject->Block(
-            Name => 'FromExternalCustomer',
-            Data => $Param{FromExternalCustomer},
+        $LayoutObject->AddJSData(
+            Key   => 'FromExternalCustomerName',
+            Value => $Param{FromExternalCustomer}->{Customer},
+        );
+        $LayoutObject->AddJSData(
+            Key   => 'FromExternalCustomerEmail',
+            Value => $Param{FromExternalCustomer}->{Email},
         );
     }
     my $CustomerCounter = 0;
@@ -2328,12 +2451,11 @@ sub _MaskPhoneNew {
         OnlyDynamicFields => 1
     );
 
-    # create a string with the quoted dynamic field names separated by commas
-    if ( IsArrayRefWithData($DynamicFieldNames) ) {
-        for my $Field ( @{$DynamicFieldNames} ) {
-            $Param{DynamicFieldNamesStrg} .= ",'" . $Field . "'";
-        }
-    }
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'DynamicFieldNames',
+        Value => $DynamicFieldNames,
+    );
 
     # build type string
     if ( $ConfigObject->Get('Ticket::Type') ) {
@@ -2355,73 +2477,46 @@ sub _MaskPhoneNew {
     # build service string
     if ( $ConfigObject->Get('Ticket::Service') ) {
 
-        if ( $Config->{ServiceMandatory} ) {
-            $Param{ServiceStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{Services},
-                Name         => 'ServiceID',
-                Class        => 'Validate_Required Modernize ' . ( $Param{Errors}->{ServiceInvalid} || ' ' ),
-                SelectedID   => $Param{ServiceID},
-                PossibleNone => 1,
-                TreeView     => $TreeView,
-                Sort         => 'TreeView',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketServiceMandatory',
-                Data => {%Param},
-            );
-        }
-        else {
-            $Param{ServiceStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{Services},
-                Name         => 'ServiceID',
-                Class        => 'Modernize ' . ( $Param{Errors}->{ServiceInvalid} || ' ' ),
-                SelectedID   => $Param{ServiceID},
-                PossibleNone => 1,
-                TreeView     => $TreeView,
-                Sort         => 'TreeView',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketService',
-                Data => {%Param},
-            );
-        }
+        $Param{ServiceStrg} = $LayoutObject->BuildSelection(
+            Data  => $Param{Services},
+            Name  => 'ServiceID',
+            Class => 'Modernize '
+                . ( $Config->{ServiceMandatory} ? 'Validate_Required ' : '' )
+                . ( $Param{Errors}->{ServiceIDInvalid} || '' ),
+            SelectedID   => $Param{ServiceID},
+            PossibleNone => 1,
+            TreeView     => $TreeView,
+            Sort         => 'TreeView',
+            Translation  => 0,
+            Max          => 200,
+        );
+        $LayoutObject->Block(
+            Name => 'TicketService',
+            Data => {
+                ServiceMandatory => $Config->{ServiceMandatory} || 0,
+                %Param,
+            },
+        );
 
-        if ( $Config->{SLAMandatory} ) {
-            $Param{SLAStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{SLAs},
-                Name         => 'SLAID',
-                SelectedID   => $Param{SLAID},
-                Class        => 'Validate_Required Modernize ' . ( $Param{Errors}->{SLAInvalid} || ' ' ),
-                PossibleNone => 1,
-                Sort         => 'AlphanumericValue',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketSLAMandatory',
-                Data => {%Param},
-            );
-        }
-        else {
-            $Param{SLAStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{SLAs},
-                Name         => 'SLAID',
-                SelectedID   => $Param{SLAID},
-                Class        => 'Modernize',
-                PossibleNone => 1,
-                Sort         => 'AlphanumericValue',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketSLA',
-                Data => {%Param},
-            );
-        }
+        $Param{SLAStrg} = $LayoutObject->BuildSelection(
+            Data       => $Param{SLAs},
+            Name       => 'SLAID',
+            SelectedID => $Param{SLAID},
+            Class      => 'Modernize '
+                . ( $Config->{SLAMandatory} ? 'Validate_Required ' : '' )
+                . ( $Param{Errors}->{SLAInvalid} || '' ),
+            PossibleNone => 1,
+            Sort         => 'AlphanumericValue',
+            Translation  => 0,
+            Max          => 200,
+        );
+        $LayoutObject->Block(
+            Name => 'TicketSLA',
+            Data => {
+                SLAMandatory => $Config->{SLAMandatory} || 0,
+                %Param
+            },
+        );
     }
 
     # check if exists create templates regardless the queue
@@ -2556,37 +2651,14 @@ sub _MaskPhoneNew {
         );
     }
 
-    my $ShownOptionsBlock;
-
-    # show spell check
-    if ( $LayoutObject->{BrowserSpellChecker} ) {
-
-        # check if need to call Options block
-        if ( !$ShownOptionsBlock ) {
-            $LayoutObject->Block(
-                Name => 'TicketOptions',
-                Data => {
-                    %Param,
-                },
-            );
-
-            # set flag to "true" in order to prevent calling the Options block again
-            $ShownOptionsBlock = 1;
-        }
-
-        $LayoutObject->Block(
-            Name => 'SpellCheck',
-            Data => {
-                %Param,
-            },
-        );
-    }
-
     # show customer edit link
     my $OptionCustomer = $LayoutObject->Permission(
         Action => 'AdminCustomerUser',
         Type   => 'rw',
     );
+
+    my $ShownOptionsBlock;
+
     if ($OptionCustomer) {
 
         # check if need to call Options block
@@ -2635,8 +2707,8 @@ sub _MaskPhoneNew {
         $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
         $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-        $LayoutObject->Block(
-            Name => 'RichText',
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
             Data => \%Param,
         );
     }
@@ -2646,6 +2718,14 @@ sub _MaskPhoneNew {
         my @ChatMessages = $Kernel::OM->Get('Kernel::System::Chat')->ChatMessageList(
             ChatID => $Param{FromChatID},
         );
+
+        for my $Message (@ChatMessages) {
+            $Message->{MessageText} = $LayoutObject->Ascii2Html(
+                Text        => $Message->{MessageText},
+                LinkFeature => 1,
+            );
+        }
+
         $LayoutObject->Block(
             Name => 'ChatArticlePreview',
             Data => {

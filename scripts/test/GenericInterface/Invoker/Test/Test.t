@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,7 @@ use vars (qw($Self));
 use Kernel::GenericInterface::Debugger;
 use Kernel::GenericInterface::Invoker;
 
+# create a Debugger instance
 my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
     DebuggerConfig => {
         DebugThreshold => 'debug',
@@ -24,7 +25,7 @@ my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
     CommunicationType => 'Requester',
 );
 
-# create a Invoker instance
+# create an Invoker instance
 my $InvokerObject = Kernel::GenericInterface::Invoker->new(
     DebuggerObject => $DebuggerObject,
     Invoker        => 1,

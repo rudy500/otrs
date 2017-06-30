@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,6 @@ use utf8;
 
 use vars (qw($Self));
 
-use SOAP::Lite;
 use XML::TreePP;
 
 use Kernel::GenericInterface::Debugger;
@@ -20,14 +19,14 @@ use Kernel::GenericInterface::Transport::HTTP::SOAP;
 
 use Kernel::System::VariableCheck qw(:all);
 
-# helper object
+# get helper object
 # skip SSL certificate verification
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
     },
 );
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # create soap object to use the soap output recursion
 my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
@@ -45,7 +44,7 @@ my $SOAPObject = Kernel::GenericInterface::Transport::HTTP::SOAP->new(
     },
 );
 
-# create needed objects
+# create XML object
 my $XMLObject = XML::TreePP->new();
 
 my $SOAPHeader = '<?xml version="1.0" encoding="UTF-8"?>'

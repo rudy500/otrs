@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -142,7 +142,7 @@ sub Run {
                 Result => 'COUNT',
                 Queues => [ $Queues{$QueueID} ],
                 States => [ $ConfiguredStates{$StateOrderID} ],
-            );
+            ) || 0;
             push @Results, $QueueTotal;
         }
 
@@ -253,10 +253,11 @@ sub Run {
         $Refresh = 60 * $Self->{UserRefreshTime};
         my $NameHTML = $Self->{Name};
         $NameHTML =~ s{-}{_}xmsg;
-        $LayoutObject->Block(
-            Name => 'ContentLargeTicketQueueOverviewRefresh',
-            Data => {
-                %{ $Self->{Config} },
+
+        # send data to JS
+        $LayoutObject->AddJSData(
+            Key   => 'QueueOverview',
+            Value => {
                 Name        => $Self->{Name},
                 NameHTML    => $NameHTML,
                 RefreshTime => $Refresh,
@@ -270,7 +271,7 @@ sub Run {
             %{ $Self->{Config} },
             Name => $Self->{Name},
         },
-        KeepScriptTags => $Param{AJAX},
+        AJAX => $Param{AJAX},
     );
 
     # cache result

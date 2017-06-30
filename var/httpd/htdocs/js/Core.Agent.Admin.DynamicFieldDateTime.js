@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -22,7 +22,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
 Core.Agent.Admin.DynamicFieldDateTime = (function (TargetNS) {
 
     /**
-     * @name ToogleYearsPeriod
+     * @name ToggleYearsPeriod
      * @memberof Core.Agent.Admin.DynamicFieldDateTime
      * @function
      * @returns {Boolean} false
@@ -31,7 +31,7 @@ Core.Agent.Admin.DynamicFieldDateTime = (function (TargetNS) {
      *      This function shows or hide two fields (Years In future and Years in Past) depending
      *      on the YearsPeriod parameter
      */
-    TargetNS.ToogleYearsPeriod = function (YearsPeriod) {
+    TargetNS.ToggleYearsPeriod = function (YearsPeriod) {
         if (YearsPeriod === '1') {
             $('#YearsPeriodOption').removeClass('Hidden');
         }
@@ -40,6 +40,27 @@ Core.Agent.Admin.DynamicFieldDateTime = (function (TargetNS) {
         }
         return false;
     };
+
+    /**
+     * @name Init
+     * @memberof Core.Agent.Admin.DynamicFieldDateTime
+     * @function
+     * @description
+     *       Initialize module functionality
+     */
+    TargetNS.Init = function () {
+        $('.ShowWarning').on('change keyup', function () {
+            $('p.Warning').removeClass('Hidden');
+        });
+
+        $('#YearsPeriod').on('change', function () {
+            TargetNS.ToggleYearsPeriod($(this).val());
+        });
+
+        Core.Agent.Admin.DynamicField.ValidationInit();
+    };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.Agent.Admin.DynamicFieldDateTime || {}));

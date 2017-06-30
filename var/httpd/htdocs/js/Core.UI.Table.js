@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -31,21 +31,25 @@ Core.UI.Table = (function (TargetNS) {
      *      dynamically filter a table or a list with the class TableLike (e.g. in the admin area overviews).
      */
     TargetNS.InitTableFilter = function ($FilterInput, $Container, ColumnNumber) {
-        var Timeout,
-            $Rows = $Container.find('tbody tr:not(.FilterMessage), li:not(.Header):not(.FilterMessage)'),
-            $Elements = $Rows.closest('tr, li');
+        var Timeout;
 
-        // Only search in one special column of the table
-        if (typeof ColumnNumber === 'string' || typeof ColumnNumber === 'number') {
-            $Rows = $Rows.find('td:eq(' + ColumnNumber + ')');
-        }
+        $FilterInput.wrap('<span class="TableFilterContainer" />');
 
-        $FilterInput.unbind('keydown.FilterInput').bind('keydown.FilterInput', function () {
+        $FilterInput.off('keydown.FilterInput').on('keydown.FilterInput', function () {
 
             window.clearTimeout(Timeout);
             Timeout = window.setTimeout(function () {
 
-                var FilterText = ($FilterInput.val() || '').toLowerCase();
+                var FilterText = ($FilterInput.val() || '').toLowerCase(),
+
+                // Get table rows again in case something has changed since page has loaded.
+                $Rows = $Container.find('tbody tr:not(.FilterMessage), li:not(.Header):not(.FilterMessage)'),
+                $Elements = $Rows.closest('tr, li');
+
+                 // Only search in one special column of the table.
+                if (typeof ColumnNumber === 'string' || typeof ColumnNumber === 'number') {
+                    $Rows = $Rows.find('td:eq(' + ColumnNumber + ')');
+                }
 
                 /**
                  * @private
@@ -85,6 +89,13 @@ Core.UI.Table = (function (TargetNS) {
                 }
 
                 if (FilterText.length) {
+
+                    if (!$FilterInput.next('.FilterRemove').length) {
+                        $FilterInput.after('<a href="#" class="FilterRemove"><i class="fa fa-times"></i></a>').next('.FilterRemove').attr('title', Core.Language.Translate('Remove the filter')).off('click.RemoveFilter').on('click.RemoveFilter', function() {
+                            $(this).prev('input').val('').trigger('keydown').focus();
+                        }).fadeIn();
+                    }
+
                     $Elements.hide();
                     $Rows.each(function () {
                         if (CheckText($(this), FilterText)) {
@@ -93,14 +104,30 @@ Core.UI.Table = (function (TargetNS) {
                     });
                 }
                 else {
+                    $FilterInput.next('.FilterRemove').fadeOut(function() {
+                        $(this).remove();
+                    });
                     $Elements.show();
                 }
 
-                if ($Rows.filter(':visible').length) {
-                    $Container.find('.FilterMessage').hide();
+                // handle multiple containers correctly
+                if ($Container.length > 1) {
+                    $Container.each(function() {
+                        if ($(this).find('tbody tr:visible:not(.FilterMessage), li:visible:not(.Header):not(.FilterMessage)').length) {
+                            $(this).find('.FilterMessage').hide();
+                        }
+                        else {
+                            $(this).find('.FilterMessage').show();
+                        }
+                    });
                 }
                 else {
-                    $Container.find('.FilterMessage').show();
+                    if ($Rows.filter(':visible').length) {
+                        $Container.find('.FilterMessage').hide();
+                    }
+                    else {
+                        $Container.find('.FilterMessage').show();
+                    }
                 }
 
                 Core.App.Publish('Event.UI.Table.InitTableFilter.Change', [$FilterInput, $Container, ColumnNumber]);
@@ -109,7 +136,7 @@ Core.UI.Table = (function (TargetNS) {
         });
 
         // Prevent submit when the Return key was pressed
-        $FilterInput.unbind('keypress.FilterInput').bind('keypress.FilterInput', function (Event) {
+        $FilterInput.off('keypress.FilterInput').on('keypress.FilterInput', function (Event) {
             if ((Event.charCode || Event.keyCode) === 13) {
                 Event.preventDefault();
             }

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -9,12 +9,12 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 # or see http://www.gnu.org/licenses/agpl.txt.
 # --
 
@@ -34,19 +34,29 @@ use Getopt::Long();
 my $OTRSDirectory       = dirname($RealBin);
 my $OTRSDirectoryLength = length($OTRSDirectory);
 
-my $OtrsUser   = 'otrs';    # default otrs
-my $WebGroup   = '';        # no default, too different
-my $AdminGroup = 'root';    # default root
+my $OtrsUser = 'otrs';    # default: otrs
+my $WebGroup = '';        # Try to find a default from predefined group list, take the first match.
+
+WEBGROUP:
+for my $GroupCheck (qw(wwwrun apache www-data www _www)) {
+    my ($GroupName) = getgrnam $GroupCheck;
+    if ($GroupName) {
+        $WebGroup = $GroupName;
+        last WEBGROUP;
+    }
+}
+
+my $AdminGroup = 'root';    # default: root
 my ( $Help, $DryRun, $SkipArticleDir, @SkipRegex, $OtrsUserID, $WebGroupID, $AdminGroupID );
 
 sub PrintUsage {
     print <<EOF;
 bin/otrs.SetPermissions.pl - set OTRS file permissions
-Copyright (C) 2001-2014 OTRS AG, http://otrs.com
+Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 
 Usage: otrs.SetPermissions.pl
-    --web-group=<WEB_GROUP>         # web server group ('www', 'www-data' or similar)
     [--otrs-user=<OTRS_USER>]       # OTRS user, defaults to 'otrs'
+    [--web-group=<WEB_GROUP>]       # web server group ('_www', 'www-data' or similar), tries to find a default
     [--admin-group=<ADMIN_GROUP>]   # admin group, defaults to 'root'
     [--skip-article-dir]            # Skip var/article as it might take too long on some systems.
     [--skip-regex="..."]            # Add another skip regex like "^/var/my/directory".
@@ -55,7 +65,7 @@ Usage: otrs.SetPermissions.pl
     [--dry-run]                     # only report, don't change
     [--help]
 
-Example: otrs.setPermissions.pl --web-group=www-data
+Example: otrs.SetPermissions.pl --web-group=www-data
 EOF
     return;
 }
@@ -127,7 +137,6 @@ sub Run {
         print STDERR "ERROR: --admin-group is invalid.\n";
         exit 1;
     }
-
     if ( defined $SkipArticleDir ) {
         push @IgnoreFiles, qr{^/var/article}smx;
     }

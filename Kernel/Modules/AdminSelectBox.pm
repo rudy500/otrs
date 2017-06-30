@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -121,7 +121,7 @@ sub Run {
                 ROW:
                 while ( my @Row = $DBObject->FetchrowArray( RowNames => 1 ) ) {
 
-                    $MatchesFound = 1;
+                    $MatchesFound++;
 
                     # get csv data
                     if (
@@ -153,6 +153,18 @@ sub Run {
                     }
                 }
 
+                # add matches found if min. one result item
+                if ( $MatchesFound >= 1 ) {
+                    $Param{MatchesFound} = $MatchesFound;
+                }
+
+                # add result filter if more than one result item
+                if ( $MatchesFound > 1 ) {
+                    $LayoutObject->Block(
+                        Name => 'ResultFilter',
+                    );
+                }
+
                 # otherwise a no matches found msg is displayed
                 if ( !$MatchesFound ) {
                     if ( uc( $Param{SQL} ) !~ m{ \A \s* (?:SELECT|SHOW|DESC) }smx ) {
@@ -181,7 +193,7 @@ sub Run {
                     $UserCSVSeparator = $UserData{UserCSVSeparator} if $UserData{UserCSVSeparator};
                 }
 
-                my $TimeStamp = $Kernel::OM->Get('Kernel::System::Time')->CurrentTimestamp();
+                my $TimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
                 $TimeStamp =~ s/[:-]//g;
                 $TimeStamp =~ s/ /-/;
                 my $FileName  = 'admin-select-' . $TimeStamp;

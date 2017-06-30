@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,12 +13,14 @@ use utf8;
 
 use vars (qw($Self));
 
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 my $Home = $Kernel::OM->Get('Kernel::Config')->Get('Home');
 
 my $Daemon = $Home . '/bin/otrs.Daemon.pl';
 
 # get daemon status (stop if necessary)
-my $PreviousDaemonStatus = `$Daemon status`;
+my $PreviousDaemonStatus = `perl $Daemon status`;
 
 if ( !$PreviousDaemonStatus ) {
     $Self->False(
@@ -29,7 +31,7 @@ if ( !$PreviousDaemonStatus ) {
 }
 
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    my $ResultMessage = system("$Daemon stop");
+    my $ResultMessage = system("perl $Daemon stop");
 }
 else {
     $Self->True(
@@ -43,7 +45,7 @@ my $SleepTime = 120;
 print "Waiting at most $SleepTime s until daemon stops\n";
 ACTIVESLEEP:
 for my $Seconds ( 1 .. $SleepTime ) {
-    my $DaemonStatus = `$Daemon status`;
+    my $DaemonStatus = `perl $Daemon status`;
     if ( $DaemonStatus =~ m{Daemon not running}i ) {
         last ACTIVESLEEP;
     }
@@ -51,7 +53,7 @@ for my $Seconds ( 1 .. $SleepTime ) {
     sleep 1;
 }
 
-my $CurrentDaemonStatus = `$Daemon status`;
+my $CurrentDaemonStatus = `perl $Daemon status`;
 
 $Self->True(
     int $CurrentDaemonStatus =~ m{Daemon not running}i,
@@ -60,6 +62,22 @@ $Self->True(
 
 if ( $CurrentDaemonStatus !~ m{Daemon not running}i ) {
     die "Daemon could not be stopped.";
+}
+
+my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+
+# Remove existing scheduled asynchronous tasks from DB, as they may interfere with tests run later.
+my @AsyncTasks = $SchedulerDBObject->TaskList(
+    Type => 'AsynchronousExecutor',
+);
+for my $AsyncTask (@AsyncTasks) {
+    my $Success = $SchedulerDBObject->TaskDelete(
+        TaskID => $AsyncTask->{TaskID},
+    );
+    $Self->True(
+        $Success,
+        "TaskDelete - Removed scheduled asynchronous task $AsyncTask->{TaskID}",
+    );
 }
 
 my @Tests = (
@@ -83,9 +101,6 @@ my $WorkerObject = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::Sche
 # make sure there is no other pending task to be executed
 my $Success = $WorkerObject->Run();
 
-# get scheduler db object
-my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
-
 # Wait for slow systems
 $SleepTime = 120;
 print "Waiting at most $SleepTime s until tasks are executed\n";
@@ -107,7 +122,7 @@ my $MainObject = $Kernel::OM->Get('Kernel::System::Main');
 my @FileRemember;
 for my $Test (@Tests) {
 
-    my $File = $Home . '/var/tmp/task_' . int rand 1000000;
+    my $File = $Home . '/var/tmp/task_' . $Helper->GetRandomNumber();
     if ( -e $File ) {
         unlink $File;
     }
@@ -169,7 +184,7 @@ for my $File (@FileRemember) {
 
 # start daemon if it was already running before this test
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    system("$Daemon start");
+    system("perl $Daemon start");
 }
 
 1;

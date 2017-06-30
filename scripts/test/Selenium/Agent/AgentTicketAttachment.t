@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,49 +10,65 @@ use warnings;
 use utf8;
 use vars (qw($Self));
 
-# get selenium objects
+# Get selenium object.
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
-        # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
+
+        my $Helper               = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+        my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal');
+
+        # Define CVE number for test.
+        my $CVENumber = 'CVE-2016-8655';
+
+        # Disable rich text editor.
+        my $Success = $ConfigObject->Set(
+            Key   => 'Frontend::RichText',
+            Value => 0,
         );
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        $Self->True(
+            $Success,
+            "Disable RichText with true",
+        );
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+        my %OutputFilterTextAutoLink = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
+            Name    => 'Frontend::Output::FilterText###OutputFilterTextAutoLink',
+            Default => 1,
+        );
 
-        # do not check RichText
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Frontend::Output::FilterText###OutputFilterTextAutoLink',
+            Value => $OutputFilterTextAutoLink{EffectiveValue},
+        );
+
+        my %OutputFilterTextAutoLinkCVE = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
+            Name    => 'Frontend::Output::OutputFilterTextAutoLink###CVE',
+            Default => 1,
+        );
+
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Frontend::Output::OutputFilterTextAutoLink###CVE',
+            Value => $OutputFilterTextAutoLinkCVE{EffectiveValue},
+        );
+
+        # Disable rich text and zoom article forcing, in order to get inline HTML attachment (file-1.html) to show up.
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
-            Value => 0
+            Value => 0,
+        );
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::ZoomRichTextForce',
+            Value => 0,
         );
 
-        # do not check service and type
-        $SysConfigObject->ConfigItemUpdate(
-            Valid => 1,
-            Key   => 'Ticket::Service',
-            Value => 0
-        );
-        $SysConfigObject->ConfigItemUpdate(
-            Valid => 1,
-            Key   => 'Ticket::Type',
-            Value => 0
-        );
-
-        # set download type to inline
-        $SysConfigObject->ConfigItemUpdate(
-            Valid => 1,
-            Key   => 'AttachmentDownloadType',
-            Value => 'inline'
-        );
-
-        # create test user and login
+        # Create test user and login.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -63,112 +79,303 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketPhone");
+        # Get script alias.
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
-        # get test user ID
-        my $TestUserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
-            UserLogin => $TestUserLogin,
+        # Get CVE config.
+        my $CVE = $ConfigObject->Get('Frontend::Output::OutputFilterTextAutoLink')->{CVE};
+
+        my @TestAttachments = (
+            {
+                Name            => 'StdAttachment-Test1.txt',
+                ExpectedName    => 'StdAttachment-Tes...',
+                ExpectedContent => 'Some German Text with Umlaut: ÄÖÜß',
+            },
+            {
+                Name            => 'file-1.html',
+                ExpectedName    => 'file-1.html',
+                ExpectedContent => 'This is file-1.html content.',
+            }
         );
 
-        # add test customer for testing
-        my $TestCustomer = 'Customer' . $Helper->GetRandomID();
-        my $UserLogin    = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
-            Source         => 'CustomerUser',
-            UserFirstname  => $TestCustomer,
-            UserLastname   => $TestCustomer,
-            UserCustomerID => $TestCustomer,
-            UserLogin      => $TestCustomer,
-            UserEmail      => "$TestCustomer\@localhost.com",
-            ValidID        => 1,
-            UserID         => $TestUserID,
+        for my $TestAttachment (@TestAttachments) {
+
+            # Create test ticket.
+            my $TicketID = $TicketObject->TicketCreate(
+                Title        => 'Selenium Ticket',
+                Queue        => 'Raw',
+                Lock         => 'unlock',
+                Priority     => '3 normal',
+                State        => 'new',
+                CustomerID   => '123465',
+                CustomerUser => 'customer@example.com',
+                OwnerID      => 1,
+                UserID       => 1,
+            );
+            $Self->True(
+                $TicketID,
+                "TicketCreate - ID $TicketID",
+            );
+
+            # Create article for test ticket with attachment.
+            my $Location = $ConfigObject->Get('Home')
+                . "/scripts/test/sample/StdAttachment/$TestAttachment->{Name}";
+            my $ContentRef = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
+                Location => $Location,
+                Mode     => 'binmode',
+            );
+            my $Content = ${$ContentRef};
+
+            my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                TicketID             => $TicketID,
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                Subject              => 'Selenium subject test',
+                Body                 => "Selenium body test $CVENumber",
+                ContentType          => 'text/plain; charset=ISO-8859-15',
+                HistoryType          => 'OwnerUpdate',
+                HistoryComment       => 'Some free text!',
+                UserID               => 1,
+                Attachment           => [
+                    {
+                        Content     => $Content,
+                        ContentType => 'text/plain; charset=ISO-8859-15',
+                        Filename    => $TestAttachment->{Name},
+                    },
+                ],
+                NoAgentNotify => 1,
+            );
+            $Self->True(
+                $ArticleID,
+                "ArticleCreate - ID $ArticleID",
+            );
+
+            # Navigate to AgentTicketZoom screen of created test ticket.
+            $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
+
+            # Check if attachment exists.
+            $Self->True(
+                $Selenium->execute_script(
+                    "return \$('.ArticleAttachments a[href*=\"Action=AgentTicketAttachment;TicketID=$TicketID;ArticleID=$ArticleID\"]:contains($TestAttachment->{ExpectedName})').length;"
+                ),
+                "'$TestAttachment->{ExpectedName}' is found on page",
+            );
+
+            # Check if there is replaced links for CVE number.
+            for my $Item ( 1 .. 3 ) {
+                my $CVEConfig = $CVE->{"URL$Item"};
+                my $CVEURL = substr( $CVEConfig->{URL}, 0, index( $CVEConfig->{URL}, '=' ) );
+                $Self->True(
+                    $Selenium->find_element("//a[contains(\@href, \'$CVEURL=$CVENumber' )]"),
+                    "$CVEConfig->{Description} link is found - $CVEURL",
+                );
+
+                $Self->True(
+                    $Selenium->find_element("//img[contains(\@src, \'$CVEConfig->{Image}' )]"),
+                    "Image for $CVEConfig->{Description} link is found - $CVEConfig->{Image}",
+                );
+            }
+
+            # Set download type to inline.
+            $Helper->ConfigSettingChange(
+                Valid => 1,
+                Key   => 'AttachmentDownloadType',
+                Value => 'inline'
+            );
+
+            # Check ticket attachment.
+            $Selenium->get(
+                "${ScriptAlias}index.pl?Action=AgentTicketAttachment;TicketID=$TicketID;ArticleID=$ArticleID;FileID=1",
+                {
+                    NoVerify => 1,
+                }
+            );
+
+            # Check if attachment is genuine.
+            $Self->True(
+                index( $Selenium->get_page_source(), $TestAttachment->{ExpectedContent} ) > -1,
+                "'$TestAttachment->{Name}' opened successfully",
+            );
+
+            # Delete created test ticket.
+            $Success = $TicketObject->TicketDelete(
+                TicketID => $TicketID,
+                UserID   => 1,
+            );
+            $Self->True(
+                $Success,
+                "Ticket with ticket ID $TicketID is deleted"
+            );
+        }
+
+        # Enable rich text and zoom article forcing.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Frontend::RichText',
+            Value => 1,
+        );
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::ZoomRichTextForce',
+            Value => 1,
         );
 
-        # create test phone ticket with attachment
-        my $AutoCompleteString = "\"$TestCustomer $TestCustomer\" <$TestCustomer\@localhost.com> ($TestCustomer)";
-        my $TicketSubject      = "Selenium Ticket";
-        my $TicketBody         = "Selenium body test";
-        my $AttachmentName     = "StdAttachment-Test1.txt";
-        my $Location           = $Kernel::OM->Get('Kernel::Config')->Get('Home')
-            . "/scripts/test/sample/StdAttachment/$AttachmentName";
-        $Selenium->find_element( "#FromCustomer", 'css' )->send_keys($TestCustomer);
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
+        my $RandomNumber = $Helper->GetRandomNumber();
+        my $NormalText   = 'NormalText' . $RandomNumber;
+        my $BoldText     = 'BoldText' . $RandomNumber;
 
-        $Selenium->find_element("//*[text()='$AutoCompleteString']")->click();
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("p.Value").length' );
-
-        $Selenium->execute_script("\$('#Dest').val('2||Raw').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Subject",    'css' )->send_keys($TicketSubject);
-        $Selenium->find_element( "#RichText",   'css' )->send_keys($TicketBody);
-        $Selenium->find_element( "#FileUpload", 'css' )->send_keys($Location);
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#AttachmentDeleteButton1").length' );
-        $Selenium->find_element( "#Subject", 'css' )->submit();
-
-        # wait until ticket is created
-        $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('form').length" );
-
-        # search for new created ticket on AgentTicketZoom screen
-        my ( $TicketID, $TicketNumber ) = $Kernel::OM->Get('Kernel::System::Ticket')->TicketSearch(
-            Result         => 'HASH',
-            Limit          => 1,
-            CustomerUserID => $TestCustomer,
-            UserID         => $TestUserID,
+        # Get image attachment.
+        my %Image = (
+            Filename    => 'StdAttachment-Test1.png',
+            ContentID   => 'inline173020.131906379.1472199795.695365.264540139@localhost',
+            Disposition => 'inline',
         );
+        my $Location = $ConfigObject->Get('Home')
+            . '/scripts/test/sample/StdAttachment/' . $Image{Filename};
+        my $ContentRef = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
+            Location => $Location,
+            Mode     => 'binmode',
+        );
+        my $Content = ${$ContentRef};
 
+        # Create test ticket with HTML content in article.
+        my $TicketID = $TicketObject->TicketCreate(
+            Title        => 'Selenium Ticket',
+            Queue        => 'Raw',
+            Lock         => 'unlock',
+            Priority     => '3 normal',
+            State        => 'new',
+            CustomerID   => '123465',
+            CustomerUser => 'customer@example.com',
+            OwnerID      => 1,
+            UserID       => 1,
+        );
         $Self->True(
-            index( $Selenium->get_page_source(), $TicketNumber ) > -1,
-            "Ticket with ticket id $TicketID is created"
+            $TicketID,
+            "TicketCreate - ID $TicketID",
         );
-
-        # go to ticket zoom page of created test ticket
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketZoom' )]")->click();
-
-        # check if attachment exists
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $TicketID,
+            IsVisibleForCustomer => 0,
+            ArticleType          => 'note-internal',
+            SenderType           => 'agent',
+            Subject              => 'Article with HTML content',
+            Body                 => '
+<!DOCTYPE html>
+<html>
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/></head>
+<body style="font-family:Geneva,Helvetica,Arial,sans-serif; font-size: 12px;"><img src="cid:'
+                . $Image{ContentID}
+                . '" /><br />'
+                .
+                $NormalText . '<br /> <strong>' . $BoldText . '</strong><br /> ' . $CVENumber . '<br />
+</body>
+</html>',
+            ContentType    => 'text/html; charset=ISO-8859-15',
+            HistoryType    => 'OwnerUpdate',
+            HistoryComment => 'History comment!',
+            UserID         => 1,
+            Attachment     => [
+                {
+                    Content     => $Content,
+                    ContentID   => $Image{ContentID},
+                    ContentType => 'image/png; name="' . $Image{Filename} . '"',
+                    Disposition => 'inline',
+                    FileID      => 1,
+                    Filename    => $Image{Filename},
+                },
+            ],
+            NoAgentNotify => 1,
+        );
         $Self->True(
-            $Selenium->find_element("//*[text()=\"$AttachmentName\"]"),
-            "$AttachmentName is found on page",
+            $ArticleID,
+            "ArticleCreate - ID $ArticleID",
         );
 
-        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+        # Navigate to AgentTicketZoom screen of created test ticket.
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
 
-        # get article id
-        my @ArticleIDs = $TicketObject->ArticleIndex(
-            TicketID => $TicketID,
+        # Get frame id.
+        my $FrameID = $Selenium->execute_script(
+            "return \$('#ArticleItems .ArticleMailContent Iframe').attr('id');"
         );
-
-        # check ticket attachment
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketAttachment;ArticleID=$ArticleIDs[0];FileID=1");
-
-        # check if attachment is genuine
-        my $ExpectedAttachmentContent = "Some German Text with Umlaut: ÄÖÜß";
         $Self->True(
-            index( $Selenium->get_page_source(), $ExpectedAttachmentContent ) > -1,
-            "$AttachmentName opened successfully",
+            $FrameID,
+            "FrameID - $FrameID",
         );
 
-        # delete created test ticket
-        my $Success = $TicketObject->TicketDelete(
+        # Switch to frame.
+        $Selenium->switch_to_frame($FrameID);
+
+        # Check text formatting.
+        $Self->True(
+            $Selenium->find_element("//body[text()='$NormalText']"),
+            "Normal text '$NormalText' is found in article body",
+        );
+        $Self->True(
+            $Selenium->find_element("//strong[text()='$BoldText']"),
+            "Bold text '$BoldText' is found in article body",
+        );
+
+        # Check if links added for CVE number.
+        for my $Item ( 1 .. 3 ) {
+            my $CVEConfig = $CVE->{"URL$Item"};
+            my $CVEURL = substr( $CVEConfig->{URL}, 0, index( $CVEConfig->{URL}, '=' ) );
+
+            $Self->True(
+                $Selenium->find_element("//a[contains(\@href, \'$CVEURL=$CVENumber' )]"),
+                "$CVEConfig->{Description} link is found - $CVEURL",
+            );
+            $Self->True(
+                $Selenium->find_element("//img[contains(\@src, \'$CVEConfig->{Image}' )]"),
+                "Image for $CVEConfig->{Description} link is found - $CVEConfig->{Image}",
+            );
+        }
+
+        # Get article attachments.
+        my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID => $ArticleID,
+            UserID    => 1,
+        );
+
+        # Pass through all attachments to check image attachment.
+        for my $FileID ( sort keys %AttachmentIndex ) {
+            my %Attachment = $ArticleBackendObject->ArticleAttachment(
+                ArticleID => $ArticleID,
+                FileID    => $FileID,
+                UserID    => 1,
+            );
+
+            # Check image attachment data.
+            if ( $Attachment{ContentType} =~ /^image\/png/ ) {
+                $Self->Is(
+                    $Attachment{Disposition},
+                    $Image{Disposition},
+                    'Inline image attachment found',
+                );
+                $Self->Is(
+                    $Attachment{Filename},
+                    $Image{Filename},
+                    "Image attachment with filename '$Image{Filename}' found",
+                );
+            }
+        }
+
+        # Switch back from frame.
+        my $Handles = $Selenium->get_window_handles();
+        $Selenium->switch_to_window( $Handles->[0] );
+
+        # Delete created test ticket.
+        $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => 1,
         );
         $Self->True(
             $Success,
-            "Ticket with ticket id $TicketID is deleted"
+            "TicketID $TicketID is deleted"
         );
 
-        # delete created test customer user
-        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-        $TestCustomer = $DBObject->Quote($TestCustomer);
-        $Success      = $DBObject->Do(
-            SQL  => "DELETE FROM customer_user WHERE login = ?",
-            Bind => [ \$TestCustomer ],
-        );
-        $Self->True(
-            $Success,
-            "Delete customer user - $TestCustomer",
-        );
-
-        # make sure the cache is correct.
+        # Make sure the cache is correct.
         for my $Cache (qw( Ticket CustomerUser )) {
             $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => $Cache );
         }

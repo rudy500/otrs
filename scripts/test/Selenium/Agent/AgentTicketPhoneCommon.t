@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,31 +18,41 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        # get needed objects
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+        # do not check email addresses
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
 
         # do not check RichText
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketPhoneOutbound###RequiredLock',
+            Value => 1
+        );
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketPhoneInbound###RequiredLock',
+            Value => 1
+        );
+
         # do not check service and type
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 0
         );
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Type',
             Value => 0
@@ -64,61 +74,68 @@ $Selenium->RunTest(
             UserLogin => $TestUserLogin,
         );
 
-        # add test customer for testing
-        my $TestCustomer = 'Customer' . $Helper->GetRandomID();
-        my $UserLogin    = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
-            Source         => 'CustomerUser',
-            UserFirstname  => $TestCustomer,
-            UserLastname   => $TestCustomer,
-            UserCustomerID => $TestCustomer,
-            UserLogin      => $TestCustomer,
-            UserEmail      => "$TestCustomer\@localhost.com",
-            ValidID        => 1,
-            UserID         => $TestUserID,
-        );
-
         # get ticket object
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
         my $TicketID     = $TicketObject->TicketCreate(
             Title         => 'Selenium Test Ticket',
             QueueID       => 2,
-            Lock          => 'lock',
+            Lock          => 'unlock',
             Priority      => '3 normal',
             State         => 'open',
-            CustomerID    => $TestCustomer,
-            CustomerUser  => "$TestCustomer\@localhost.com",
-            OwnerID       => $TestUserID,
+            CustomerID    => 'SeleniumCustomer',
+            CustomerUser  => "SeleniumCustomer\@localhost.com",
+            OwnerID       => 1,
             UserID        => $TestUserID,
             ResponsibleID => $TestUserID,
         );
+        $Self->True(
+            $TicketID,
+            "Ticket is created - ID $TicketID"
+        );
 
-        # navigate to created test ticket in AgentTicketZoom page
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-
+        # get test data
         my @Test = (
             {
-                Name        => 'AgentTicketPhoneOutbound',
-                HistoryText => 'PhoneCallAgent',
+                Name            => 'AgentTicketPhoneOutbound',
+                HistoryText     => 'PhoneCallAgent',
+                UndoLinkPresent => 1,
             },
             {
                 Name        => 'AgentTicketPhoneInbound',
                 HistoryText => 'PhoneCallCustomer',
+                EmptyState  => 1,
             },
         );
+
+        # get script alias
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
         # do tests for Outbound and Inbound
         for my $Action (@Test)
         {
 
-            # click on action
-            $Selenium->get("${ScriptAlias}index.pl?Action=$Action->{Name};TicketID=$TicketID");
+            # navigate to test action
+            $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=$Action->{Name};TicketID=$TicketID");
+
+            # if RequiredLock => 1, we want to make sure that the "undo" link is present if UndoLinkPresent is enabled.
+            # for the second test (PhoneInbound), owner and lock will already be changed, so the undo link will not be
+            # present anyway.
+            my @Selectors = ( '#Subject', '#RichText', '#FileUpload', '#NextStateID', '#submitRichText' );
+            if ( $Action->{UndoLinkPresent} ) {
+                push @Selectors, '.UndoClosePopup';
+            }
+            else {
+
+                # otherwise we want to make sure the link is *not* there
+                $Self->False(
+                    index( $Selenium->get_page_source(), 'UndoClosePopup' ) > -1,
+                    'Undo link is not shown',
+                );
+            }
 
             # check page
-            for my $ID (
-                qw(Subject RichText FileUpload NextStateID submitRichText)
-                )
-            {
-                my $Element = $Selenium->find_element( "#$ID", 'css' );
+            for my $Selector (@Selectors) {
+                my $Element = $Selenium->find_element( "$Selector", 'css' );
                 $Element->is_enabled();
                 $Element->is_displayed();
             }
@@ -127,15 +144,35 @@ $Selenium->RunTest(
             my $ActionText = $Action->{Name} . " Selenium Test";
             $Selenium->find_element( "#Subject",  'css' )->send_keys($ActionText);
             $Selenium->find_element( "#RichText", 'css' )->send_keys($ActionText);
-            $Selenium->execute_script("\$('#NextStateID').val('4').trigger('redraw.InputField').trigger('change');");
-            $Selenium->find_element( "#submitRichText", 'css' )->click();
 
-            $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
+            # Either clear next state field value or explicitly set it in order to test if ticket
+            #   state will remain open (see bug#12516 for more information).
+            if ( $Action->{EmptyState} ) {
+                $Selenium->execute_script(
+                    "\$('#NextStateID').val('').trigger('redraw.InputField').trigger('change');"
+                );
+            }
+            else {
+                $Selenium->execute_script(
+                    "\$('#NextStateID').val('4').trigger('redraw.InputField').trigger('change');"
+                );
+            }
+
+            $Selenium->find_element( "#submitRichText", 'css' )->VerifiedClick();
+
+            # navigate to AgentTicketHistory screen
+            $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
 
             # verify for expected action
             $Self->True(
                 index( $Selenium->get_page_source(), $Action->{HistoryText} ) > -1,
                 "Action $Action->{Name} executed correctly",
+            );
+
+            # Verify ticket state has not been changed.
+            $Self->False(
+                index( $Selenium->get_page_source(), 'StateUpdate' ) > -1,
+                'Ticket state remained open',
             );
         }
 
@@ -146,24 +183,11 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Ticket with ticket id $TicketID is deleted"
+            "Ticket with ticket ID $TicketID is deleted"
         );
 
-        # delete created test customer user
-        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-        $TestCustomer = $DBObject->Quote($TestCustomer);
-        $Success      = $DBObject->Do(
-            SQL  => "DELETE FROM customer_user WHERE login = ?",
-            Bind => [ \$TestCustomer ],
-        );
-        $Self->True(
-            $Success,
-            "Delete customer user - $TestCustomer",
-        );
-
-        # make sure the cache is correct.
+        # make sure the cache is correct
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Ticket' );
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'CustomerUser' );
 
     }
 );

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 use Mail::Address;
 
 our $ObjectManagerDisabled = 1;
@@ -39,8 +40,8 @@ sub Run {
     for my $Needed (qw(ArticleID TicketID QueueID)) {
         if ( !defined $Self->{$Needed} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "$Needed is needed!",
-                Comment => 'Please contact your administrator',
+                Message => $LayoutObject->{LanguageObject}->Translate( '%s is needed!', $Needed ),
+                Comment => Translatable('Please contact the administrator.'),
             );
         }
     }
@@ -124,9 +125,8 @@ sub Run {
                     BodyClass => 'Popup',
                 );
                 $Output .= $LayoutObject->Warning(
-                    Message => $LayoutObject->{LanguageObject}
-                        ->Get('Sorry, you need to be the ticket owner to perform this action.'),
-                    Comment => $LayoutObject->{LanguageObject}->Get('Please change the owner first.'),
+                    Message => Translatable('Sorry, you need to be the ticket owner to perform this action.'),
+                    Comment => Translatable('Please change the owner first.'),
                 );
                 $Output .= $LayoutObject->Footer(
                     Type => 'Small',
@@ -159,23 +159,38 @@ sub Run {
     # ------------------------------------------------------------ #
     if ( !$Self->{Subaction} ) {
 
+        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+        my $ArticleBackendObject = $ArticleObject->BackendForArticle(
+            TicketID  => $Self->{TicketID},
+            ArticleID => $Self->{ArticleID},
+        );
+
         # check if plain article exists
-        if ( !$TicketObject->ArticlePlain( ArticleID => $Self->{ArticleID} ) ) {
+        if ( !$ArticleBackendObject->ArticlePlain( ArticleID => $Self->{ArticleID} ) ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Plain article not found for article $Self->{ArticleID}!",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'Plain article not found for article %s!',
+                    $Self->{ArticleID}
+                ),
             );
         }
 
         # get article data
-        my %Article = $TicketObject->ArticleGet(
+        my %Article = $ArticleBackendObject->ArticleGet(
+            TicketID      => $Self->{TicketID},
             ArticleID     => $Self->{ArticleID},
             DynamicFields => 0,
+            UserID        => $Self->{UserID},
         );
 
         # Check if article is from the same TicketID as we checked permissions for.
         if ( $Article{TicketID} ne $Self->{TicketID} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Article does not belong to ticket $Self->{TicketID}!",
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'Article does not belong to ticket %s!',
+                    $Self->{TicketID}
+                ),
             );
         }
 
@@ -242,7 +257,7 @@ $Param{Signature}";
 
         # prepare sender of bounce email
         my %Address = $Kernel::OM->Get('Kernel::System::Queue')->GetSystemAddress(
-            QueueID => $Article{QueueID},
+            QueueID => $Ticket{QueueID},
         );
         $Article{From} = "$Address{RealName} <$Address{Email}>";
 
@@ -261,6 +276,7 @@ $Param{Signature}";
             Data          => \%NextStates,
             Name          => 'BounceStateID',
             SelectedValue => $Config->{StateDefault},
+            Class         => 'Modernize',
         );
 
         # add rich text editor
@@ -270,8 +286,8 @@ $Param{Signature}";
             $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
             $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-            $LayoutObject->Block(
-                Name => 'RichText',
+            # set up rich text editor
+            $LayoutObject->SetRichTextParameters(
                 Data => \%Param,
             );
         }
@@ -308,8 +324,8 @@ $Param{Signature}";
 
         # get params
         for my $Parameter (qw(From BounceTo To Subject Body InformSender BounceStateID)) {
-            $Param{$Parameter}
-                = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $Parameter ) || '';
+            $Param{$Parameter} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $Parameter )
+                || '';
         }
 
         my %Error;
@@ -388,6 +404,7 @@ $Param{Signature}";
                 Data       => \%NextStates,
                 Name       => 'BounceStateID',
                 SelectedID => $Param{BounceStateID},
+                Class      => 'Modernize',
             );
 
             # add rich text editor
@@ -397,8 +414,9 @@ $Param{Signature}";
                 $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
                 $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-                $LayoutObject->Block(
-                    Name => 'RichText',
+                # set up rich text editor
+                $LayoutObject->SetRichTextParameters(
+                    Data => \%Param,
                 );
             }
 
@@ -433,7 +451,14 @@ $Param{Signature}";
             return $Output;
         }
 
-        my $Bounce = $TicketObject->ArticleBounce(
+        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+        my $ArticleBackendObject = $ArticleObject->BackendForArticle(
+            TicketID  => $Self->{TicketID},
+            ArticleID => $Self->{ArticleID},
+        );
+
+        my $Bounce = $ArticleBackendObject->ArticleBounce(
             TicketID    => $Self->{TicketID},
             ArticleID   => $Self->{ArticleID},
             UserID      => $Self->{UserID},
@@ -445,8 +470,8 @@ $Param{Signature}";
         # error page
         if ( !$Bounce ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Can't bounce email!",
-                Comment => 'Please contact the admin.',
+                Message => Translatable('Can\'t bounce email!'),
+                Comment => Translatable('Please contact the administrator.'),
             );
         }
 
@@ -469,27 +494,27 @@ $Param{Signature}";
             $Param{Body} =~ s/(&lt;|<)OTRS_BOUNCE_TO(&gt;|>)/$Param{BounceTo}/g;
 
             # send
-            my $ArticleID = $TicketObject->ArticleSend(
-                ArticleType    => 'email-external',
-                SenderType     => 'agent',
-                TicketID       => $Self->{TicketID},
-                HistoryType    => 'Bounce',
-                HistoryComment => "Bounced info to '$Param{To}'.",
-                From           => $Param{From},
-                Email          => $Param{Email},
-                To             => $Param{To},
-                Subject        => $Param{Subject},
-                UserID         => $Self->{UserID},
-                Body           => $Param{Body},
-                Charset        => $LayoutObject->{UserCharset},
-                MimeType       => $MimeType,
+            my $ArticleID = $ArticleBackendObject->ArticleSend(
+                TicketID             => $Self->{TicketID},
+                SenderType           => 'agent',
+                IsVisibleForCustomer => 1,
+                HistoryType          => 'Bounce',
+                HistoryComment       => "Bounced info to '$Param{To}'.",
+                From                 => $Param{From},
+                Email                => $Param{Email},
+                To                   => $Param{To},
+                Subject              => $Param{Subject},
+                UserID               => $Self->{UserID},
+                Body                 => $Param{Body},
+                Charset              => $LayoutObject->{UserCharset},
+                MimeType             => $MimeType,
             );
 
             # error page
             if ( !$ArticleID ) {
                 return $LayoutObject->ErrorScreen(
-                    Message => "Can't send email!",
-                    Comment => 'Please contact the admin.',
+                    Message => Translatable('Can\'t send email!'),
+                    Comment => Translatable('Please contact the administrator.'),
                 );
             }
         }
@@ -529,8 +554,8 @@ $Param{Signature}";
         );
     }
     return $LayoutObject->ErrorScreen(
-        Message => 'Wrong Subaction!!',
-        Comment => 'Please contact your administrator',
+        Message => Translatable('Wrong Subaction!'),
+        Comment => Translatable('Please contact the administrator.'),
     );
 }
 

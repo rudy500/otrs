@@ -1,55 +1,32 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Agent = Core.Agent || {};
-Core.Agent.Admin = Core.Agent.Admin || {};
-
-/**
- * @namespace
- * @exports TargetNS as Core.Agent.Admin.Group
- * @description
- *      This namespace contains the special module functions for AdminGroup.
- */
-Core.Agent.Admin.Group = (function (TargetNS) {
-    /**
-     * @function
-     * @return nothing
-     *      This function initializes the special module functions
-     */
-    TargetNS.AdminGroupCheck = function () {
-        var NameValue = $('#GroupName').val(),
-            NameOldValue = $('#GroupOldName').val();
-
-        if (!NameOldValue || NameOldValue !== 'admin' || NameValue === 'admin') {
-            return true;
-        }
-
-        if (confirm([% Translate("WARNING: When you change the name of the group 'admin', before making the appropriate changes in the SysConfig, you will be locked out of the administrations panel! If this happens, please rename the group back to admin per SQL statement.") | JSON %])) {
-            return true;
-        }
-        else {
-            $('#GroupName').focus();
-            return false;
-        }
-    };
-
-    return TargetNS;
-}(Core.Agent.Admin.Group || {}));
-
-    $('#Submit').bind('click', Core.Agent.Admin.Group.AdminGroupCheck);
-//]]></script>
-[% END %]
-
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Group Management") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Group Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% SWITCH Data.Action %]
+        [% CASE 'Add' %]
+            [% BreadcrumbPath.push({ Name => Translate("Add Group"),}) %]
+        [% CASE 'Change' %]
+            [% USE EditTitle = String(Translate("Edit Group")) %]
+            [% BreadcrumbPath.push({ Name => EditTitle.append( ': ', Data.Name ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
 
@@ -82,6 +59,14 @@ Core.Agent.Admin.Group = (function (TargetNS) {
         </div>
 [% RenderBlockEnd("ActionList") %]
 
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterGroups">[% Translate("Filter for Groups") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterGroups" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterGroups" value="" title="[% Translate("Filter for log entries") | html %]">
+            </div>
+        </div>
 
         <div class="WidgetSimple">
             <div class="Header">
@@ -105,11 +90,11 @@ Core.Agent.Admin.Group = (function (TargetNS) {
         <div class="WidgetSimple">
 [% RenderBlockStart("OverviewResult") %]
             <div class="Header">
-                <h2>[% Translate("List") | html %]</h2>
+                <h2>[% Translate("List") | html %] ([% Data.AllItemsCount | html %] [% Translate("total") | html %])</h2>
             </div>
             <div class="Content">
 
-                <table class="DataTable">
+                <table class="DataTable" id="Groups">
                     <thead>
                         <tr>
                             <th>[% Translate("Name") | html %]</th>
@@ -129,6 +114,9 @@ Core.Agent.Admin.Group = (function (TargetNS) {
                             <td>[% Data.CreateTime | Localize("TimeShort") %]</td>
                         </tr>
 [% RenderBlockEnd("OverviewResultRow") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="5">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -136,19 +124,21 @@ Core.Agent.Admin.Group = (function (TargetNS) {
 
 [% RenderBlockStart("OverviewUpdate") %]
             <div class="Header">
-[% RenderBlockStart("HeaderAdd") %]
+            [% IF Data.Action == 'Add' %]
                 <h2>[% Translate("Add Group") | html %]</h2>
-[% RenderBlockEnd("HeaderAdd") %]
-[% RenderBlockStart("HeaderEdit") %]
+            [% ELSE %]
                 <h2>[% Translate("Edit Group") | html %]</h2>
-[% RenderBlockEnd("HeaderEdit") %]
+            [% END %]
             </div>
             <div class="Content">
-                <form action="[% Env("CGIHandle") %]" method="post" name="GroupUpdate" class="Validate PreventMultipleSubmits">
+                <form id="GroupUpdate" action="[% Env("CGIHandle") %]" method="post" name="GroupUpdate" class="Validate PreventMultipleSubmits">
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="[% Data.Action | html %]Action"/>
                     <input type="hidden" name="ID" value="[% Data.ID | html %]"/>
                     <input type="hidden" name="NameOld" id="GroupOldName" value="[% Data.Name | html %]"/>
+                    [% IF Data.Action == 'Change' %]
+                        <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
+                    [% END %]
                     <fieldset class="TableLike">
 
                         <label class="Mandatory" for="GroupName"><span class="Marker">*</span> [% Translate("Name") | html %]:</label>
@@ -178,7 +168,13 @@ Core.Agent.Admin.Group = (function (TargetNS) {
 
 
                         <div class="Field SpacingTop">
-                            <button class="Primary CallForAction" type="submit" id="Submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                            [% IF Data.Action == 'Change' %]
+                                <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                                [% Translate("or") | html %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            [% ELSE %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% END %]
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                         </div>

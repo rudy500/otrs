@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,22 +25,16 @@ our @ObjectDependencies = (
 
 Kernel::System::ProcessManagement::DB::ActivityDialog
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Process Management DB ActivityDialog backend
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $ActivityDialogObject = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::ActivityDialog');
 
 =cut
@@ -64,7 +58,7 @@ sub new {
     return $Self;
 }
 
-=item ActivityDialogAdd()
+=head2 ActivityDialogAdd()
 
 add new ActivityDialog
 
@@ -197,7 +191,7 @@ sub ActivityDialogAdd {
     return $ID;
 }
 
-=item ActivityDialogDelete()
+=head2 ActivityDialogDelete()
 
 delete an ActivityDialog
 
@@ -245,7 +239,7 @@ sub ActivityDialogDelete {
     return 1;
 }
 
-=item ActivityDialogGet()
+=head2 ActivityDialogGet()
 
 get Activity Dialog attributes
 
@@ -363,7 +357,7 @@ sub ActivityDialogGet {
     return \%Data;
 }
 
-=item ActivityDialogUpdate()
+=head2 ActivityDialogUpdate()
 
 update ActivityDialog attributes
 
@@ -507,7 +501,7 @@ sub ActivityDialogUpdate {
     return 1;
 }
 
-=item ActivityDialogList()
+=head2 ActivityDialogList()
 
 get an ActivityDialog list
 
@@ -529,6 +523,7 @@ get an ActivityDialog list
     $List = {
         'AD1' => 'NameOfActivityDialog',
     }
+
 =cut
 
 sub ActivityDialogList {
@@ -589,7 +584,7 @@ sub ActivityDialogList {
     return \%Data;
 }
 
-=item ActivityDialogListGet()
+=head2 ActivityDialogListGet()
 
 get an Activity Dialog list with all activity dialog details
 
@@ -682,8 +677,6 @@ sub ActivityDialogListGet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

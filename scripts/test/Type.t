@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,17 +12,22 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::ObjectManager;
-my @IDs;
-
-# get needed objects
+# get type object
 my $TypeObject = $Kernel::OM->Get('Kernel::System::Type');
 
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 # add type
-my $TypeNameRand0 = 'unittest' . int rand 1000000;
+my $TypeName = 'Type' . $Helper->GetRandomID();
 
 my $TypeID = $TypeObject->TypeAdd(
-    Name    => $TypeNameRand0,
+    Name    => $TypeName,
     ValidID => 1,
     UserID  => 1,
 );
@@ -32,11 +37,9 @@ $Self->True(
     'TypeAdd()',
 );
 
-push( @IDs, $TypeID );
-
 # add type with existing name
 my $TypeIDWrong = $TypeObject->TypeAdd(
-    Name    => $TypeNameRand0,
+    Name    => $TypeName,
     ValidID => 1,
     UserID  => 1,
 );
@@ -51,7 +54,7 @@ my %Type = $TypeObject->TypeGet( ID => $TypeID );
 
 $Self->Is(
     $Type{Name} || '',
-    $TypeNameRand0,
+    $TypeName,
     'TypeGet() - Name (using the type id)',
 );
 $Self->Is(
@@ -61,30 +64,25 @@ $Self->Is(
 );
 
 # get the type by using the type name
-%Type = $TypeObject->TypeGet( Name => $TypeNameRand0 );
+%Type = $TypeObject->TypeGet( Name => $TypeName );
 
 $Self->Is(
     $Type{Name} || '',
-    $TypeNameRand0,
+    $TypeName,
     'TypeGet() - Name (using the type name)',
 );
 
 my %TypeList = $TypeObject->TypeList();
 
-my $Hit = 0;
-for ( sort keys %TypeList ) {
-    if ( $_ eq $TypeID ) {
-        $Hit = 1;
-    }
-}
 $Self->True(
-    $Hit,
-    'TypeList()',
+    exists $TypeList{$TypeID} && $TypeList{$TypeID} eq $TypeName,
+    'TypeList() contains the type ' . $TypeName . ' with ID ' . $TypeID,
 );
 
-my $TypeUpdate = $TypeObject->TypeUpdate(
+my $TypeUpdateName = $TypeName . 'update';
+my $TypeUpdate     = $TypeObject->TypeUpdate(
     ID      => $TypeID,
-    Name    => $TypeNameRand0 . '1',
+    Name    => $TypeUpdateName,
     ValidID => 2,
     UserID  => 1,
 );
@@ -98,7 +96,7 @@ $Self->True(
 
 $Self->Is(
     $Type{Name} || '',
-    $TypeNameRand0 . '1',
+    $TypeUpdateName,
     'TypeGet() - Name',
 );
 
@@ -112,7 +110,7 @@ my $TypeLookup = $TypeObject->TypeLookup( TypeID => $TypeID );
 
 $Self->Is(
     $TypeLookup || '',
-    $TypeNameRand0 . '1',
+    $TypeUpdateName,
     'TypeLookup() - TypeID',
 );
 
@@ -125,7 +123,7 @@ $Self->Is(
 );
 
 # add another type
-my $TypeSecondName = $TypeNameRand0 . '2';
+my $TypeSecondName = $TypeName . 'second';
 my $TypeIDSecond   = $TypeObject->TypeAdd(
     Name    => $TypeSecondName,
     ValidID => 1,
@@ -137,12 +135,10 @@ $Self->True(
     "TypeAdd() - Name: \'$TypeSecondName\' ID: \'$TypeIDSecond\'",
 );
 
-push( @IDs, $TypeIDSecond );
-
 # update with existing name
 my $TypeUpdateWrong = $TypeObject->TypeUpdate(
     ID      => $TypeIDSecond,
-    Name    => $TypeNameRand0 . '1',
+    Name    => $TypeUpdateName,
     ValidID => 1,
     UserID  => 1,
 );
@@ -183,63 +179,54 @@ $Self->True(
 
 # check is there a type whose name has been updated in the meantime
 $Exist = $TypeObject->NameExistsCheck(
-    Name => $TypeNameRand0,
+    Name => $TypeName,
 );
 $Self->False(
     $Exist,
-    "NameExistsCheck() - A type with \'$TypeNameRand0\' does not exists!",
+    "NameExistsCheck() - A type with \'$TypeName\' does not exists!",
 );
 $Exist = $TypeObject->NameExistsCheck(
-    Name => $TypeNameRand0,
+    Name => $TypeName,
     ID   => $TypeID,
 );
 $Self->False(
     $Exist,
-    "NameExistsCheck() - Another type \'$TypeNameRand0\' for ID=$TypeID does not exists!",
+    "NameExistsCheck() - Another type \'$TypeName\' for ID=$TypeID does not exists!",
 );
 
-# perform 2 different TypeLists to check the caching
-my %TypeListValid = $TypeObject->TypeList( Valid => 1 );
+# set Ticket::Type::Default config item
+$Kernel::OM->Get('Kernel::Config')->Set(
+    Key   => 'Ticket::Type::Default',
+    Value => $TypeSecondName,
+);
 
-my %TypeListAll = $TypeObject->TypeList( Valid => 0 );
+# update the default ticket type
+$TypeUpdateWrong = $TypeObject->TypeUpdate(
+    ID      => $TypeIDSecond,
+    Name    => $TypeSecondName,
+    ValidID => 2,
+    UserID  => 1,
+);
 
-$Hit = 0;
-for ( sort keys %TypeListValid ) {
-    if ( $_ eq $TypeID ) {
-        $Hit = 1;
-    }
-}
 $Self->False(
-    $Hit,
-    'TypeList() - only valid types',
+    $TypeUpdateWrong,
+    "The ticket type is set as a default ticket type, so it cannot be changed! - $TypeSecondName",
 );
 
-$Hit = 0;
-for ( sort keys %TypeListAll ) {
-    if ( $_ eq $TypeID ) {
-        $Hit = 1;
-    }
-}
+# get all types
+my %TypeListAll = $TypeObject->TypeList( Valid => 0 );
 $Self->True(
-    $Hit,
-    'TypeList() - all types',
+    exists $TypeListAll{$TypeID} && $TypeListAll{$TypeID} eq $TypeUpdateName,
+    'TypeList() contains the type ' . $TypeUpdateName . ' with ID ' . $TypeID,
 );
 
-# Since there are no tickets that rely on our test types, we can remove them again
-#   from the DB.
-for my $ID (@IDs) {
-    my $Success = $Kernel::OM->Get('Kernel::System::DB')->Do(
-        SQL => "DELETE FROM ticket_type WHERE id = $ID",
-    );
-    $Self->True(
-        $Success,
-        "TypeDelete() - $ID",
-    );
-}
-
-# Make sure the cache is correct.
-$Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
-    Type => 'Type',
+# get valid types
+my %TypeListValid = $TypeObject->TypeList( Valid => 1 );
+$Self->False(
+    exists $TypeListValid{$TypeID},
+    'TypeList() does not contain the type ' . $TypeUpdateName . ' with ID ' . $TypeID,
 );
+
+# cleanup is done by RestoreDatabase.
 
 1;

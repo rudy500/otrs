@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,14 +11,26 @@ package Kernel::Output::HTML::LinkObject::Ticket;
 use strict;
 use warnings;
 
+use List::Util qw(first);
+
 use Kernel::Output::HTML::Layout;
+use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::Language',
+    'Kernel::Output::HTML::Layout',
+    'Kernel::System::CustomerCompany',
+    'Kernel::System::CustomerUser',
+    'Kernel::System::DynamicField',
+    'Kernel::System::DynamicField::Backend',
+    'Kernel::System::JSON',
     'Kernel::System::Log',
     'Kernel::System::Priority',
     'Kernel::System::State',
     'Kernel::System::Type',
+    'Kernel::System::User',
     'Kernel::System::Web::Request',
 );
 
@@ -26,15 +38,12 @@ our @ObjectDependencies = (
 
 Kernel::Output::HTML::LinkObject::Ticket - layout backend module
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All layout functions of link object (ticket).
 
-=over 4
 
-=cut
-
-=item new()
+=head2 new()
 
 create an object
 
@@ -57,20 +66,27 @@ sub new {
         $Self->{$Needed} = $Param{$Needed} || die "Got no $Needed!";
     }
 
-    # We need our own LayoutObject instance to avoid blockdata collisions
+    # We need our own LayoutObject instance to avoid block data collisions
     #   with the main page.
     $Self->{LayoutObject} = Kernel::Output::HTML::Layout->new( %{$Self} );
 
     # define needed variables
     $Self->{ObjectData} = {
-        Object   => 'Ticket',
-        Realname => 'Ticket',
+        Object     => 'Ticket',
+        Realname   => 'Ticket',
+        ObjectName => 'SourceObjectID',
     };
+
+    # get the dynamic fields for this screen
+    $Self->{DynamicField} = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldListGet(
+        Valid      => 0,
+        ObjectType => ['Ticket'],
+    );
 
     return $Self;
 }
 
-=item TableCreateComplex()
+=head2 TableCreateComplex()
 
 return an array with the block data
 
@@ -78,6 +94,9 @@ Return
 
     %BlockData = (
         {
+            ObjectName  => 'TicketID',
+            ObjectID    => '14785',
+
             Object    => 'Ticket',
             Blockname => 'Ticket',
             Headline  => [
@@ -149,6 +168,9 @@ sub TableCreateComplex {
         return;
     }
 
+    # create needed objects
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
     # convert the list
     my %LinkList;
     for my $LinkType ( sort keys %{ $Param{ObjectLinkListWithData} } ) {
@@ -168,7 +190,183 @@ sub TableCreateComplex {
         }
     }
 
-    # create the item list
+    my $ComplexTableData = $ConfigObject->Get("LinkObject::ComplexTable");
+    my $DefaultColumns;
+    if (
+        $ComplexTableData
+        && IsHashRefWithData($ComplexTableData)
+        && $ComplexTableData->{Ticket}
+        && IsHashRefWithData( $ComplexTableData->{Ticket} )
+        )
+    {
+        $DefaultColumns = $ComplexTableData->{"Ticket"}->{"DefaultColumns"};
+    }
+
+    my @TimeLongTypes = (
+        "Created",
+        "Changed",
+        "EscalationDestinationDate",
+        "FirstResponseTimeDestinationDate",
+        "UpdateTimeDestinationDate",
+        "SolutionTimeDestinationDate",
+    );
+
+    # define the block data
+    my $TicketHook        = $ConfigObject->Get('Ticket::Hook');
+    my $TicketHookDivider = $ConfigObject->Get('Ticket::HookDivider');
+
+    my @Headline;
+
+    # Get needed objects.
+    my $UserObject     = $Kernel::OM->Get('Kernel::System::User');
+    my $JSONObject     = $Kernel::OM->Get('Kernel::System::JSON');
+    my $LanguageObject = $Kernel::OM->Get('Kernel::Language');
+
+    # load user preferences
+    my %Preferences = $UserObject->GetPreferences(
+        UserID => $Self->{UserID},
+    );
+
+    if ( !$DefaultColumns || !IsHashRefWithData($DefaultColumns) ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Missing configuration for LinkObject::ComplexTable###Ticket!',
+        );
+        return;
+    }
+
+# Get default column priority from SysConfig
+# Each column in table (Title, State, Type,...) has defined Priority in SysConfig. System use this priority to sort columns, if user doesn't have own settings.
+    my %SortOrder;
+    if (
+        $ComplexTableData->{"Ticket"}->{"Priority"}
+        && IsHashRefWithData( $ComplexTableData->{"Ticket"}->{"Priority"} )
+        )
+    {
+        %SortOrder = %{ $ComplexTableData->{"Ticket"}->{"Priority"} };
+    }
+
+    my %UserColumns = %{$DefaultColumns};
+
+    if ( $Preferences{'LinkObject::ComplexTable-Ticket'} ) {
+
+        my $ColumnsEnabled = $JSONObject->Decode(
+            Data => $Preferences{'LinkObject::ComplexTable-Ticket'},
+        );
+
+        if (
+            $ColumnsEnabled
+            && IsHashRefWithData($ColumnsEnabled)
+            && $ColumnsEnabled->{Order}
+            && IsArrayRefWithData( $ColumnsEnabled->{Order} )
+            )
+        {
+            # Clear sort order
+            %SortOrder = ();
+
+            DEFAULTCOLUMN:
+            for my $DefaultColumn ( sort keys %UserColumns ) {
+                my $Index = 0;
+
+                for my $UserSetting ( @{ $ColumnsEnabled->{Order} } ) {
+                    $Index++;
+                    if ( $DefaultColumn eq $UserSetting ) {
+                        $UserColumns{$DefaultColumn} = 2;
+                        $SortOrder{$DefaultColumn}   = $Index;
+
+                        next DEFAULTCOLUMN;
+                    }
+                }
+
+                # not found, means user chose to hide this item
+                if ( $UserColumns{$DefaultColumn} == 2 ) {
+                    $UserColumns{$DefaultColumn} = 1;
+                }
+
+                if ( !$SortOrder{$DefaultColumn} ) {
+                    $SortOrder{$DefaultColumn} = 0;    # Set 0, it system will hide this item anyways
+                }
+            }
+        }
+    }
+    else {
+        # user has no own settings
+        for my $Column ( sort keys %UserColumns ) {
+            if ( !$SortOrder{$Column} ) {
+                $SortOrder{$Column} = 0;               # Set 0, it system will hide this item anyways
+            }
+        }
+    }
+
+    # Define Headline columns
+
+    # Sort
+    my @AllColumns;
+    COLUMN:
+    for my $Column ( sort { $SortOrder{$a} <=> $SortOrder{$b} } keys %UserColumns ) {
+
+        my $ColumnTranslate = $Column;
+        if ( $Column eq 'EscalationTime' ) {
+            $ColumnTranslate = Translatable('Service Time');
+        }
+        elsif ( $Column eq 'EscalationResponseTime' ) {
+            $ColumnTranslate = Translatable('First Response Time');
+        }
+        elsif ( $Column eq 'EscalationSolutionTime' ) {
+            $ColumnTranslate = Translatable('Solution Time');
+        }
+        elsif ( $Column eq 'EscalationUpdateTime' ) {
+            $ColumnTranslate = Translatable('Update Time');
+        }
+        elsif ( $Column eq 'PendingTime' ) {
+            $ColumnTranslate = Translatable('Pending till');
+        }
+        elsif ( $Column eq 'CustomerCompanyName' ) {
+            $ColumnTranslate = Translatable('Customer Company Name');
+        }
+        elsif ( $Column eq 'CustomerUserID' ) {
+            $ColumnTranslate = Translatable('Customer User ID');
+        }
+
+        push @AllColumns, {
+            ColumnName      => $Column,
+            ColumnTranslate => $ColumnTranslate,
+        };
+
+        # if enabled by default
+        if ( $UserColumns{$Column} == 2 ) {
+            my $ColumnName = '';
+
+            # Ticket fields
+            if ( $Column !~ m{\A DynamicField_}xms ) {
+                $ColumnName = $Column eq 'TicketNumber' ? $TicketHook : $ColumnTranslate;
+            }
+
+            # Dynamic fields
+            else {
+                my $DynamicFieldConfig;
+                my $DFColumn = $Column;
+                $DFColumn =~ s{DynamicField_}{}g;
+
+                DYNAMICFIELD:
+                for my $DFConfig ( @{ $Self->{DynamicField} } ) {
+                    next DYNAMICFIELD if !IsHashRefWithData($DFConfig);
+                    next DYNAMICFIELD if $DFConfig->{Name} ne $DFColumn;
+
+                    $DynamicFieldConfig = $DFConfig;
+                    last DYNAMICFIELD;
+                }
+                next COLUMN if !IsHashRefWithData($DynamicFieldConfig);
+
+                $ColumnName = $DynamicFieldConfig->{Label};
+            }
+            push @Headline, {
+                Content => $ColumnName,
+            };
+        }
+    }
+
+    # create the item list (table content)
     my @ItemList;
     for my $TicketID (
         sort { $LinkList{$a}{Data}->{Age} <=> $LinkList{$b}{Data}->{Age} }
@@ -181,79 +379,186 @@ sub TableCreateComplex {
 
         # set css
         my $CssClass;
-        if ( $Ticket->{StateType} eq 'merged' ) {
+        my @StatesToStrike = @{ $ConfigObject->Get('LinkObject::StrikeThroughLinkedTicketStateTypes') || [] };
+        if ( first { $Ticket->{StateType} eq $_ } @StatesToStrike ) {
             $CssClass = 'StrikeThrough';
         }
 
-        my @ItemColumns = (
-            {
-                Type    => 'Link',
-                Key     => $TicketID,
-                Content => $Ticket->{TicketNumber},
-                Link    => $Self->{LayoutObject}->{Baselink}
-                    . 'Action=AgentTicketZoom;TicketID='
-                    . $TicketID,
-                Title    => "Ticket# $Ticket->{TicketNumber}",
-                CssClass => $CssClass,
-            },
-            {
-                Type      => 'Text',
-                Content   => $Ticket->{Title},
-                MaxLength => 50,
-            },
-            {
-                Type    => 'Text',
-                Content => $Ticket->{Queue},
-            },
-            {
-                Type      => 'Text',
-                Content   => $Ticket->{State},
-                Translate => 1,
-            },
-            {
-                Type    => 'TimeLong',
-                Content => $Ticket->{Created},
-            },
-        );
+        my @ItemColumns;
+
+        # Sort
+        COLUMN:
+        for my $Column ( sort { $SortOrder{$a} <=> $SortOrder{$b} } keys %UserColumns ) {
+
+            # if enabled by default
+            if ( $UserColumns{$Column} == 2 ) {
+
+                my %Hash;
+                if ( grep { $_ eq $Column } @TimeLongTypes ) {
+                    $Hash{'Type'} = 'TimeLong';
+                }
+                else {
+                    $Hash{'Type'} = 'Text';
+                }
+
+                if ( $Column eq 'Title' ) {
+                    $Hash{MaxLength} = $Kernel::OM->Get('Kernel::Config')->Get('Ticket::SubjectSize') || 50;
+                }
+
+                # Ticket fields
+                if ( $Column !~ m{\A DynamicField_}xms ) {
+
+                    if ( $Column eq 'TicketNumber' ) {
+
+                        %Hash = (
+                            Type    => 'Link',
+                            Key     => $TicketID,
+                            Content => $Ticket->{TicketNumber},
+                            Link    => $Self->{LayoutObject}->{Baselink}
+                                . 'Action=AgentTicketZoom;TicketID='
+                                . $TicketID,
+                            Title    => "$TicketHook$TicketHookDivider$Ticket->{TicketNumber}",
+                            CssClass => $CssClass,
+                        );
+                    }
+                    elsif ( $Column eq 'EscalationTime' ) {
+
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
+                            Age   => $Ticket->{'EscalationTime'},
+                            Space => ' '
+                        );
+                    }
+                    elsif ( $Column eq 'Age' ) {
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
+                            Age   => $Ticket->{Age},
+                            Space => ' ',
+                        );
+                    }
+                    elsif ( $Column eq 'EscalationSolutionTime' ) {
+
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
+                            Age => $Ticket->{SolutionTime} || 0,
+                            TimeShowAlwaysLong => 1,
+                            Space              => ' ',
+                        );
+                    }
+                    elsif ( $Column eq 'EscalationResponseTime' ) {
+
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
+                            Age => $Ticket->{FirstResponseTime} || 0,
+                            TimeShowAlwaysLong => 1,
+                            Space              => ' ',
+                        );
+                    }
+                    elsif ( $Column eq 'EscalationUpdateTime' ) {
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
+                            Age => $Ticket->{UpdateTime} || 0,
+                            TimeShowAlwaysLong => 1,
+                            Space              => ' ',
+                        );
+                    }
+                    elsif ( $Column eq 'PendingTime' ) {
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
+                            Age   => $Ticket->{'UntilTime'},
+                            Space => ' '
+                        );
+                    }
+                    elsif ( $Column eq 'Owner' ) {
+
+                        # get owner info
+                        my %OwnerInfo = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
+                            UserID => $Ticket->{OwnerID},
+                        );
+                        $Hash{'Content'} = $OwnerInfo{'UserFullname'};
+                    }
+                    elsif ( $Column eq 'Responsible' ) {
+
+                        # get responsible info
+                        my %ResponsibleInfo = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
+                            UserID => $Ticket->{ResponsibleID},
+                        );
+                        $Hash{'Content'} = $ResponsibleInfo{'UserFullname'};
+                    }
+                    elsif ( $Column eq 'CustomerName' ) {
+
+                        # get customer name
+                        my $CustomerName;
+                        if ( $Ticket->{CustomerUserID} ) {
+                            $CustomerName = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerName(
+                                UserLogin => $Ticket->{CustomerUserID},
+                            );
+                        }
+                        $Hash{'Content'} = $CustomerName;
+                    }
+                    elsif ( $Column eq 'CustomerCompanyName' ) {
+                        my %CustomerCompany = $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyGet(
+                            CustomerID => $Ticket->{CustomerID},
+                        );
+                        $Hash{'Content'} = $CustomerCompany{CustomerCompanyName};
+                    }
+                    elsif ( $Column eq 'State' || $Column eq 'Priority' || $Column eq 'Lock' ) {
+                        $Hash{'Content'} = $LanguageObject->Translate( $Ticket->{$Column} );
+                    }
+                    else {
+                        $Hash{'Content'} = $Ticket->{$Column};
+                    }
+                }
+
+                # Dynamic fields
+                else {
+                    my $DynamicFieldConfig;
+                    my $DFColumn = $Column;
+                    $DFColumn =~ s{DynamicField_}{}g;
+
+                    DYNAMICFIELD:
+                    for my $DFConfig ( @{ $Self->{DynamicField} } ) {
+                        next DYNAMICFIELD if !IsHashRefWithData($DFConfig);
+                        next DYNAMICFIELD if $DFConfig->{Name} ne $DFColumn;
+
+                        $DynamicFieldConfig = $DFConfig;
+                        last DYNAMICFIELD;
+                    }
+                    next COLUMN if !IsHashRefWithData($DynamicFieldConfig);
+
+                    # get field value
+                    my $Value = $Kernel::OM->Get('Kernel::System::DynamicField::Backend')->ValueGet(
+                        DynamicFieldConfig => $DynamicFieldConfig,
+                        ObjectID           => $TicketID,
+                    );
+
+                    my $ValueStrg = $Kernel::OM->Get('Kernel::System::DynamicField::Backend')->DisplayValueRender(
+                        DynamicFieldConfig => $DynamicFieldConfig,
+                        Value              => $Value,
+                        ValueMaxChars      => 20,
+                        LayoutObject       => $Self->{LayoutObject},
+                    );
+
+                    $Hash{'Content'} = $ValueStrg->{Title};
+                }
+
+                push @ItemColumns, \%Hash;
+            }
+        }
 
         push @ItemList, \@ItemColumns;
     }
 
     return if !@ItemList;
 
-    # define the block data
-    my $TicketHook = $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Hook');
-    my %Block      = (
-        Object    => $Self->{ObjectData}->{Object},
-        Blockname => $Self->{ObjectData}->{Realname},
-        Headline  => [
-            {
-                Content => $TicketHook,
-                Width   => 130,
-            },
-            {
-                Content => 'Title',
-            },
-            {
-                Content => 'Queue',
-                Width   => 100,
-            },
-            {
-                Content => 'State',
-                Width   => 110,
-            },
-            {
-                Content => 'Created',
-                Width   => 130,
-            },
-        ],
-        ItemList => \@ItemList,
+    my %Block = (
+        Object     => $Self->{ObjectData}->{Object},
+        Blockname  => $Self->{ObjectData}->{Realname},
+        ObjectName => $Self->{ObjectData}->{ObjectName},
+        ObjectID   => $Param{ObjectID},
+        Headline   => \@Headline,
+        ItemList   => \@ItemList,
+        AllColumns => \@AllColumns,
     );
 
     return ( \%Block );
 }
 
-=item TableCreateSimple()
+=head2 TableCreateSimple()
 
 return a hash with the link output data
 
@@ -304,7 +609,10 @@ sub TableCreateSimple {
         return;
     }
 
-    my $TicketHook = $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Hook');
+    my $ConfigObject      = $Kernel::OM->Get('Kernel::Config');
+    my $TicketHook        = $ConfigObject->Get('Ticket::Hook');
+    my $TicketHookDivider = $ConfigObject->Get('Ticket::HookDivider');
+
     my %LinkOutputData;
     for my $LinkType ( sort keys %{ $Param{ObjectLinkListWithData} } ) {
 
@@ -324,7 +632,9 @@ sub TableCreateSimple {
 
                 # set css
                 my $CssClass;
-                if ( $Ticket->{StateType} eq 'merged' ) {
+                my @StatesToStrike = @{ $ConfigObject->Get('LinkObject::StrikeThroughLinkedTicketStateTypes') || [] };
+
+                if ( first { $Ticket->{StateType} eq $_ } @StatesToStrike ) {
                     $CssClass = 'StrikeThrough';
                 }
 
@@ -332,7 +642,7 @@ sub TableCreateSimple {
                 my %Item = (
                     Type    => 'Link',
                     Content => 'T:' . $Ticket->{TicketNumber},
-                    Title   => "$TicketHook$Ticket->{TicketNumber}: $Ticket->{Title}",
+                    Title   => "$TicketHook$TicketHookDivider$Ticket->{TicketNumber}: $Ticket->{Title}",
                     Link    => $Self->{LayoutObject}->{Baselink}
                         . 'Action=AgentTicketZoom;TicketID='
                         . $TicketID,
@@ -350,7 +660,7 @@ sub TableCreateSimple {
     return %LinkOutputData;
 }
 
-=item ContentStringCreate()
+=head2 ContentStringCreate()
 
 return a output string
 
@@ -375,9 +685,9 @@ sub ContentStringCreate {
     return;
 }
 
-=item SelectableObjectList()
+=head2 SelectableObjectList()
 
-return an array hash with selectable objects
+return an array hash with select-able objects
 
 Return
 
@@ -414,7 +724,7 @@ sub SelectableObjectList {
     return @ObjectSelectList;
 }
 
-=item SearchOptionList()
+=head2 SearchOptionList()
 
 return an array hash with search options
 
@@ -454,23 +764,23 @@ sub SearchOptionList {
             Type => 'Text',
         },
         {
-            Key  => 'Title',
-            Name => 'Title',
+            Key  => 'TicketTitle',
+            Name => Translatable('Title'),
             Type => 'Text',
         },
         {
             Key  => 'TicketFulltext',
-            Name => 'Fulltext',
+            Name => Translatable('Fulltext'),
             Type => 'Text',
         },
         {
             Key  => 'StateIDs',
-            Name => 'State',
+            Name => Translatable('State'),
             Type => 'List',
         },
         {
             Key  => 'PriorityIDs',
-            Name => 'Priority',
+            Name => Translatable('Priority'),
             Type => 'List',
         },
     );
@@ -479,7 +789,16 @@ sub SearchOptionList {
         push @SearchOptionList,
             {
             Key  => 'TypeIDs',
-            Name => 'Type',
+            Name => Translatable('Type'),
+            Type => 'List',
+            };
+    }
+
+    if ( $Kernel::OM->Get('Kernel::Config')->Get('Ticket::ArchiveSystem') ) {
+        push @SearchOptionList,
+            {
+            Key  => 'ArchiveID',
+            Name => Translatable('Archive search'),
             Type => 'List',
             };
     }
@@ -523,6 +842,8 @@ sub SearchOptionList {
             my @FormData = $Kernel::OM->Get('Kernel::System::Web::Request')->GetArray( Param => $Row->{FormKey} );
             $Row->{FormData} = \@FormData;
 
+            my $Multiple = 1;
+
             my %ListData;
             if ( $Row->{Key} eq 'StateIDs' ) {
                 %ListData = $Kernel::OM->Get('Kernel::System::State')->StateList(
@@ -539,6 +860,17 @@ sub SearchOptionList {
                     UserID => $Self->{UserID},
                 );
             }
+            elsif ( $Row->{Key} eq 'ArchiveID' ) {
+                %ListData = (
+                    ArchivedTickets    => Translatable('Archived tickets'),
+                    NotArchivedTickets => Translatable('Unarchived tickets'),
+                    AllTickets         => Translatable('All tickets'),
+                );
+                if ( !scalar @{ $Row->{FormData} } ) {
+                    $Row->{FormData} = ['NotArchivedTickets'];
+                }
+                $Multiple = 0;
+            }
 
             # add the input string
             $Row->{InputStrg} = $Self->{LayoutObject}->BuildSelection(
@@ -546,8 +878,32 @@ sub SearchOptionList {
                 Name       => $Row->{FormKey},
                 SelectedID => $Row->{FormData},
                 Size       => 3,
-                Multiple   => 1,
+                Multiple   => $Multiple,
                 Class      => 'Modernize',
+            );
+
+            next ROW;
+        }
+
+        if ( $Row->{Type} eq 'Checkbox' ) {
+
+            # get form data
+            $Row->{FormData} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $Row->{FormKey} );
+
+            # parse the input text block
+            $Self->{LayoutObject}->Block(
+                Name => 'Checkbox',
+                Data => {
+                    Name    => $Row->{FormKey},
+                    Title   => $Row->{FormKey},
+                    Content => $Row->{FormKey},
+                    Checked => $Row->{FormData} || '',
+                },
+            );
+
+            # add the input string
+            $Row->{InputStrg} = $Self->{LayoutObject}->Output(
+                TemplateFile => 'LinkObject',
             );
 
             next ROW;
@@ -559,11 +915,9 @@ sub SearchOptionList {
 
 1;
 
-=back
-
 =head1 TERMS AND CONDITIONS
 
-This software is part of the OTRS project (http://otrs.org/).
+This software is part of the OTRS project (L<http://otrs.org/>).
 
 This software comes with ABSOLUTELY NO WARRANTY. For details, see
 the enclosed file COPYING for license information (AGPL). If you

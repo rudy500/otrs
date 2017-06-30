@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,7 @@ use warnings;
 use Mail::Address;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -33,6 +34,14 @@ sub new {
         ObjectType  => [ 'Ticket', 'Article' ],
         FieldFilter => $Config->{DynamicField} || {},
     );
+
+    # get form id
+    $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
+
+    # create form id
+    if ( !$Self->{FormID} ) {
+        $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
+    }
 
     return $Self;
 }
@@ -54,16 +63,8 @@ sub Run {
     # get param object
     my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
 
-    # get form id
-    my $FormID = $ParamObject->GetParam( Param => 'FormID' );
-
     # get upload cache object
     my $UploadCacheObject = $Kernel::OM->Get('Kernel::System::Web::UploadCache');
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $UploadCacheObject->FormIDCreate();
-    }
 
     # get needed objects
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
@@ -79,7 +80,7 @@ sub Run {
     for my $Key (
         qw(Year Month Day Hour Minute To Cc Bcc TimeUnits PriorityID Subject Body
         TypeID ServiceID SLAID OwnerAll ResponsibleAll NewResponsibleID NewUserID
-        NextStateID StandardTemplateID
+        NextStateID StandardTemplateID Dest
         )
         )
     {
@@ -302,7 +303,7 @@ sub Run {
     for my $DynamicFieldConfig ( @{ $Self->{DynamicField} } ) {
         next DYNAMICFIELD if !IsHashRefWithData($DynamicFieldConfig);
 
-        # extract the dynamic field value form the web request
+        # extract the dynamic field value from the web request
         $DynamicFieldValues{ $DynamicFieldConfig->{Name} } = $DynamicFieldBackendObject->EditFieldValueGet(
             DynamicFieldConfig => $DynamicFieldConfig,
             ParamObject        => $ParamObject,
@@ -484,7 +485,13 @@ sub Run {
 
                     # get params
                     my %GetParam;
+                    PARAMETER:
                     for my $Parameter ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
+                        if ( $Jobs{$Job}->{ParamType} && $Jobs{$Job}->{ParamType} ne 'Single' ) {
+                            @{ $GetParam{$Parameter} } = $ParamObject->GetArray( Param => $Parameter );
+                            next PARAMETER;
+                        }
+
                         $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter );
                     }
 
@@ -507,6 +514,14 @@ sub Run {
                 $Body = $LayoutObject->Ascii2RichText(
                     String => $Body,
                 );
+            }
+
+            my $Dest = '';
+            if ( !$Self->{QueueID} && $GetParam{Dest} ) {
+
+                my @QueueParts = split( /\|\|/, $GetParam{Dest} );
+                $Self->{QueueID} = $QueueParts[0];
+                $Dest = $GetParam{Dest};
             }
 
             # html output
@@ -558,6 +573,7 @@ sub Run {
                     %ACLCompatGetParam,
                     QueueID => $Self->{QueueID}
                 ),
+                FromSelected      => $Dest,
                 To                => '',
                 Subject           => $Subject,
                 Body              => $Body,
@@ -582,6 +598,7 @@ sub Run {
 
     # deliver signature
     elsif ( $Self->{Subaction} eq 'Signature' ) {
+        my $CustomerUser = $ParamObject->GetParam( Param => 'SelectedCustomerUser' ) || '';
         my $QueueID = $ParamObject->GetParam( Param => 'QueueID' );
         if ( !$QueueID ) {
             my $Dest = $ParamObject->GetParam( Param => 'Dest' ) || '';
@@ -591,7 +608,10 @@ sub Run {
         # start with empty signature (no queue selected) - if we have a queue, get the sig.
         my $Signature = '';
         if ($QueueID) {
-            $Signature = $Self->_GetSignature( QueueID => $QueueID );
+            $Signature = $Self->_GetSignature(
+                QueueID        => $QueueID,
+                CustomerUserID => $CustomerUser,
+            );
         }
         my $MimeType = 'text/plain';
         if ( $LayoutObject->{BrowserRichText} ) {
@@ -650,11 +670,6 @@ sub Run {
             $GetParam{From} = $Queue{Email};
         }
 
-        # get sender queue from
-        my $Signature = '';
-        if ($NewQueueID) {
-            $Signature = $Self->_GetSignature( QueueID => $NewQueueID );
-        }
         my $CustomerUser = $ParamObject->GetParam( Param => 'CustomerUser' )
             || $ParamObject->GetParam( Param => 'PreSelectedCustomerUser' )
             || $ParamObject->GetParam( Param => 'SelectedCustomerUser' )
@@ -670,6 +685,15 @@ sub Run {
             || '';
         $GetParam{QueueID}            = $NewQueueID;
         $GetParam{ExpandCustomerName} = $ExpandCustomerName;
+
+        # get sender queue from
+        my $Signature = '';
+        if ($NewQueueID) {
+            $Signature = $Self->_GetSignature(
+                QueueID        => $NewQueueID,
+                CustomerUserID => $CustomerUser
+            );
+        }
 
         if ( $ParamObject->GetParam( Param => 'OwnerAllRefresh' ) ) {
             $GetParam{OwnerAll} = 1;
@@ -705,7 +729,7 @@ sub Run {
             next COUNT if !$Delete;
             $Error{AttachmentDelete} = 1;
             $UploadCacheObject->FormIDRemoveFile(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
                 FileID => $Count,
             );
             $IsUpload = 1;
@@ -720,7 +744,7 @@ sub Run {
                 Param => 'FileUpload',
             );
             $UploadCacheObject->FormIDAddFile(
-                FormID      => $FormID,
+                FormID      => $Self->{FormID},
                 Disposition => 'attachment',
                 %UploadStuff,
             );
@@ -792,8 +816,9 @@ sub Run {
                 if ( !IsHashRefWithData($ValidationResult) ) {
                     return $LayoutObject->ErrorScreen(
                         Message =>
-                            "Could not perform validation on field $DynamicFieldConfig->{Label}!",
-                        Comment => 'Please contact the admin.',
+                            $LayoutObject->{LanguageObject}
+                            ->Translate( 'Could not perform validation on field %s!', $DynamicFieldConfig->{Label} ),
+                        Comment => Translatable('Please contact the administrator.'),
                     );
                 }
 
@@ -820,7 +845,7 @@ sub Run {
 
         # get all attachments meta data
         my @Attachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
         # get customer user object
@@ -898,7 +923,7 @@ sub Run {
                 my %ExternalCustomerUserData = $CustomerUserObject->CustomerUserDataGet(
                     User => $FromExternalCustomer{Customer},
                 );
-                $FromExternalCustomer{Email} = $ExternalCustomerUserData{UserEmail};
+                $FromExternalCustomer{Email} = $ExternalCustomerUserData{UserMailString};
             }
             $Error{ExpandCustomerName} = 1;
         }
@@ -930,10 +955,16 @@ sub Run {
             next PARAMETER if !$GetParam{$Parameter};
             for my $Email ( Mail::Address->parse( $GetParam{$Parameter} ) ) {
                 if ( !$CheckItemObject->CheckEmail( Address => $Email->address() ) ) {
-                    $Error{ $Parameter . 'ErrorType' } = $Parameter
-                        . $CheckItemObject->CheckErrorType()
-                        . 'ServerErrorMsg';
+                    $Error{ $Parameter . 'ErrorType' }
+                        = $Parameter . $CheckItemObject->CheckErrorType() . 'ServerErrorMsg';
                     $Error{ $Parameter . 'Invalid' } = 'ServerError';
+                }
+
+                my $IsLocal = $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressIsLocalAddress(
+                    Address => $Email->address()
+                );
+                if ($IsLocal) {
+                    $Error{ $Parameter . 'IsLocalAddress' } = 'ServerError';
                 }
             }
         }
@@ -961,17 +992,19 @@ sub Run {
                 )
             {
 
-                # get time object
-                my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+                # convert pending date to a datetime object
+                my $PendingDateTimeObject = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        %GetParam,
+                        Second => 0,
+                    },
+                );
 
-                if ( !$TimeObject->Date2SystemTime( %GetParam, Second => 0 ) ) {
-                    $Error{'DateInvalid'} = 'ServerError';
-                }
-                if (
-                    $TimeObject->Date2SystemTime( %GetParam, Second => 0 )
-                    < $TimeObject->SystemTime()
-                    )
-                {
+                # get current system epoch
+                my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+                if ( !$PendingDateTimeObject || $PendingDateTimeObject < $CurSystemDateTimeObject ) {
                     $Error{'DateInvalid'} = 'ServerError';
                 }
             }
@@ -1035,17 +1068,49 @@ sub Run {
                 );
 
                 # get params
+                my $Multiple;
+                PARAMETER:
                 for my $Parameter ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
+
+                    if ( $Jobs{$Job}->{ParamType} && $Jobs{$Job}->{ParamType} ne 'Single' ) {
+                        @{ $GetParam{$Parameter} } = $ParamObject->GetArray( Param => $Parameter );
+                        $Multiple = 1;
+                        next PARAMETER;
+                    }
+
                     $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter );
                 }
 
                 # run module
-                $Object->Run( %GetParam, Config => $Jobs{$Job} );
+                $Object->Run(
+                    %GetParam,
+                    StoreNew => 1,
+                    Config   => $Jobs{$Job}
+                );
+
+                # get options that have been removed from the selection
+                # and add them back to the selection so that the submit
+                # will contain options that were hidden from the agent
+                my $Key = $Object->Option( %GetParam, Config => $Jobs{$Job} );
+
+                if ( $Object->can('GetOptionsToRemoveAJAX') ) {
+                    my @RemovedOptions = $Object->GetOptionsToRemoveAJAX(%GetParam);
+                    if (@RemovedOptions) {
+                        if ($Multiple) {
+                            for my $RemovedOption (@RemovedOptions) {
+                                push @{ $GetParam{$Key} }, $RemovedOption;
+                            }
+                        }
+                        else {
+                            $GetParam{$Key} = shift @RemovedOptions;
+                        }
+                    }
+                }
 
                 # ticket params
                 %ArticleParam = (
                     %ArticleParam,
-                    $Object->ArticleOption( %GetParam, Config => $Jobs{$Job} ),
+                    $Object->ArticleOption( %GetParam, %ArticleParam, Config => $Jobs{$Job} ),
                 );
 
                 # get errors
@@ -1057,6 +1122,27 @@ sub Run {
         }
 
         if (%Error) {
+
+            if ( $Error{ToIsLocalAddress} ) {
+                $LayoutObject->Block(
+                    Name => 'ToIsLocalAddressServerErrorMsg',
+                    Data => \%GetParam,
+                );
+            }
+
+            if ( $Error{CcIsLocalAddress} ) {
+                $LayoutObject->Block(
+                    Name => 'CcIsLocalAddressServerErrorMsg',
+                    Data => \%GetParam,
+                );
+            }
+
+            if ( $Error{BccIsLocalAddress} ) {
+                $LayoutObject->Block(
+                    Name => 'BccIsLocalAddressServerErrorMsg',
+                    Data => \%GetParam,
+                );
+            }
 
             # get and format default subject and body
             my $Subject = $LayoutObject->Output(
@@ -1215,7 +1301,7 @@ sub Run {
 
         # get pre loaded attachment
         @Attachments = $UploadCacheObject->FormIDGetAllFilesData(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
         # get submit attachment
@@ -1290,24 +1376,27 @@ sub Run {
             UserID  => $Self->{UserID},
         );
 
+        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+        my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+
         # send email
-        my $ArticleID = $TicketObject->ArticleSend(
-            NoAgentNotify  => $NoAgentNotify,
-            Attachment     => \@Attachments,
-            TicketID       => $TicketID,
-            ArticleType    => $Config->{ArticleType},
-            SenderType     => $Config->{SenderType},
-            From           => $Sender,
-            To             => $GetParam{To},
-            Cc             => $GetParam{Cc},
-            Bcc            => $GetParam{Bcc},
-            Subject        => $GetParam{Subject},
-            Body           => $GetParam{Body},
-            Charset        => $LayoutObject->{UserCharset},
-            MimeType       => $MimeType,
-            UserID         => $Self->{UserID},
-            HistoryType    => $Config->{HistoryType},
-            HistoryComment => $Config->{HistoryComment}
+        my $ArticleID = $ArticleBackendObject->ArticleSend(
+            NoAgentNotify        => $NoAgentNotify,
+            Attachment           => \@Attachments,
+            TicketID             => $TicketID,
+            SenderType           => $Config->{SenderType},
+            IsVisibleForCustomer => $Config->{IsVisibleForCustomer},
+            From                 => $Sender,
+            To                   => $GetParam{To},
+            Cc                   => $GetParam{Cc},
+            Bcc                  => $GetParam{Bcc},
+            Subject              => $GetParam{Subject},
+            Body                 => $GetParam{Body},
+            Charset              => $LayoutObject->{UserCharset},
+            MimeType             => $MimeType,
+            UserID               => $Self->{UserID},
+            HistoryType          => $Config->{HistoryType},
+            HistoryComment       => $Config->{HistoryComment}
                 || "\%\%$GetParam{To}, $GetParam{Cc}, $GetParam{Bcc}",
             %ArticleParam,
         );
@@ -1332,7 +1421,7 @@ sub Run {
         }
 
         # remove pre-submitted attachments
-        $UploadCacheObject->FormIDRemove( FormID => $FormID );
+        $UploadCacheObject->FormIDRemove( FormID => $Self->{FormID} );
 
         # set owner (if new user id is given)
         if ($NewUserID) {
@@ -1446,7 +1535,10 @@ sub Run {
         }
         my $Signature = '';
         if ($QueueID) {
-            $Signature = $Self->_GetSignature( QueueID => $QueueID );
+            $Signature = $Self->_GetSignature(
+                QueueID        => $QueueID,
+                CustomerUserID => $CustomerUser,
+            );
         }
         my $Users = $Self->_GetUsers(
             %GetParam,
@@ -1567,7 +1659,7 @@ sub Run {
 
             # remove all attachments from the Upload cache
             my $RemoveSuccess = $UploadCacheObject->FormIDRemove(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
             );
             if ( !$RemoveSuccess ) {
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1596,7 +1688,7 @@ sub Run {
                 for ( sort keys %AllStdAttachments ) {
                     my %AttachmentsData = $StdAttachmentObject->StdAttachmentGet( ID => $_ );
                     $UploadCacheObject->FormIDAddFile(
-                        FormID      => $FormID,
+                        FormID      => $Self->{FormID},
                         Disposition => 'attachment',
                         %AttachmentsData,
                     );
@@ -1605,7 +1697,7 @@ sub Run {
                 # send a list of attachments in the upload cache back to the clientside JavaScript
                 # which renders then the list of currently uploaded attachments
                 @TicketAttachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-                    FormID => $FormID,
+                    FormID => $Self->{FormID},
                 );
             }
 
@@ -1646,8 +1738,18 @@ sub Run {
                     Debug => $Debug,
                 );
 
+                my $Multiple;
+
                 # get params
+                PARAMETER:
                 for my $Parameter ( $Object->Option( %GetParam, Config => $Jobs{$Job} ) ) {
+
+                    if ( $Jobs{$Job}->{ParamType} && $Jobs{$Job}->{ParamType} ne 'Single' ) {
+                        @{ $GetParam{$Parameter} } = $ParamObject->GetArray( Param => $Parameter );
+                        $Multiple = 1;
+                        next PARAMETER;
+                    }
+
                     $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter );
                 }
 
@@ -1659,16 +1761,29 @@ sub Run {
                     %GetParam = ( %GetParam, $Object->GetParamAJAX(%GetParam) )
                 }
 
+                # get options that have to be removed from the selection visible
+                # to the agent. These options will be added again on submit.
+                if ( $Object->can('GetOptionsToRemoveAJAX') ) {
+                    my @OptionsToRemove = $Object->GetOptionsToRemoveAJAX(%GetParam);
+
+                    for my $OptionToRemove (@OptionsToRemove) {
+                        delete $Data{$OptionToRemove};
+                    }
+                }
+
                 my $Key = $Object->Option( %GetParam, Config => $Jobs{$Job} );
+
                 if ($Key) {
                     push(
                         @ExtendedData,
                         {
-                            Name        => $Key,
-                            Data        => \%Data,
-                            SelectedID  => $GetParam{$Key},
-                            Translation => 1,
-                            Max         => 100,
+                            Name         => $Key,
+                            Data         => \%Data,
+                            SelectedID   => $GetParam{$Key},
+                            Translation  => 1,
+                            PossibleNone => 1,
+                            Multiple     => $Multiple,
+                            Max          => 100,
                         }
                     );
                 }
@@ -1776,8 +1891,8 @@ sub Run {
     }
     else {
         return $LayoutObject->ErrorScreen(
-            Message => 'No Subaction!',
-            Comment => 'Please contact your administrator',
+            Message => Translatable('No Subaction!'),
+            Comment => Translatable('Please contact the administrator.'),
         );
     }
 }
@@ -1847,6 +1962,7 @@ sub _GetUsers {
     # workflow
     my $ACL = $TicketObject->TicketAcl(
         %Param,
+        Action        => $Self->{Action},
         ReturnType    => 'Ticket',
         ReturnSubType => 'Owner',
         Data          => \%ShownUsers,
@@ -1909,6 +2025,7 @@ sub _GetResponsibles {
     # workflow
     my $ACL = $TicketObject->TicketAcl(
         %Param,
+        Action        => $Self->{Action},
         ReturnType    => 'Ticket',
         ReturnSubType => 'Responsible',
         Data          => \%ShownUsers,
@@ -2022,12 +2139,7 @@ sub _GetTos {
             );
         }
         else {
-            %Tos = $Kernel::OM->Get('Kernel::System::DB')->GetTableData(
-                Table => 'system_address',
-                What  => 'queue_id, id',
-                Valid => 1,
-                Clamp => 1,
-            );
+            %Tos = $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressQueueList();
         }
 
         # get create permission queues
@@ -2048,6 +2160,10 @@ sub _GetTos {
                 || '<Realname> <<Email>> - Queue: <Queue>';
             $String =~ s/<Queue>/$QueueData{Name}/g;
             $String =~ s/<QueueComment>/$QueueData{Comment}/g;
+
+            # remove trailing spaces
+            $String =~ s{\s+\z}{} if !$QueueData{Comment};
+
             if ( $ConfigObject->Get('Ticket::Frontend::NewQueueSelectionType') ne 'Queue' )
             {
                 my %SystemAddressData = $Kernel::OM->Get('Kernel::System::SystemAddress')->SystemAddressGet(
@@ -2116,15 +2232,7 @@ sub _GetStandardTemplates {
 sub _MaskEmailNew {
     my ( $Self, %Param ) = @_;
 
-    # get form id
-    my $FormID = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
-    }
-
-    $Param{FormID} = $FormID;
+    $Param{FormID} = $Self->{FormID};
 
     # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -2138,9 +2246,12 @@ sub _MaskEmailNew {
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
-    # build customer search autocomplete field
-    $LayoutObject->Block(
-        Name => 'CustomerSearchAutoComplete',
+    # set JS data
+    $LayoutObject->AddJSData(
+        Key   => 'CustomerSearch',
+        Value => {
+            ShowCustomerTickets => $ConfigObject->Get('Ticket::Frontend::ShowCustomerTickets'),
+        },
     );
 
     # build string
@@ -2186,7 +2297,7 @@ sub _MaskEmailNew {
     else {
         $Param{FromStrg} = $LayoutObject->BuildSelection(
             Data       => \%NewTo,
-            Class      => 'Validate_Required Modernize ' . $Param{Errors}->{DestinationInvalid} || ' ',
+            Class      => 'Validate_Required Modernize ' . ( $Param{Errors}->{DestinationInvalid} || ' ' ),
             Name       => 'Dest',
             TreeView   => $TreeView,
             SelectedID => $Param{FromSelected},
@@ -2225,6 +2336,15 @@ sub _MaskEmailNew {
         $LayoutObject->Block(
             Name => 'FromExternalCustomer',
             Data => $Param{FromExternalCustomer},
+        );
+
+        $LayoutObject->AddJSData(
+            Key   => 'DataEmail',
+            Value => $Param{FromExternalCustomer}->{Email},
+        );
+        $LayoutObject->AddJSData(
+            Key   => 'DataCustomer',
+            Value => $Param{FromExternalCustomer}->{Customer},
         );
     }
 
@@ -2379,12 +2499,10 @@ sub _MaskEmailNew {
         OnlyDynamicFields => 1
     );
 
-    # create a string with the quoted dynamic field names separated by commas
-    if ( IsArrayRefWithData($DynamicFieldNames) ) {
-        for my $Field ( @{$DynamicFieldNames} ) {
-            $Param{DynamicFieldNamesStrg} .= ", '" . $Field . "'";
-        }
-    }
+    $LayoutObject->AddJSData(
+        Key   => 'DynamicFieldNames',
+        Value => $DynamicFieldNames,
+    );
 
     # build type string
     if ( $ConfigObject->Get('Ticket::Type') ) {
@@ -2406,73 +2524,46 @@ sub _MaskEmailNew {
     # build service string
     if ( $ConfigObject->Get('Ticket::Service') ) {
 
-        if ( $Config->{ServiceMandatory} ) {
-            $Param{ServiceStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{Services},
-                Name         => 'ServiceID',
-                Class        => 'Validate_Required Modernize ' . ( $Param{Errors}->{ServiceInvalid} || ' ' ),
-                SelectedID   => $Param{ServiceID},
-                PossibleNone => 1,
-                TreeView     => $TreeView,
-                Sort         => 'TreeView',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketServiceMandatory',
-                Data => {%Param},
-            );
-        }
-        else {
-            $Param{ServiceStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{Services},
-                Name         => 'ServiceID',
-                Class        => 'Modernize ' . $Param{Errors}->{ServiceInvalid} || ' ',
-                SelectedID   => $Param{ServiceID},
-                PossibleNone => 1,
-                TreeView     => $TreeView,
-                Sort         => 'TreeView',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketService',
-                Data => {%Param},
-            );
-        }
+        $Param{ServiceStrg} = $LayoutObject->BuildSelection(
+            Data  => $Param{Services},
+            Name  => 'ServiceID',
+            Class => 'Modernize '
+                . ( $Config->{ServiceMandatory} ? 'Validate_Required ' : '' )
+                . ( $Param{Errors}->{ServiceInvalid} || '' ),
+            SelectedID   => $Param{ServiceID},
+            PossibleNone => 1,
+            TreeView     => $TreeView,
+            Sort         => 'TreeView',
+            Translation  => 0,
+            Max          => 200,
+        );
+        $LayoutObject->Block(
+            Name => 'TicketService',
+            Data => {
+                ServiceMandatory => $Config->{ServiceMandatory} || 0,
+                %Param,
+            },
+        );
 
-        if ( $Config->{SLAMandatory} ) {
-            $Param{SLAStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{SLAs},
-                Name         => 'SLAID',
-                SelectedID   => $Param{SLAID},
-                Class        => 'Validate_Required Modernize ' . ( $Param{Errors}->{SLAInvalid} || ' ' ),
-                PossibleNone => 1,
-                Sort         => 'AlphanumericValue',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketSLAMandatory',
-                Data => {%Param},
-            );
-        }
-        else {
-            $Param{SLAStrg} = $LayoutObject->BuildSelection(
-                Data         => $Param{SLAs},
-                Name         => 'SLAID',
-                SelectedID   => $Param{SLAID},
-                Class        => 'Modernize',
-                PossibleNone => 1,
-                Sort         => 'AlphanumericValue',
-                Translation  => 0,
-                Max          => 200,
-            );
-            $LayoutObject->Block(
-                Name => 'TicketSLA',
-                Data => {%Param},
-            );
-        }
+        $Param{SLAStrg} = $LayoutObject->BuildSelection(
+            Data       => $Param{SLAs},
+            Name       => 'SLAID',
+            SelectedID => $Param{SLAID},
+            Class      => 'Modernize '
+                . ( $Config->{SLAMandatory} ? 'Validate_Required ' : '' )
+                . ( $Param{Errors}->{SLAInvalid} || '' ),
+            PossibleNone => 1,
+            Sort         => 'AlphanumericValue',
+            Translation  => 0,
+            Max          => 200,
+        );
+        $LayoutObject->Block(
+            Name => 'TicketSLA',
+            Data => {
+                SLAMandatory => $Config->{SLAMandatory} || 0,
+                %Param,
+            },
+        );
     }
 
     # check if exists create templates regardless the queue
@@ -2605,58 +2696,13 @@ sub _MaskEmailNew {
         );
     }
 
-    my $ShownOptionsBlock;
-
-    # show spell check
-    if ( $LayoutObject->{BrowserSpellChecker} ) {
-
-        # check if need to call Options block
-        if ( !$ShownOptionsBlock ) {
-            $LayoutObject->Block(
-                Name => 'TicketOptions',
-                Data => {
-                    %Param,
-                },
-            );
-
-            # set flag to "true" in order to prevent calling the Options block again
-            $ShownOptionsBlock = 1;
-        }
-
-        $LayoutObject->Block(
-            Name => 'SpellCheck',
-            Data => {
-                %Param,
-            },
-        );
-    }
-
-    # show address book if the module is registered and java script support is available
+    # Show the customer user address book if the module is registered and java script support is available.
     if (
-        $ConfigObject->Get('Frontend::Module')->{AgentBook}
+        $ConfigObject->Get('Frontend::Module')->{AgentCustomerUserAddressBook}
         && $LayoutObject->{BrowserJavaScriptSupport}
         )
     {
-
-        # check if need to call Options block
-        if ( !$ShownOptionsBlock ) {
-            $LayoutObject->Block(
-                Name => 'TicketOptions',
-                Data => {
-                    %Param,
-                },
-            );
-
-            # set flag to "true" in order to prevent calling the Options block again
-            $ShownOptionsBlock = 1;
-        }
-
-        $LayoutObject->Block(
-            Name => 'AddressBook',
-            Data => {
-                %Param,
-            },
-        );
+        $Param{OptionCustomerUserAddressBook} = 1;
     }
 
     # show customer edit link
@@ -2664,6 +2710,9 @@ sub _MaskEmailNew {
         Action => 'AdminCustomerUser',
         Type   => 'rw',
     );
+
+    my $ShownOptionsBlock;
+
     if ($OptionCustomer) {
 
         # check if need to call Options block
@@ -2712,8 +2761,8 @@ sub _MaskEmailNew {
         $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
         $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-        $LayoutObject->Block(
-            Name => 'RichText',
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
             Data => \%Param,
         );
     }

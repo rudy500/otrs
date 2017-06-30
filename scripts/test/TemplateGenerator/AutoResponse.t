@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,35 +15,52 @@ use vars (qw($Self));
 # get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-# disable rich text editor
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# force rich text editor
 my $Success = $ConfigObject->Set(
     Key   => 'Frontend::RichText',
-    Value => 0,
+    Value => 1,
 );
 $Self->True(
     $Success,
-    "Disable RichText with true",
+    'Force RichText with true',
 );
 
-# use NoSendMail email backend
+# use DoNotSendEmail email backend
 $Success = $ConfigObject->Set(
     Key   => 'SendmailModule',
-    Value => 'Kernel::System::Email::NoSendMail',
+    Value => 'Kernel::System::Email::DoNotSendEmail',
 );
 $Self->True(
     $Success,
-    "Set NoSendMail backend with true",
+    'Set DoNotSendEmail backend with true',
 );
 
-# get helper object
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-my $RandomID     = $HelperObject->GetRandomID();
+# set Default Language
+$Success = $ConfigObject->Set(
+    Key   => 'DefaultLanguage',
+    Value => 'en',
+);
+$Self->True(
+    $Success,
+    'Set default language to English',
+);
+
+my $RandomID = $Helper->GetRandomID();
 
 # create customer users
-my $TestUserLoginEN = $HelperObject->TestCustomerUserCreate(
+my $TestUserLoginEN = $Helper->TestCustomerUserCreate(
     Language => 'en',
 );
-my $TestUserLoginDE = $HelperObject->TestCustomerUserCreate(
+my $TestUserLoginDE = $Helper->TestCustomerUserCreate(
     Language => 'de',
 );
 
@@ -51,8 +68,9 @@ my $TestUserLoginDE = $HelperObject->TestCustomerUserCreate(
 my $QueueObject = $Kernel::OM->Get('Kernel::System::Queue');
 
 # create new queue
+my $QueueName     = 'Some::Queue' . $RandomID;
 my %QueueTemplate = (
-    Name            => 'Some::Queue' . $RandomID,
+    Name            => $QueueName,
     ValidID         => 1,
     GroupID         => 1,
     SystemAddressID => 1,
@@ -65,29 +83,29 @@ my $QueueID = $QueueObject->QueueAdd(%QueueTemplate);
 $Self->IsNot(
     $QueueID,
     undef,
-    "QueueAdd() - QueueID should not be undef",
+    'QueueAdd() - QueueID should not be undef',
 );
 
 # get auto response object
 my $AutoResponseObject = $Kernel::OM->Get('Kernel::System::AutoResponse');
 
 # create new auto response
+my $AutoResonseName      = 'Some::AutoResponse' . $RandomID;
 my %AutoResponseTemplate = (
-    Name        => 'Some::AutoResponse' . $RandomID,
+    Name        => $AutoResonseName,
     ValidID     => 1,
     Subject     => 'Some Subject..',
-    Response    => '<OTRS_TICKET_State>',
-    Charset     => 'utf8',
-    ContentType => 'text/plain',
+    Response    => 'S:&nbsp;&lt;OTRS_TICKET_State&gt;',    # include non-breaking space (bug#12097)
+    ContentType => 'text/html',
     AddressID   => 1,
-    TypeID      => 4,                                  # auto reply/new ticket
+    TypeID      => 4,                                      # auto reply/new ticket
     UserID      => 1,
 );
 my $AutoResponseID = $AutoResponseObject->AutoResponseAdd(%AutoResponseTemplate);
 $Self->IsNot(
     $AutoResponseID,
     undef,
-    "AutoResponseAdd() - AutoResonseID should not be undef",
+    'AutoResponseAdd() - AutoResonseID should not be undef',
 );
 
 # assign auto response to queue
@@ -98,11 +116,13 @@ $Success = $AutoResponseObject->AutoResponseQueue(
 );
 $Self->True(
     $Success,
-    "AutoResponseQueue() - with true",
+    "AutoResponseQueue() - assigned auto response - $AutoResonseName to queue - $QueueName",
 );
 
-# get ticket object
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Email',
+);
 
 # create a new ticket
 my $TicketID = $TicketObject->TicketCreate(
@@ -119,24 +139,26 @@ my $TicketID = $TicketObject->TicketCreate(
 $Self->IsNot(
     $TicketID,
     undef,
-    "TicketCreate() - TicketID should not be undef",
+    'TicketCreate() - TicketID should not be undef',
 );
 
+my $HTMLTemplate
+    = '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/></head><body style="font-family:Geneva,Helvetica,Arial,sans-serif; font-size: 12px;">%s</body></html>';
 my @Tests = (
     {
         Name           => 'English Language Customer',
         CustomerUser   => $TestUserLoginEN,
-        ExpectedResult => 'new',
+        ExpectedResult => sprintf( $HTMLTemplate, 'S:&nbsp;new' ),
     },
     {
         Name           => 'German Language Customer',
         CustomerUser   => $TestUserLoginDE,
-        ExpectedResult => 'neu',
+        ExpectedResult => sprintf( $HTMLTemplate, 'S:&nbsp;neu' ),
     },
     {
         Name           => 'Not existing Customer',
         CustomerUser   => 'customer@example.com',
-        ExpectedResult => 'new',
+        ExpectedResult => sprintf( $HTMLTemplate, 'S:&nbsp;new' ),
     },
 );
 
@@ -168,41 +190,24 @@ for my $Test (@Tests) {
         $Test->{ExpectedResult},
         "$Test->{Name} AutoResponse() - Text"
     );
+
+    # create auto response article (bug#12097)
+    my $ArticleID = $ArticleBackendObject->SendAutoResponse(
+        TicketID         => $TicketID,
+        AutoResponseType => 'auto reply/new ticket',
+        OrigHeader       => {
+            From => $Test->{CustomerUser},
+        },
+        IsVisibleForCustomer => 1,
+        UserID               => 1,
+    );
+    $Self->IsNot(
+        $ArticleID,
+        undef,
+        "$Test->{Name} SendAutoResponse() - ArticleID should not be undef"
+    );
 }
 
-# cleanup
-
-# set auto response to invalid
-$Success = $AutoResponseObject->AutoResponseUpdate(
-    %AutoResponseTemplate,
-    ID      => $AutoResponseID,
-    ValidID => 2,
-);
-$Self->True(
-    $Success,
-    "AutoResponseUpdate() - set auto response $AutoResponseID to invalid with true",
-);
-
-# set queue to invalid
-$Success = $QueueObject->QueueUpdate(
-    %QueueTemplate,
-    QueueID    => $QueueID,
-    ValidID    => 2,
-    FollowUpID => 1,
-);
-$Self->True(
-    $Success,
-    "QueueUpdate() - set queue $QueueID to invalid with true",
-);
-
-# delete ticket
-$Success = $TicketObject->TicketDelete(
-    TicketID => $TicketID,
-    UserID   => 1,
-);
-$Self->True(
-    $Success,
-    "TicketDelete() - for ticket $TicketID with true",
-);
+# Cleanup is done by RestoreDatabase.
 
 1;

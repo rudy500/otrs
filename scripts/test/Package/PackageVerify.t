@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,14 +12,13 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
+# get package object
 my $PackageObject = $Kernel::OM->Get('Kernel::System::Package');
 
 # get OTRS Version
-my $OTRSVersion = $ConfigObject->Get('Version');
+my $OTRSVersion = $Kernel::OM->Get('Kernel::Config')->Get('Version');
 
-# leave only mayor and minor level versions
+# leave only major and minor level versions
 $OTRSVersion =~ s{ (\d+ \. \d+) .+ }{$1}msx;
 
 # add x as patch level version
@@ -91,10 +90,27 @@ my $StringSecond = '<?xml version="1.0" encoding="utf-8" ?>
 </otrs_package>
 ';
 
-my $Verification = $PackageObject->PackageVerify(
-    Package => $String,
-    Name    => 'Test',
+my %Intervall = (
+    1 => 3,
+    2 => 15,
+    3 => 60,
+    4 => 60 * 3,
+    5 => 60 * 6,
 );
+
+my $Verification;
+TRY:
+for my $Try ( 1 .. 5 ) {
+
+    $Verification = $PackageObject->PackageVerify(
+        Package => $String,
+        Name    => 'Test',
+    );
+
+    last TRY if $Verification ne 'unknown';
+
+    sleep $Intervall{$Try};
+}
 
 $Self->Is(
     $Verification,
@@ -112,10 +128,18 @@ $Self->True(
     "PackageOnlineGet - get Support package from ftp.otrs.org",
 );
 
-$Verification = $PackageObject->PackageVerify(
-    Package => $Download,
-    Name    => 'Support',
-);
+TRY:
+for my $Try ( 1 .. 5 ) {
+
+    $Verification = $PackageObject->PackageVerify(
+        Package => $Download,
+        Name    => 'Support',
+    );
+
+    last TRY if $Verification ne 'unknown';
+
+    sleep $Intervall{$Try};
+}
 
 $Self->Is(
     $Verification,
@@ -126,10 +150,18 @@ $Self->Is(
 # test again with changed line endings, see http://bugs.otrs.org/show_bug.cgi?id=9838
 $Download =~ s{\n}{\r\n}xmsg;
 
-$Verification = $PackageObject->PackageVerify(
-    Package => $Download,
-    Name    => 'Support',
-);
+TRY:
+for my $Try ( 1 .. 5 ) {
+
+    $Verification = $PackageObject->PackageVerify(
+        Package => $Download,
+        Name    => 'Support',
+    );
+
+    last TRY if $Verification ne 'unknown';
+
+    sleep $Intervall{$Try};
+}
 
 $Self->Is(
     $Verification,
@@ -151,14 +183,30 @@ $Self->True(
     'PackageInstall() - Package TestSecond',
 );
 
-my %VerifyAll = $PackageObject->PackageVerifyAll();
+TRY:
+for my $Try ( 1 .. 5 ) {
 
-for my $PackageName (qw( Test TestSecond )) {
-    $Self->Is(
-        $VerifyAll{$PackageName},
-        'not_verified',
-        "VerifyAll - result for $PackageName",
-    );
+    my %VerifyAll = $PackageObject->PackageVerifyAll();
+
+    my $Unknown;
+    for my $PackageName (qw( Test TestSecond )) {
+
+        if ( $Try < 5 && $VerifyAll{$PackageName} eq 'unknown' ) {
+            $Unknown = 1;
+        }
+        else {
+
+            $Self->Is(
+                $VerifyAll{$PackageName},
+                'not_verified',
+                "VerifyAll - result for $PackageName",
+            );
+        }
+    }
+
+    last TRY if !$Unknown;
+
+    sleep $Intervall{$Try};
 }
 
 my $PackageUninstall = $PackageObject->PackageUninstall( String => $String );
@@ -174,5 +222,8 @@ $Self->True(
     $PackageUninstall,
     'PackageUninstall() - Package TestSecond',
 );
+
+# cleanup cache
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
 
 1;

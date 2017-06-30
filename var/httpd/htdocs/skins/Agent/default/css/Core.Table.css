@@ -37,7 +37,8 @@
 .DataTable tbody tr:hover td,
 .TableSmall tbody tr:hover td,
 .DataTable tbody tr:active td.Clickable,
-.TableSmall tbody tr:active td.Clickable {
+.TableSmall tbody tr:active td.Clickable,
+.DataTable tr:nth-child(even):hover td.Highlight {
     background: #FCB24B;
 }
 
@@ -72,6 +73,10 @@ table tr.MasterAction {
     border: 1px solid #ddd;
     clear: both;
     border-collapse: separate;
+}
+
+.DataTable.FixedLayout {
+    table-layout: fixed;
 }
 
 .DataTable.VariableWidth {
@@ -159,6 +164,12 @@ table tr.MasterAction {
     border-right: 1px dotted #CCC;
 }
 
+.DataTable.FixedLayout tbody td a.AsBlock {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
 .DataTable tbody td.UnreadArticles {
     padding: 0px;
 }
@@ -198,6 +209,14 @@ table tr.MasterAction {
 
 .DataTable tr:nth-child(even) td.Highlight {
     background-color: #E5E5E5;
+}
+
+.DataTable tr td.Highlight {
+    border-right: 1px solid #CCC;
+}
+
+.DataTable tr td.Highlight:last-child {
+    border-right: none;
 }
 
 .DataTable tr:hover td a {
@@ -552,8 +571,8 @@ thead .headerSortDown a {
     line-height: 18px;
 }
 
-.TicketList .From div,
-.TicketList .Subject div,
+.TicketList td.From div,
+.TicketList td.Subject div,
 .TicketList td.Created a {
     height: 20px;
     overflow: hidden;
@@ -653,13 +672,15 @@ select.ColumnFilter {
     z-index: 1;
 }
 
-thead .headerSortUp > a:before {
+thead .headerSortUp > a:before,
+thead .tablesorter-headerDesc > div.tablesorter-header-inner > a:before {
     content: "\25BC";
     display: inline-block;
     margin-right: 2px;
 }
 
-thead .headerSortDown > a:before {
+thead .headerSortDown > a:before,
+thead .tablesorter-headerAsc > div.tablesorter-header-inner > a:before {
     content: "\25B2";
     display: inline-block;
     margin-right: 2px;
@@ -747,12 +768,22 @@ thead .headerSortDown > a:before {
     border-radius: 3px;
     box-shadow: 1px 1px 3px #CCCCCC, -1px -1px 3px #CCCCCC;
     display: none;
-    padding: 8px 10px;
+    padding: 4px;
     position: absolute;
-    right: -2px;
-    top: -10px;
-    width: 160px;
+    right: 0px;
+    top: 2px;
+    width: 180px;
     z-index: 100;
+}
+
+.MainBox.Dashboard .DataTable thead th.DashboardHeader .ColumnSettingsBox,
+.MainBox.Dashboard .TableSmall thead th.OverviewHeader .ColumnSettingsBox {
+    top: -10px;
+}
+
+.DataTable thead th.DashboardHeader .ColumnSettingsBox select,
+.TableSmall thead th.OverviewHeader .ColumnSettingsBox select {
+    margin-top: 0px;
 }
 
 .DataTable thead th.DashboardHeader .ColumnSettingsBox span.SelectedValue,

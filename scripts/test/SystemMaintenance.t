@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,21 +14,21 @@ use vars (qw($Self));
 
 use Kernel::System::VariableCheck qw(:all);
 
-# restore sysconfig
-$Kernel::OM->ObjectParamAdd(
-    'Kernel::System::UnitTest::Helper' => {
-        RestoreSystemConfiguration => 1,
-    },
-);
-
 # get needed objects
 my $ConfigObject            = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject            = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $SystemMaintenanceObject = $Kernel::OM->Get('Kernel::System::SystemMaintenance');
-my $TimeObject              = $Kernel::OM->Get('Kernel::System::Time');
+my $DateTimeObject          = $Kernel::OM->Create('Kernel::System::DateTime');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # initialize variables
-my $RandomID = $HelperObject->GetRandomID();
+my $RandomID = $Helper->GetRandomID();
 my $UserID   = 1;
 my $Index    = 1;
 
@@ -202,15 +202,22 @@ my @Tests = (
         },
     },
 );
-
+use Data::Dumper;
 my @SystemMaintenanceIDs;
 TEST:
 for my $Test (@Tests) {
 
     for my $Date (qw(StartDate StopDate)) {
-        my $ConvertionResult = $TimeObject->TimeStamp2SystemTime(
-            String => $Test->{Add}->{$Date},
+        my $ConvertionResult;
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{Add}->{$Date},
+                }
         );
+        if ($DateTimeObject) {
+            $ConvertionResult = $DateTimeObject->ToEpoch();
+        }
         $Test->{Add}->{$Date} = $ConvertionResult || $Test->{Add}->{$Date};
     }
 
@@ -284,7 +291,7 @@ for my $Test (@Tests) {
         "$Test->{Name} - SystemMaintenanceGet() - NotifyMessage",
     );
 
-    # dupicate on update entry
+    # duplicate on update entry
     if ( !$Test->{Update} ) {
         $Test->{Update} = $Test->{Add};
     }
@@ -489,9 +496,12 @@ TEST:
 for my $Test (@Tests) {
 
     for my $Date (qw(StartDate StopDate)) {
-        my $ConvertionResult = $TimeObject->TimeStamp2SystemTime(
-            String => $Test->{$Date},
-        );
+        my $ConvertionResult = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{$Date},
+                }
+        )->ToEpoch();
         $Test->{$Date} = $ConvertionResult || $Test->{$Date};
     }
 
@@ -503,11 +513,16 @@ for my $Test (@Tests) {
         UserID    => $UserID,
     );
 
-    $HelperObject->FixedTimeSet(
-        $TimeObject->TimeStamp2SystemTime( String => $Test->{FixedTimeSet} ),
+    $Helper->FixedTimeSet(
+        $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{FixedTimeSet}
+                }
+            )->ToEpoch(),
     );
 
-    my $IsComming = $Kernel::OM->Get('Kernel::System::SystemMaintenance')->SystemMaintenanceIsComming();
+    my $IsComming = $Kernel::OM->Get('Kernel::System::SystemMaintenance')->SystemMaintenanceIsComing();
 
     if ( $Test->{IsComming} ) {
 
@@ -552,5 +567,7 @@ for my $Test (@Tests) {
     );
 
 }
+
+# cleanup is done by RestoreDatabase
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,13 +15,31 @@ use vars (qw($Self));
 # get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
+my $CheckBredcrumb = sub {
+
+    my %Param = @_;
+
+    my $BreadcrumbText = $Param{BreadcrumbText} || '';
+    my $Count = 1;
+
+    for my $BreadcrumbText ( 'Web Service Management', $BreadcrumbText ) {
+        $Self->Is(
+            $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+            $BreadcrumbText,
+            "Breadcrumb text '$BreadcrumbText' is found on screen"
+        );
+
+        $Count++;
+    }
+};
+
 $Selenium->RunTest(
     sub {
 
         # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # create and login test user
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -40,12 +58,20 @@ $Selenium->RunTest(
         # get config object
         my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-        # navigate to AdminGenericInterfaceWebservice screen
+        # get script alias
         my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminGenericInterfaceWebservice");
+
+        # navigate to AdminGenericInterfaceWebservice screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminGenericInterfaceWebservice");
+
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
 
         # click 'Add web service' button
-        $Selenium->find_element("//button[\@type='submit']")->click();
+        $Selenium->find_element("//button[\@type='submit']")->VerifiedClick();
 
         # check GenericInterface Web Service Management - Add screen
         for my $ID (
@@ -56,7 +82,11 @@ $Selenium->RunTest(
             $Element->is_enabled();
             $Element->is_displayed();
         }
-        $Selenium->find_element( 'Cancel', 'link_text' )->click();
+
+        # check breadcrumb on Add screen
+        $CheckBredcrumb->( BreadcrumbText => 'Add Web Service' );
+
+        $Selenium->find_element( 'Cancel', 'link_text' )->VerifiedClick();
 
         # set test values
         my %Description = (
@@ -70,15 +100,15 @@ $Selenium->RunTest(
         {
 
             # click 'Add web service' button
-            $Selenium->find_element("//button[\@type='submit']")->click();
+            $Selenium->find_element("//button[\@type='submit']")->VerifiedClick();
 
             # import web service
-            $Selenium->find_element( "#ImportButton", 'css' )->click();
+            $Selenium->find_element( "#ImportButton", 'css' )->VerifiedClick();
 
             my $File     = $Webservice . '.yml';
             my $Location = $ConfigObject->Get('Home') . "/scripts/test/sample/Webservice/$File";
             $Selenium->find_element( "#ConfigFile",         'css' )->send_keys($Location);
-            $Selenium->find_element( "#ImportButtonAction", 'css' )->click();
+            $Selenium->find_element( "#ImportButtonAction", 'css' )->VerifiedClick();
 
             # verify that webservice is created
             $Self->True(
@@ -87,14 +117,17 @@ $Selenium->RunTest(
             );
 
             # GenericInterface Web Service Management - Change screen
-            $Selenium->find_element( $Webservice, 'link_text' )->click();
+            $Selenium->find_element( $Webservice, 'link_text' )->VerifiedClick();
             $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
             $Selenium->find_element( "#RemoteSystem", 'css' )->send_keys('Test remote system');
 
-            # save edited value
-            $Selenium->find_element( "#SaveAndFinishButton", 'css' )->click();
+            # check breadcrumb on Edit screen
+            $CheckBredcrumb->( BreadcrumbText => 'Edit Web Service: ' . $Webservice );
 
-            # check class of invalid Webservice in the overview table
+            # save edited value
+            $Selenium->find_element( "#SaveAndFinishButton", 'css' )->VerifiedClick();
+
+            # check class of invalid webservice in the overview table
             $Self->True(
                 $Selenium->execute_script(
                     "return \$('tr.Invalid td:contains($Webservice)').length"
@@ -103,7 +136,7 @@ $Selenium->RunTest(
             );
 
             # check web service values
-            $Selenium->find_element( $Webservice, 'link_text' )->click();
+            $Selenium->find_element( $Webservice, 'link_text' )->VerifiedClick();
 
             $Self->Is(
                 $Selenium->find_element( '#Name', 'css' )->get_value(),
@@ -130,10 +163,10 @@ $Selenium->RunTest(
             );
 
             # delete web service
-            $Selenium->find_element( "#DeleteButton",  'css' )->click();
-            $Selenium->find_element( "#DialogButton2", 'css' )->click();
+            $Selenium->find_element( "#DeleteButton",  'css' )->VerifiedClick();
+            $Selenium->find_element( "#DialogButton2", 'css' )->VerifiedClick();
 
-            # wait until delete dialog has closed an action performed
+            # wait until delete dialog has closed and action performed
             $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && !\$('#DialogButton2').length" );
 
             # verify that webservice is deleted
@@ -143,7 +176,6 @@ $Selenium->RunTest(
             );
 
         }
-
     }
 );
 

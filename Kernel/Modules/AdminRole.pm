@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AdminRole;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -30,6 +32,7 @@ sub Run {
     my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
     my $LogObject    = $Kernel::OM->Get('Kernel::System::Log');
     my $GroupObject  = $Kernel::OM->Get('Kernel::System::Group');
+    my $Notification = $ParamObject->GetParam( Param => 'Notification' ) || '';
 
     # ------------------------------------------------------------ #
     # change
@@ -43,6 +46,8 @@ sub Run {
         );
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Role updated!') )
+            if ( $Notification && $Notification eq 'Update' );
         $Self->_Edit(
             Action => 'Change',
             %Data,
@@ -84,16 +89,21 @@ sub Run {
             );
 
             if ($RoleUpdate) {
-                $Self->_Overview();
-                my $Output = $LayoutObject->Header();
-                $Output .= $LayoutObject->NavigationBar();
-                $Output .= $LayoutObject->Notify( Info => 'Role updated!' );
-                $Output .= $LayoutObject->Output(
-                    TemplateFile => 'AdminRole',
-                    Data         => \%Param,
-                );
-                $Output .= $LayoutObject->Footer();
-                return $Output;
+
+                # if the user would like to continue editing the role, just redirect to the edit screen
+                # otherwise return to overview
+                if (
+                    defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+                    && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+                    )
+                {
+                    return $LayoutObject->Redirect(
+                        OP => "Action=$Self->{Action};Subaction=Change;ID=$GetParam{ID};Notification=Update"
+                    );
+                }
+                else {
+                    return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+                }
             }
             else {
                 $Note = $LogObject->GetLogEntry(
@@ -177,7 +187,7 @@ sub Run {
                 $Self->_Overview();
                 my $Output = $LayoutObject->Header();
                 $Output .= $LayoutObject->NavigationBar();
-                $Output .= $LayoutObject->Notify( Info => 'Role added!' );
+                $Output .= $LayoutObject->Notify( Info => Translatable('Role added!') );
                 $Output .= $LayoutObject->Output(
                     TemplateFile => 'AdminRole',
                     Data         => \%Param,
@@ -218,8 +228,12 @@ sub Run {
     # ------------------------------------------------------------
     else {
         $Self->_Overview();
+
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Role updated!') )
+            if ( $Notification && $Notification eq 'Update' );
+
         $Output .= $LayoutObject->Output(
             TemplateFile => 'AdminRole',
             Data         => \%Param,
@@ -259,14 +273,6 @@ sub _Edit {
         Data => \%Param,
     );
 
-    # shows header
-    if ( $Param{Action} eq 'Change' ) {
-        $LayoutObject->Block( Name => 'HeaderEdit' );
-    }
-    else {
-        $LayoutObject->Block( Name => 'HeaderAdd' );
-    }
-
     return 1;
 }
 
@@ -283,14 +289,18 @@ sub _Overview {
 
     $LayoutObject->Block( Name => 'ActionList' );
     $LayoutObject->Block( Name => 'ActionAdd' );
-
-    $LayoutObject->Block(
-        Name => 'OverviewHeader',
-        Data => {},
-    );
+    $LayoutObject->Block( Name => 'Filter' );
 
     my %List = $GroupObject->RoleList(
         ValidID => 0,
+    );
+    my $ListSize = keys %List;
+
+    $LayoutObject->Block(
+        Name => 'OverviewHeader',
+        Data => {
+            AllItemsCount => $ListSize,
+        },
     );
 
     # if there is data available, it is shown

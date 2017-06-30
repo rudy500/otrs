@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(IsArrayRefWithData);
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -186,8 +186,8 @@ sub _FormatOutput {
             $Output .= '    ';
             for my $Column ( @{ $Summary->{Column} } ) {
 
-                my $Size  = $Column->{Size};
-                my $Value = $DataRow->{ $Column->{Name} };
+                my $Size = $Column->{Size};
+                my $Value = $DataRow->{ $Column->{Name} } // '';
 
                 if ( length $Value >= $Size ) {
                     $Value = substr( $Value, 0, $Size - 4 ) . '...';
@@ -231,15 +231,3 @@ sub _DaemonSort {
     return $DefaultDaemons{$a} <=> $DefaultDaemons{$b};
 }
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,39 +20,30 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        # get needed object
 
-        # get SysConfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
         # disable all dashboard plugins
-        my $Config = $Kernel::OM->Get('Kernel::Config')->Get('DashboardBackend');
-        $SysConfigObject->ConfigItemUpdate(
+        my $Config = $ConfigObject->Get('DashboardBackend');
+        $Helper->ConfigSettingChange(
             Valid => 0,
             Key   => 'DashboardBackend',
             Value => \%$Config,
         );
 
-        my %EventsTicketCalendarSysConfig = $SysConfigObject->ConfigItemGet(
+        my %EventsTicketCalendarSysConfig = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
             Name    => 'DashboardBackend###0280-DashboardEventsTicketCalendar',
             Default => 1,
         );
 
-        %EventsTicketCalendarSysConfig = map { $_->{Key} => $_->{Content} }
-            grep { defined $_->{Key} } @{ $EventsTicketCalendarSysConfig{Setting}->[1]->{Hash}->[1]->{Item} };
-
         # enable EventsTicketCalendar and set it to load as default plugin
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'DashboardBackend###0280-DashboardEventsTicketCalendar',
             Value => {
-                %EventsTicketCalendarSysConfig,
+                %{ $EventsTicketCalendarSysConfig{EffectiveValue} },
                 Default => 1,
                 }
         );
@@ -107,8 +98,11 @@ $Selenium->RunTest(
             }
         }
 
+        # get ticket object
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+
         # create test ticket
-        my $TicketID = $Kernel::OM->Get('Kernel::System::Ticket')->TicketCreate(
+        my $TicketID = $TicketObject->TicketCreate(
             Title        => 'Ticket One Title',
             Queue        => 'Raw',
             Lock         => 'unlock',
@@ -121,25 +115,23 @@ $Selenium->RunTest(
         );
         $Self->True(
             $TicketID,
-            "Test ticket is created - $TicketID",
+            "Ticket is created - ID $TicketID",
         );
 
         # get backend object
         my $BackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-        # get current system time
-        my $Now = $TimeObject->SystemTime();
+        # create datetime object
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
         my %DynamicFieldValue = (
-            TicketCalendarStartTime => $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $Now,
-            ),
-            TicketCalendarEndTime => $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $Now + 60 * 60,
-            ),
+            TicketCalendarStartTime => $DateTimeObject->ToString(),
+            TicketCalendarEndTime   => $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    Epoch => $DateTimeObject->ToEpoch() + 60 * 60,
+                    }
+                )->ToString(),
         );
 
         # set value of ticket's dynamic fields
@@ -157,10 +149,11 @@ $Selenium->RunTest(
             );
         }
 
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+        # get script alias
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
-        # go to dashboard screen
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentDashboard");
+        # navigate to AgentDashboard screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentDashboard");
 
         # test if link to test created ticket is available when only EventsTicketCalendar is valid plugin
         $Self->True(
@@ -169,13 +162,13 @@ $Selenium->RunTest(
         );
 
         # delete created test ticket
-        my $Success = $Kernel::OM->Get('Kernel::System::Ticket')->TicketDelete(
+        my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => $TestUserID,
         );
         $Self->True(
             $Success,
-            "Ticket with ticket id $TicketID is deleted"
+            "Ticket with ticket ID $TicketID is deleted"
         );
 
         # # delete created test calendar dynamic fields
@@ -190,7 +183,7 @@ $Selenium->RunTest(
             );
         }
 
-        # make sure the cache is correct.
+        # make sure the cache is correct
         for my $Cache (
             qw (Ticket DynamicField)
             )

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AgentTicketCustomer;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -38,8 +40,8 @@ sub Run {
 
         # error page
         return $LayoutObject->ErrorScreen(
-            Message => 'No TicketID is given!',
-            Comment => 'Please contact the admin.',
+            Message => Translatable('No TicketID is given!'),
+            Comment => Translatable('Please contact the administrator.'),
         );
     }
 
@@ -61,25 +63,9 @@ sub Run {
 
         # error screen, don't show ticket
         return $LayoutObject->NoPermission(
-            Message    => "You need $Config->{Permission} permissions!",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'You need %s permissions!', $Config->{Permission} ),
             WithHeader => 'yes',
         );
-    }
-
-    # check permissions
-    if ( $Self->{TicketID} ) {
-        if (
-            !$TicketObject->TicketPermission(
-                Type     => 'customer',
-                TicketID => $Self->{TicketID},
-                UserID   => $Self->{UserID}
-            )
-            )
-        {
-
-            # no permission screen, don't show ticket
-            return $LayoutObject->NoPermission( WithHeader => 'yes' );
-        }
     }
 
     # get ACL restrictions
@@ -248,9 +234,15 @@ sub Form {
     my %CustomerUserData = ();
     if ( $Self->{TicketID} ) {
 
-        # set some customer search autocomplete properties
-        $LayoutObject->Block(
-            Name => 'CustomerSearchAutoComplete',
+        # get config object
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+        # set JS data
+        $LayoutObject->AddJSData(
+            Key   => 'CustomerSearch',
+            Value => {
+                ShowCustomerTickets => $ConfigObject->Get('Ticket::Frontend::ShowCustomerTickets'),
+            },
         );
 
         # get ticket data
@@ -264,14 +256,16 @@ sub Form {
         $Param{SelectedCustomerUser} = $TicketData{CustomerUserID};
 
         $Param{Table} = $LayoutObject->AgentCustomerViewTable(
-            Data => \%CustomerUserData,
-            Max  => $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Frontend::CustomerInfoComposeMaxSize'),
+            Data => {
+                %CustomerUserData,
+                TicketID => $Self->{TicketID},
+            },
+            Max => $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Frontend::CustomerInfoComposeMaxSize'),
         );
 
         # show customer field as "FirstName Lastname" <MailAddress>
         if (%CustomerUserData) {
-            $TicketData{CustomerUserID} = "\"$CustomerUserData{UserFirstname} " .
-                "$CustomerUserData{UserLastname}\" <$CustomerUserData{UserEmail}>";
+            $TicketData{CustomerUserID} = "\"$CustomerUserData{UserFullname} " . " <$CustomerUserData{UserEmail}>";
         }
         $LayoutObject->Block(
             Name => 'Customer',

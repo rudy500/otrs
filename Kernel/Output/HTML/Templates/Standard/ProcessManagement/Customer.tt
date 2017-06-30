@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -29,22 +29,6 @@
 </div>
 <div class="Clear"></div>
 
-<label for="CustomerID" class="">
-    [% Data.LabelCustomerID | html %]:
-</label>
-<div class="Field">
-    <input type="text" id="CustomerID" name="CustomerID" value="[% Data.CustomerID | html %]" class="W50pc [% Data.CustomerIDServerError | html %]"/>
-    <div id="CustomerIDError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
-    <div id="CustomerIDServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
-[% RenderBlockStart("rw:Customer:DescriptionShort") %]
-    <div class="FieldExplanation">[% Data.DescriptionShort %]</div>
-[% RenderBlockEnd("rw:Customer:DescriptionShort") %]
-</div>
-<div class="Clear"></div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.Config.Set('ProcessManagement.UpdatableFields', [% Data.FieldsToUpdate %]);
-   //]]></script>
-[% END %]
+[% INCLUDE "CustomerCompany/TicketCustomerIDSelection.tt" Required = 1 Readonly = Config("Ticket::Frontend::AgentTicketProcess::CustomerIDReadOnly") %]
 
 [% RenderBlockEnd("rw:Customer") %]

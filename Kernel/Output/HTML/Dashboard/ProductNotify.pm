@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -50,6 +50,11 @@ sub Run {
     # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
+    # check if cloud services are disabled
+    my $CloudServicesDisabled = $ConfigObject->Get('CloudServices::Disabled') || 0;
+
+    return '' if $CloudServicesDisabled;
+
     # get current
     my $Product = $ConfigObject->Get('Product');
     my $Version = $ConfigObject->Get('Version');
@@ -98,7 +103,7 @@ sub Run {
     # as this is the only operation an unsuccessful request means that the operation was also
     # unsuccessful
     if ( !IsHashRefWithData($RequestResult) ) {
-        return "Can't connect to Product News server!";
+        return $LayoutObject->{LanguageObject}->Translate('Can\'t connect to Product News server!');
     }
 
     my $OperationResult = $CloudServiceObject->OperationResultGet(
@@ -108,10 +113,11 @@ sub Run {
     );
 
     if ( !IsHashRefWithData($OperationResult) ) {
-        return "Can't get Product News from server";
+        return $LayoutObject->{LanguageObject}->Translate('Can\'t get Product News from server!');
     }
     elsif ( !$OperationResult->{Success} ) {
-        return $OperationResult->{ErrorMessage} || "Can't get Product News from server";
+        return $OperationResult->{ErrorMessage} ||
+            $LayoutObject->{LanguageObject}->Translate('Can\'t get Product News from server!');
     }
 
     my $ProductFeed = $OperationResult->{Data};

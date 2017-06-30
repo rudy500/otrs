@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,6 +8,19 @@
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst ProcessManagementEditScreen">
     <h1>[% Translate("Edit Process") | html %] "[% Data.Name | html %]"</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Process Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% USE EditTitle = String(Translate("Edit Process")) %]
+    [% BreadcrumbPath.push({ Name => EditTitle.append( ': ', Data.Name ) }) %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
         <div class="WidgetSimple">
@@ -155,7 +168,7 @@
                     <strong>[% Translate("Activity Dialogs") | html %]:</strong> [% Translate("To assign an Activity Dialog to an Activity drop the Activity Dialog element from this sidebar over the Activity placed in the canvas area.") | html %]
                 </p>
                 <p class="FieldExplanation">
-                    <strong>[% Translate("Transitions") | html %]:</strong> [% Translate("You can start a connection between to Activities by dropping the Transition element over the Start Activity of the connection. After that you can move the loose end of the arrow to the End Activity.") | html %]
+                    <strong>[% Translate("Transitions") | html %]:</strong> [% Translate("You can start a connection between two Activities by dropping the Transition element over the Start Activity of the connection. After that you can move the loose end of the arrow to the End Activity.") | html %]
                 </p>
                 <p class="FieldExplanation">
                     <strong>[% Translate("Transition Actions") | html %]:</strong> [% Translate("Actions can be assigned to a Transition by dropping the Action Element onto the label of a Transition.") | html %]
@@ -251,7 +264,7 @@
                 <div class="Content">
                     <fieldset class="TableLike">
                         <div class="Field SpacingTop SaveButtons">
-                            <button class="CallForAction Primary" id="SubmitAndContinue" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
                             [% Translate("or") | html %]
                             <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
                             [% Translate("or") | html %]
@@ -299,48 +312,3 @@
         <p class="SpacingTop"><strong><span class="EntityName"></span></strong></p>
     </div>
 </div>
-
-[% RenderBlockStart("ConfigSet") %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.Config.Set('Config.Process', [% Data.ProcessConfig %] );
-    Core.Config.Set('Config.ProcessLayout', [% Data.ProcessLayout %] );
-    Core.Config.Set('Config.Activity', [% Data.ActivityConfig %] );
-    Core.Config.Set('Config.ActivityDialog', [% Data.ActivityDialogConfig %] );
-    Core.Config.Set('Config.Transition', [% Data.TransitionConfig %] );
-    Core.Config.Set('Config.TransitionAction', [% Data.TransitionActionConfig %] );
-
-    Core.Config.Set('Config.ImagePath', "[% Config("Frontend::ImagePath") %]");
-    Core.Config.Set('Config.PopupPathActivity', "[% Env("Baselink") %]Action=AdminProcessManagementActivity;Subaction=ActivityEdit;");
-    Core.Config.Set('Config.PopupPathPath', "[% Env("Baselink") %]Action=AdminProcessManagementPath;Subaction=PathEdit;");
-//]]></script>
-[% END %]
-[% RenderBlockEnd("ConfigSet") %]
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Agent.Admin.ProcessManagement.InitProcessEdit();
-
-//Localizations
-Core.Agent.Admin.ProcessManagement.Localization = {
-        CancelMsg: "[% Translate("Cancel") | html %]",
-        ShowEntityIDs: "[% Translate("Show EntityIDs") | html %]",
-        HideEntityIDs: "[% Translate("Hide EntityIDs") | html %]",
-        DeleteMsg: "[% Translate("Delete") | html %]",
-        DeleteEntityTitle: "[% Translate("Delete Entity") | html %]",
-        RemoveEntityCanvasTitle: "[% Translate("Remove Entity from canvas") | html %]",
-        ActivityAlreadyPlaced: "[% Translate("This Activity is already used in the Process. You cannot add it twice!") | html %]",
-        ActivityCannotBeDeleted: "[% Translate("This Activity cannot be deleted because it is the Start Activity.") | html %]",
-        TransitionAlreadyPlaced: "[% Translate("This Transition is already used for this Activity. You cannot use it twice!") | html %]",
-        TransitionActionAlreadyPlaced: "[% Translate("This TransitionAction is already used in this Path. You cannot use it twice!") | html %]",
-        TransitionDeleteLink: "[% Translate("Remove the Transition from this Process") | html %]",
-        TransitionEditLink: "[% Translate("Edit this transition") | html %]",
-        NoTransitionActionsAssigned: "[% Translate("No TransitionActions assigned.") | html %]",
-        StartEventCapChange: "[% Translate("The Start Event cannot loose the Start Transition!") | html %]",
-        RemoveActivityMsg: "[% Translate("Do you really want to remove this activity from the canvas? This can only be undone by leaving this screen without saving.") | html %]",
-        RemoveTransitionMsg: "[% Translate("Do you really want to remove this transition from the canvas? This can only be undone by leaving this screen without saving.") | html %]",
-        NoDialogsAssigned: "[% Translate("No dialogs assigned yet. Just pick an activity dialog from the list on the left and drag it here.") | html %]",
-        UnconnectedTransition: "[% Translate("An unconnected transition is already placed on the canvas. Please connect this transition first before placing another transition.") | html %]"
-};
-//]]></script>
-[% END %]

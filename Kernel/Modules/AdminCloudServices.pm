@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -39,12 +40,29 @@ sub _ShowOverview {
 
     my $LayoutObject       = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
     my $OTRSBusinessObject = $Kernel::OM->Get('Kernel::System::OTRSBusiness');
+    my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
+
+    # check if cloud services are disabled
+    my $CloudServicesDisabled = $ConfigObject->Get('CloudServices::Disabled') || 0;
+
+    if ($CloudServicesDisabled) {
+
+        my $Output = $LayoutObject->Header(
+            Title => Translatable('Error'),
+        );
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'CloudServicesDisabled',
+            Data         => \%Param
+        );
+        $Output .= $LayoutObject->Footer();
+        return $Output
+    }
 
     my $Output = $LayoutObject->Header();
     $Output .= $LayoutObject->NavigationBar();
 
     # get web services list
-    my %CloudServiceList = %{ $Kernel::OM->Get('Kernel::Config')->Get('CloudService::Admin::Module') || {} };
+    my %CloudServiceList = %{ $ConfigObject->Get('CloudService::Admin::Module') || {} };
 
     my $RegistrationState = $Kernel::OM->Get('Kernel::System::SystemData')->SystemDataGet(
         Key => 'Registration::State',

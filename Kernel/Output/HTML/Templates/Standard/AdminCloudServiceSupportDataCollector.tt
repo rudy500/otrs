@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,6 +8,19 @@
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Cloud Service Management") | html %] » [% Translate("Support Data Collector") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Cloud Service Management'),
+                Link => 'AdminCloudServices',
+            },
+            {
+                Name => Translate('Support data collector'),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
 
@@ -21,7 +34,7 @@
                         <a href="[% Env("Baselink") %]Action=AdminCloudServices" class="CallForAction Fullsize Center"><span><i class="fa fa-caret-left"></i>[% Translate("Go to overview") | html %]</span></a>
                     </li>
                     <li>
-                        <a href="Action=AdminSupportDataCollector" class="CallForAction Fullsize Center"><span><i class="fa fa-compass"></i>[% Translate("Support data collector") | html %]</span></a>
+                        <a href="[% Env("Baselink") %]Action=AdminSupportDataCollector" class="CallForAction Fullsize Center"><span><i class="fa fa-compass"></i>[% Translate("Support data collector") | html %]</span></a>
                     </li>
                 </ul>
             </div>

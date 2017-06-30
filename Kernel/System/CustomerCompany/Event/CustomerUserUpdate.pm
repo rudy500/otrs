@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -55,8 +55,8 @@ sub Run {
     my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
 
     my %CustomerUsers = $CustomerUserObject->CustomerSearch(
-        CustomerID => $Param{Data}->{OldCustomerID},
-        Valid      => 0,
+        CustomerIDRaw => $Param{Data}->{OldCustomerID},
+        Valid         => 0,
     );
 
     for my $CustomerUserLogin ( sort keys %CustomerUsers ) {

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -31,6 +31,7 @@ sub Run {
     my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
 
     # get ArticleID
+    my $TicketID  = $ParamObject->GetParam( Param => 'TicketID' );
     my $ArticleID = $ParamObject->GetParam( Param => 'ArticleID' );
     my $FileID    = $ParamObject->GetParam( Param => 'FileID' );
 
@@ -39,43 +40,45 @@ sub Run {
     my $LogObject    = $Kernel::OM->Get('Kernel::System::Log');
 
     # check params
-    if ( !$FileID || !$ArticleID ) {
+    if ( !$FileID || !$ArticleID || !$TicketID ) {
         $LogObject->Log(
-            Message  => 'FileID and ArticleID are needed!',
+            Message  => 'FileID, TicketID and ArticleID are needed!',
             Priority => 'error',
         );
         return $LayoutObject->ErrorScreen();
     }
 
-    # get ticket object
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $TicketNumber = $Kernel::OM->Get('Kernel::System::Ticket')->TicketNumberLookup(
+        TicketID => $TicketID,
+    );
+
+    # get needed objects
+    my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForArticle(
+        TicketID  => $TicketID,
+        ArticleID => $ArticleID,
+    );
 
     # check permissions
-    my %Article = $TicketObject->ArticleGet(
+    my %Article = $ArticleBackendObject->ArticleGet(
+        TicketID      => $TicketID,
         ArticleID     => $ArticleID,
         DynamicFields => 0,
         UserID        => $Self->{UserID},
     );
-    if ( !$Article{TicketID} ) {
-        $LogObject->Log(
-            Message  => "No TicketID for ArticleID ($ArticleID)!",
-            Priority => 'error',
-        );
-        return $LayoutObject->ErrorScreen();
-    }
 
     # check permissions
-    my $Access = $TicketObject->TicketPermission(
+    my $Access = $Kernel::OM->Get('Kernel::System::Ticket')->TicketPermission(
         Type     => 'ro',
-        TicketID => $Article{TicketID},
-        UserID   => $Self->{UserID}
+        TicketID => $TicketID,
+        UserID   => $Self->{UserID},
     );
     if ( !$Access ) {
+
         return $LayoutObject->NoPermission( WithHeader => 'yes' );
     }
 
     # get a attachment
-    my %Data = $TicketObject->ArticleAttachment(
+    my %Data = $ArticleBackendObject->ArticleAttachment(
         ArticleID => $ArticleID,
         FileID    => $FileID,
         UserID    => $Self->{UserID},
@@ -143,7 +146,8 @@ sub Run {
             %Data,
             ContentType => 'text/html',
             Content     => $Content,
-            Type        => 'inline'
+            Type        => 'inline',
+            Sandbox     => 1,
         );
     }
 
@@ -158,11 +162,14 @@ sub Run {
 
         # just return for non-html attachment (e. g. images)
         if ( $Data{ContentType} !~ /text\/html/i ) {
-            return $LayoutObject->Attachment(%Data);
+            return $LayoutObject->Attachment(
+                %Data,
+                Sandbox => 1,
+            );
         }
 
         # set filename for inline viewing
-        $Data{Filename} = "Ticket-$Article{TicketNumber}-ArticleID-$Article{ArticleID}.html";
+        $Data{Filename} = "Ticket-$TicketNumber-ArticleID-$Article{ArticleID}.html";
 
         my $LoadExternalImages = $ParamObject->GetParam(
             Param => 'LoadExternalImages'
@@ -175,10 +182,10 @@ sub Run {
 
         # generate base url
         my $URL = 'Action=AgentTicketAttachment;Subaction=HTMLView'
-            . ";ArticleID=$ArticleID;FileID=";
+            . ";TicketID=$TicketID;ArticleID=$ArticleID;FileID=";
 
         # replace links to inline images in html content
-        my %AtmBox = $TicketObject->ArticleAttachmentIndex(
+        my %AtmBox = $ArticleBackendObject->ArticleAttachmentIndex(
             ArticleID => $ArticleID,
             UserID    => $Self->{UserID},
         );
@@ -191,6 +198,13 @@ sub Run {
             Attachments        => \%AtmBox,
             LoadExternalImages => $LoadExternalImages,
         );
+
+        # Format links if FilterText is enabled.
+        if ( $ConfigObject->Get('Frontend::Output::FilterText') ) {
+            $Data{Content} = $LayoutObject->LinkQuote(
+                Text => $Data{Content},
+            );
+        }
 
         # if there is unexpectedly pgp decrypted content in the html email (OE),
         # we will use the article body (plain text) from the database as fall back
@@ -218,11 +232,17 @@ sub Run {
         }
 
         # return html attachment
-        return $LayoutObject->Attachment(%Data);
+        return $LayoutObject->Attachment(
+            %Data,
+            Sandbox => 1,
+        );
     }
 
     # download it AttachmentDownloadType is configured
-    return $LayoutObject->Attachment(%Data);
+    return $LayoutObject->Attachment(
+        %Data,
+        Sandbox => 1,
+    );
 }
 
 1;

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -124,7 +124,7 @@ Core.UI.AdvancedChart = (function (TargetNS) {
                     return;
                 }
                 // Ignore sum col
-                if (HeadingElement === 'Sum') {
+                if (typeof HeadingElement === 'undefined' ||  HeadingElement === 'Sum') {
                     return;
                 }
 
@@ -154,11 +154,13 @@ Core.UI.AdvancedChart = (function (TargetNS) {
 
         nv.addGraph(function() {
 
-            var Chart = nv.models.lineChart(),
+            var Chart = nv.models.OTRSlineChart(),
                 ShowLegend = Options.HideLegend ? false : true;
 
             // don't let nv/d3 exceptions block the rest of OTRS JavaScript
             try {
+
+                Chart.staggerLabels(true);
 
                 Chart.margin({
                     top: 20,
@@ -286,7 +288,7 @@ Core.UI.AdvancedChart = (function (TargetNS) {
 
         nv.addGraph(function() {
 
-            var Chart = nv.models.lineChart(),
+            var Chart = nv.models.OTRSlineChart(),
                 ShowLegend = Options.HideLegend ? false : true;
 
             // don't let nv/d3 exceptions block the rest of OTRS JavaScript
@@ -294,13 +296,14 @@ Core.UI.AdvancedChart = (function (TargetNS) {
 
                 Chart.margin({
                     top: 20,
-                    right: 20,
+                    right: 10,
                     bottom: 30,
-                    left: 20
+                    left: 30
                 });
 
                 Chart.useInteractiveGuideline(true)
                     .duration(Options.Duration || 0)
+                    .reduceXTicks(Options.ReduceXTicks)
                     .showLegend(ShowLegend)
                     .showYAxis(true)
                     .showXAxis(true);
@@ -355,10 +358,6 @@ Core.UI.AdvancedChart = (function (TargetNS) {
             PreferencesData = Options.PreferencesData,
             Counter = 0;
 
-        // First RawData element is not needed
-        RawData.shift();
-        Headings = RawData.shift();
-
         if (PreferencesData && typeof PreferencesData.Bar !== 'undefined') {
             PreferencesData = PreferencesData.Bar;
         }
@@ -366,60 +365,66 @@ Core.UI.AdvancedChart = (function (TargetNS) {
             PreferencesData = {};
         }
 
-        $.each(RawData, function(DataIndex, DataElement) {
-            var InnerCounter = 0,
-                ResultLine;
+        if (RawData !== null) {
+            // First RawData element is not needed
+            RawData.shift();
+            Headings = RawData.shift();
 
-            // Ignore sum row
-            if (DataElement[0] === 'Sum') {
-                return;
-            }
+            $.each(RawData, function(DataIndex, DataElement) {
+                var InnerCounter = 0,
+                    ResultLine;
 
-            ResultLine = {
-                key: DataElement[0],
-                color: Colors[Counter % Colors.length],
-                disabled: (PreferencesData && PreferencesData.Filter && $.inArray(DataElement[0], PreferencesData.Filter) === -1) ? true : false,
-                values: []
-            };
-
-            $.each(Headings, function(HeadingIndex, HeadingElement){
-                var Value;
-
-                InnerCounter++;
-
-                // First element is x axis label
-                if (HeadingIndex === 0){
-                    return;
-                }
-                // Ignore sum col
-                if (HeadingElement === 'Sum') {
+                // Ignore sum row
+                if (DataElement[0] === 'Sum') {
                     return;
                 }
 
-                Value = parseFloat(DataElement[HeadingIndex]);
+                ResultLine = {
+                    key: DataElement[0],
+                    color: Colors[Counter % Colors.length],
+                    disabled: (PreferencesData && PreferencesData.Filter && $.inArray(DataElement[0], PreferencesData.Filter) === -1) ? true : false,
+                    values: []
+                };
 
-                if (isNaN(Value)) {
-                    return;
-                }
+                $.each(Headings, function(HeadingIndex, HeadingElement){
+                    var Value;
 
-                // Check if value is a floating point number and not an integer
-                if (Value % 1) {
-                    ValueFormat = ',1f'; // Set y axis format to float
-                }
+                    InnerCounter++;
 
-                // nv d3 does not work correcly with non numeric values
-                // because it could happen that x axis headings occur multiple
-                // times (such as Thu 18 for two different months), we
-                // add a custom label for uniquity of the headings which is being
-                // removed later (see OTRSmultiBarChart.js)
-                ResultLine.values.push({
-                    x: '__LABEL_START__' + InnerCounter + '__LABEL_END__' + HeadingElement + ' ',
-                    y: Value
+                    // First element is x axis label
+                    if (HeadingIndex === 0){
+                        return;
+                    }
+                    // Ignore sum col
+                    if (typeof HeadingElement === 'undefined' ||  HeadingElement === 'Sum') {
+                        return;
+                    }
+
+                    Value = parseFloat(DataElement[HeadingIndex]);
+
+                    if (isNaN(Value)) {
+                        return;
+                    }
+
+                    // Check if value is a floating point number and not an integer
+                    if (Value % 1) {
+                        ValueFormat = ',1f'; // Set y axis format to float
+                    }
+
+                    // nv d3 does not work correcly with non numeric values
+                    // because it could happen that x axis headings occur multiple
+                    // times (such as Thu 18 for two different months), we
+                    // add a custom label for uniquity of the headings which is being
+                    // removed later (see OTRSmultiBarChart.js)
+                    ResultLine.values.push({
+                        x: '__LABEL_START__' + InnerCounter + '__LABEL_END__' + HeadingElement + ' ',
+                        y: Value
+                    });
                 });
+                ResultData.push(ResultLine);
+                Counter++;
             });
-            ResultData.push(ResultLine);
-            Counter++;
-        });
+        }
 
         // production mode
         nv.dev = false;
@@ -432,6 +437,8 @@ Core.UI.AdvancedChart = (function (TargetNS) {
             // don't let nv/d3 exceptions block the rest of OTRS JavaScript
             try {
 
+                Chart.staggerLabels(true);
+
                 Chart.margin({
                     top: 20,
                     right: 20,
@@ -441,8 +448,6 @@ Core.UI.AdvancedChart = (function (TargetNS) {
 
                 Chart.duration(Options.Duration || 0);
                 Chart.showLegend(ShowLegend);
-
-                Chart.staggerLabels(true);
 
                 Chart.tooltips(function(key, x, y) {
                     return '<h3>' + key + '</h3>' + '<p>' + x + ': ' + y + '</p>';
@@ -549,7 +554,7 @@ Core.UI.AdvancedChart = (function (TargetNS) {
                     return;
                 }
                 // Ignore sum col
-                if (HeadingElement === 'Sum') {
+                if (typeof HeadingElement === 'undefined' ||  HeadingElement === 'Sum') {
                     return;
                 }
 
@@ -580,11 +585,13 @@ Core.UI.AdvancedChart = (function (TargetNS) {
             // don't let nv/d3 exceptions block the rest of OTRS JavaScript
             try {
 
+                Chart.staggerLabels(true);
+
                 Chart.margin({
                     top: 20,
-                    right: 30,
-                    bottom: 30,
-                    left: 60
+                    right: 50,
+                    bottom: 50,
+                    left: 50
                 });
 
                 Chart.duration(Options.Duration || 0);
@@ -681,6 +688,14 @@ Core.UI.AdvancedChart = (function (TargetNS) {
                 DrawLineChart(RawData, Element, Options);
                 break;
         }
+
+        $('#download-svg').on('click', function() {
+            // window.btoa() does not work because it does not support Unicode DOM strings.
+            this.href = TargetNS.ConvertSVGtoBase64($('#svg-container'));
+        });
+        $('#download-png').on('click', function() {
+            this.href = TargetNS.ConvertSVGtoPNG($('#svg-container'));
+        });
     };
 
     /**

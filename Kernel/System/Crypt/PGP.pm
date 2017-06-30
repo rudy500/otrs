@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,24 +13,22 @@ use warnings;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Encode',
     'Kernel::System::FileTemp',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
 
 Kernel::System::Crypt::PGP - pgp crypt backend lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This is a sub module of Kernel::System::Crypt and contains all pgp functions.
 
 =head1 PUBLIC INTERFACE
-
-=over 4
 
 =cut
 
@@ -55,7 +53,7 @@ sub new {
     return $Self;
 }
 
-=item Check()
+=head2 Check()
 
 check if environment is working
 
@@ -85,9 +83,18 @@ sub Check {
     return;
 }
 
-=item Crypt()
+=head2 Crypt()
 
 crypt a message
+
+    my $Message = $CryptObject->Crypt(
+        Message => $Message,
+        Key     => [
+            $PGPPublicKeyID,
+            $PGPPublicKeyID2,
+            # ...
+        ],
+    );
 
     my $Message = $CryptObject->Crypt(
         Message => $Message,
@@ -100,15 +107,33 @@ sub Crypt {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for my $ParamName (qw( Message Key )) {
-        if ( !$Param{$ParamName} ) {
+    for my $Needed (qw( Message Key )) {
+        if ( !$Param{$Needed} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
-                Message  => "Need $ParamName!"
+                Message  => "Need $Needed!"
             );
             return;
         }
     }
+
+    my @PublicKeys;
+    if ( ref $Param{Key} eq 'ARRAY' ) {
+        @PublicKeys = @{ $Param{Key} };
+    }
+    elsif ( ref $Param{Key} eq '' ) {
+        push @PublicKeys, $Param{Key};
+    }
+
+    if ( !@PublicKeys ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Message  => "Got no keys!",
+            Priority => 'error',
+        );
+        return;
+    }
+
+    my $KeyStr = join ' ', map {"-r $_"} @PublicKeys;
 
     $Kernel::OM->Get('Kernel::System::Encode')->EncodeOutput( \$Param{Message} );
 
@@ -121,7 +146,7 @@ sub Crypt {
 
     my ( $FHCrypt, $FilenameCrypt ) = $FileTempObject->TempFile();
     close $FHCrypt;
-    my $GPGOptions = "--always-trust --yes --encrypt --armor -o $FilenameCrypt -r $Param{Key} $Filename";
+    my $GPGOptions = "--always-trust --yes --encrypt --armor -o $FilenameCrypt $KeyStr $Filename";
     my $LogMessage = qx{$Self->{GPGBin} $GPGOptions 2>&1};
 
     # get crypted content
@@ -130,7 +155,7 @@ sub Crypt {
     return $$CryptedDataRef;
 }
 
-=item Decrypt()
+=head2 Decrypt()
 
 Decrypt a message and returns a hash (Successful, Message, Data)
 
@@ -189,7 +214,7 @@ sub Decrypt {
     return %Return;
 }
 
-=item Sign()
+=head2 Sign()
 
 sign a message
 
@@ -219,6 +244,10 @@ sub Sign {
     my $SigType      = $Param{Type} && $Param{Type} eq 'Detached'
         ? '--detach-sign --armor'
         : '--clearsign';
+    my $DigestAlgorithm = $Kernel::OM->Get('Kernel::Config')->Get('PGP::Options::DigestPreference') || '';
+    if ($DigestAlgorithm) {
+        $DigestAlgorithm = '--personal-digest-preferences ' . uc $DigestAlgorithm;
+    }
 
     # get temp file object
     my $FileTempObject = $Kernel::OM->Get('Kernel::System::FileTemp');
@@ -241,7 +270,7 @@ sub Sign {
     my ( $FHPhrase, $FilePhrase ) = $FileTempObject->TempFile();
     print $FHPhrase $Pw;
     close $FHPhrase;
-    my $GPGOptions = qq{--passphrase-fd 0 --default-key $Param{Key} -o $FileSign $SigType $Filename};
+    my $GPGOptions = qq{--passphrase-fd 0 --default-key $Param{Key} -o $FileSign $SigType $DigestAlgorithm $Filename};
     my $LogMessage = qx{$Self->{GPGBin} $GPGOptions <$FilePhrase 2>&1};
 
     # error
@@ -261,7 +290,7 @@ sub Sign {
     return $$SignedDataRef;
 }
 
-=item Verify()
+=head2 Verify()
 
 verify a message signature and returns a hash (Successful, Message, Data)
 
@@ -362,11 +391,27 @@ sub Verify {
             );
         }
 
+        my $KeyFingerprint   = '';
+        my $ValidMessageLong = '';
+        if (
+            $LogMessage{VALIDSIG}
+            && $LogMessage{VALIDSIG}->{MessageLong} =~ m{\Q[GNUPG:] VALIDSIG \E ([0-9A-F]{40}) }xms
+            )
+        {
+            $KeyFingerprint   = $1;
+            $ValidMessageLong = $LogMessage{VALIDSIG}->{MessageLong};
+        }
+
+        # Include additional key attributes in the message:
+        #   - signer email address
+        #   - key id
+        #   - key fingerprint
+        #   Please see bug#12284 for more information.
         %Return = (
             SignatureFound => 1,
             Successful     => 1,
-            Message        => $LogMessage{GOODSIG}->{Log} . " : $KeyID $KeyUserID",
-            MessageLong    => $LogMessage{GOODSIG}->{MessageLong},
+            Message        => $LogMessage{GOODSIG}->{Log} . " ($KeyUserID : $KeyID : $KeyFingerprint)",
+            MessageLong    => $LogMessage{GOODSIG}->{MessageLong} . $ValidMessageLong,
             KeyID          => $KeyID,
             KeyUserID      => $KeyUserID,
         );
@@ -589,9 +634,9 @@ sub Verify {
     return %Return;
 }
 
-=item KeySearch()
+=head2 KeySearch()
 
-returns a array with serach result (private and public keys)
+returns a array with search result (private and public keys)
 
     my @Keys = $CryptObject->KeySearch(
         Search => 'something to search'
@@ -609,7 +654,7 @@ sub KeySearch {
     return @Result;
 }
 
-=item PrivateKeySearch()
+=head2 PrivateKeySearch()
 
 returns an array with search result (private keys)
 
@@ -629,7 +674,7 @@ sub PrivateKeySearch {
     return $Self->_ParseGPGKeyList( GPGOutputLines => \@GPGOutputLines );
 }
 
-=item PublicKeySearch()
+=head2 PublicKeySearch()
 
 returns an array with search result (public keys)
 
@@ -649,7 +694,7 @@ sub PublicKeySearch {
     return $Self->_ParseGPGKeyList( GPGOutputLines => \@GPGOutputLines );
 }
 
-=item PublicKeyGet()
+=head2 PublicKeyGet()
 
 returns public key in ascii
 
@@ -690,7 +735,7 @@ sub PublicKeyGet {
     return $LogMessage;
 }
 
-=item SecretKeyGet()
+=head2 SecretKeyGet()
 
 returns secret key in ascii
 
@@ -731,7 +776,7 @@ sub SecretKeyGet {
     return $LogMessage;
 }
 
-=item PublicKeyDelete()
+=head2 PublicKeyDelete()
 
 remove public key from key ring
 
@@ -771,7 +816,7 @@ sub PublicKeyDelete {
     return 1;
 }
 
-=item SecretKeyDelete()
+=head2 SecretKeyDelete()
 
 remove secret key from key ring
 
@@ -827,7 +872,7 @@ sub SecretKeyDelete {
     return 1;
 }
 
-=item KeyAdd()
+=head2 KeyAdd()
 
 add key to key ring
 
@@ -939,7 +984,7 @@ sub _DecryptPart {
     }
 }
 
-=item _HandleLog()
+=head2 _HandleLog()
 
 Clean and build the log
 
@@ -1000,7 +1045,7 @@ sub _HandleLog {
     return %ComputableLog;
 }
 
-=item _ParseGPGKeyList()
+=head2 _ParseGPGKeyList()
 
 parses given key list (as received from gpg) and returns an array with key infos
 
@@ -1008,9 +1053,6 @@ parses given key list (as received from gpg) and returns an array with key infos
 
 sub _ParseGPGKeyList {
     my ( $Self, %Param ) = @_;
-
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
 
     my %Key;
     my $InKey;
@@ -1096,19 +1138,22 @@ sub _ParseGPGKeyList {
         }
 
         # convert system time to timestamp
+        my $Epoch2YMD = sub {
+            return $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    Epoch => shift,
+                },
+            )->Format( Format => '%Y-%m-%d' );
+        };
+
         if ( $Key{Created} !~ /-/ ) {
-            my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-                SystemTime => $Key{Created},
-            );
-            $Key{Created} = "$Year-$Month-$Day";
+            $Key{Created} = $Epoch2YMD->( $Key{Created} );
         }
 
         # expires
         if ( $Key{Expires} =~ /^\d*$/ ) {
-            my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-                SystemTime => $Key{Expires},
-            );
-            $Key{Expires} = "$Year-$Month-$Day";
+            $Key{Expires} = $Epoch2YMD->( $Key{Expires} );
         }
     }
 
@@ -1159,8 +1204,6 @@ sub _CryptedWithKey {
 1;
 
 =end Internal:
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

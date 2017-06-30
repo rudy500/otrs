@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -35,9 +36,15 @@ sub Run {
 
     if ( !$WebserviceID ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need WebserviceID!",
+            Message => Translatable('Need WebserviceID!'),
         );
     }
+
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'WebserviceID',
+        Value => $WebserviceID
+    );
 
     my $WebserviceData = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice')->WebserviceGet(
         ID => $WebserviceID,
@@ -45,7 +52,8 @@ sub Run {
 
     if ( !IsHashRefWithData($WebserviceData) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get data for WebserviceID $WebserviceID",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not get data for WebserviceID %s', $WebserviceID ),
         );
     }
 
@@ -112,12 +120,12 @@ sub _Add {
 
     if ( !$OperationType ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need OperationType",
+            Message => Translatable('Need OperationType'),
         );
     }
     if ( !$Self->_OperationTypeCheck( OperationType => $OperationType ) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Operation $OperationType is not registered",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Operation %s is not registered', $OperationType ),
         );
     }
 
@@ -161,12 +169,13 @@ sub _AddAction {
     # uncorrectable errors
     if ( !$GetParam{OperationType} ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need OperationType",
+            Message => Translatable('Need OperationType'),
         );
     }
     if ( !$Self->_OperationTypeCheck( OperationType => $GetParam{OperationType} ) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "OperationType $GetParam{OperationType} is not registered",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'OperationType %s is not registered', $GetParam{OperationType} ),
         );
     }
 
@@ -175,7 +184,8 @@ sub _AddAction {
 
         # get the description from the web request to send it back again to the screen
         my $OperationConfig;
-        $OperationConfig->{Description} = $ParamObject->GetParam( Param => 'Description' ) || '';
+        $OperationConfig->{Description}       = $ParamObject->GetParam( Param => 'Description' )       || '';
+        $OperationConfig->{IncludeTicketData} = $ParamObject->GetParam( Param => 'IncludeTicketData' ) || '';
 
         return $Self->_ShowScreen(
             %Param,
@@ -191,8 +201,9 @@ sub _AddAction {
     }
 
     my $Config = {
-        Type        => $GetParam{OperationType},
-        Description => $ParamObject->GetParam( Param => 'Description' ) || '',
+        Type              => $GetParam{OperationType},
+        Description       => $ParamObject->GetParam( Param => 'Description' ) || '',
+        IncludeTicketData => $ParamObject->GetParam( Param => 'IncludeTicketData' ) || '',
     };
 
     my $MappingInbound = $ParamObject->GetParam( Param => 'MappingInbound' );
@@ -244,7 +255,7 @@ sub _Change {
 
     if ( !$Operation ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need Operation",
+            Message => Translatable('Need Operation'),
         );
     }
 
@@ -256,7 +267,8 @@ sub _Change {
         )
     {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not determine config for operation $Operation",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not determine config for operation %s', $Operation ),
         );
     }
 
@@ -294,7 +306,7 @@ sub _ChangeAction {
 
         if ( !$GetParam{$Needed} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need $Needed",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Need %s', $Needed ),
             );
         }
     }
@@ -309,7 +321,8 @@ sub _ChangeAction {
         )
     {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not determine config for operation $GetParam{OldOperation}",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'Could not determine config for operation %s', $GetParam{OldOperation} ),
         );
     }
 
@@ -379,7 +392,8 @@ sub _ChangeAction {
         };
     }
 
-    $OperationConfig->{Description} = $ParamObject->GetParam( Param => 'Description' ) || '';
+    $OperationConfig->{Description}       = $ParamObject->GetParam( Param => 'Description' )       || '';
+    $OperationConfig->{IncludeTicketData} = $ParamObject->GetParam( Param => 'IncludeTicketData' ) || '';
 
     # Update operation config.
     $WebserviceData->{Config}->{Provider}->{Operation}->{ $GetParam{Operation} } = $OperationConfig;
@@ -458,14 +472,13 @@ sub _ShowScreen {
     my $Output = $LayoutObject->Header();
     $Output .= $LayoutObject->NavigationBar();
 
-    $LayoutObject->Block(
-        Name => 'Title' . $Param{Mode},
-        Data => \%Param
-    );
-    $LayoutObject->Block(
-        Name => 'Navigation' . $Param{Mode},
-        Data => \%Param
-    );
+    # send data to JS
+    if ( $Param{Operation} ) {
+        $LayoutObject->AddJSData(
+            Key   => 'Operation',
+            Value => $Param{Operation},
+        );
+    }
 
     my %TemplateData;
 
@@ -549,6 +562,19 @@ sub _ShowScreen {
         );
     }
 
+    $TemplateData{IncludeTicketDataStrg} = $LayoutObject->BuildSelection(
+        Data => {
+            0 => 'No',
+            1 => 'Yes',
+        },
+        Name       => 'IncludeTicketData',
+        SelectedID => $Param{OperationConfig}->{IncludeTicketData},
+        Sort       => 'NumericKey',
+        Class      => 'Modernize W50pc',
+        Disabled   => $TemplateData{OperationType} eq 'Ticket::TicketCreate'
+            || $TemplateData{OperationType} eq 'Ticket::TicketUpdate' ? 0 : 1,
+    );
+
     $Output .= $LayoutObject->Output(
         TemplateFile => 'AdminGenericInterfaceOperationDefault',
         Data         => {
@@ -562,11 +588,11 @@ sub _ShowScreen {
     return $Output;
 }
 
-=item _OperationTypeCheck()
-
-checks if a given OperationType is registered in the system.
-
-=cut
+# =item _OperationTypeCheck()
+#
+# checks if a given OperationType is registered in the system.
+#
+# =cut
 
 sub _OperationTypeCheck {
     my ( $Self, %Param ) = @_;
@@ -579,11 +605,11 @@ sub _OperationTypeCheck {
     return ref $Operations->{ $Param{OperationType} } eq 'HASH' ? 1 : 0;
 }
 
-=item _MappingTypeCheck()
-
-checks if a given MappingType is registered in the system.
-
-=cut
+# =item _MappingTypeCheck()
+#
+# checks if a given MappingType is registered in the system.
+#
+# =cut
 
 sub _MappingTypeCheck {
     my ( $Self, %Param ) = @_;

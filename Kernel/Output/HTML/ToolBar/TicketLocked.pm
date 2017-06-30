@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,27 +8,18 @@
 
 package Kernel::Output::HTML::ToolBar::TicketLocked;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Ticket',
     'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -54,7 +45,7 @@ sub Run {
         OwnerIDs   => [ $Self->{UserID} ],
         UserID     => 1,
         Permission => 'ro',
-    );
+    ) || 0;
     my $CountNew = $TicketObject->TicketSearch(
         Result     => 'COUNT',
         Locks      => [ 'lock', 'tmp_lock' ],
@@ -65,7 +56,7 @@ sub Run {
         TicketFlagUserID => $Self->{UserID},
         UserID           => 1,
         Permission       => 'ro',
-    );
+    ) || 0;
     $CountNew = $Count - $CountNew;
     my $CountReached = $TicketObject->TicketSearch(
         Result                        => 'COUNT',
@@ -75,7 +66,7 @@ sub Run {
         OwnerIDs                      => [ $Self->{UserID} ],
         UserID                        => 1,
         Permission                    => 'ro',
-    );
+    ) || 0;
 
     my $Class        = $Param{Config}->{CssClass};
     my $ClassNew     = $Param{Config}->{CssClassNew};
@@ -92,7 +83,7 @@ sub Run {
         $Return{ $Priority++ } = {
             Block       => 'ToolBarItem',
             Count       => $CountNew,
-            Description => 'Locked Tickets New',
+            Description => Translatable('Locked Tickets New'),
             Class       => $ClassNew,
             Icon        => $IconNew,
             Link        => $URL . 'Action=AgentTicketLockedView;Filter=New',
@@ -103,7 +94,7 @@ sub Run {
         $Return{ $Priority++ } = {
             Block       => 'ToolBarItem',
             Count       => $CountReached,
-            Description => 'Locked Tickets Reminder Reached',
+            Description => Translatable('Locked Tickets Reminder Reached'),
             Class       => $ClassReached,
             Icon        => $IconReached,
             Link        => $URL . 'Action=AgentTicketLockedView;Filter=ReminderReached',
@@ -114,7 +105,7 @@ sub Run {
         $Return{ $Priority++ } = {
             Block       => 'ToolBarItem',
             Count       => $Count,
-            Description => 'Locked Tickets Total',
+            Description => Translatable('Locked Tickets Total'),
             Class       => $Class,
             Icon        => $Icon,
             Link        => $URL . 'Action=AgentTicketLockedView',

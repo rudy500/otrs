@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AdminSMIME;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -26,16 +28,62 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # get needed objects
+    # get objects
     my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     # ------------------------------------------------------------ #
     # check if feature is active
     # ------------------------------------------------------------ #
-    if ( !$ConfigObject->Get('SMIME') ) {
-        my $Output .= $LayoutObject->FatalError( Message => "S/MIME support is disabled in Kernel::Config::SMIME." );
+    if ( !$Kernel::OM->Get('Kernel::Config')->Get('SMIME') ) {
+
+        my $Output .= $LayoutObject->Header();
+        $Output .= $LayoutObject->NavigationBar();
+
+        $LayoutObject->Block( Name => 'Overview' );
+        $LayoutObject->Block( Name => 'Notice' );
+        $LayoutObject->Block( Name => 'Disabled' );
+        $LayoutObject->Block( Name => 'OverviewResult' );
+        $LayoutObject->Block(
+            Name => 'NoDataFoundMsg',
+            Data => {},
+        );
+
+        $Output .= $LayoutObject->Output( TemplateFile => 'AdminSMIME' );
+        $Output .= $LayoutObject->Footer();
+
+        return $Output;
+    }
+
+    # get SMIME objects
+    my $SMIMEObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
+
+    if ( !$SMIMEObject ) {
+
+        my $Output = $LayoutObject->Header();
+        $Output .= $LayoutObject->NavigationBar();
+
+        $Output .= $LayoutObject->Notify(
+            Priority => 'Error',
+            Data     => Translatable("S/MIME environment is not working. Please check log for more info!"),
+            Link     => $LayoutObject->{Baselink} . 'Action=AdminLog',
+        );
+
+        $LayoutObject->Block( Name => 'Overview' );
+        $LayoutObject->Block( Name => 'Notice' );
+        $LayoutObject->Block( Name => 'NotWorking' );
+        $LayoutObject->Block( Name => 'OverviewResult' );
+        $LayoutObject->Block(
+            Name => 'NoDataFoundMsg',
+            Data => {},
+        );
+
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'AdminSMIME',
+        );
+
+        $Output .= $LayoutObject->Footer();
+
         return $Output;
     }
 
@@ -56,15 +104,7 @@ sub Run {
         Value     => $Param{Search},
     );
 
-    # get SMIME objects
-    my $SMIMEObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
-
-    if ( !$SMIMEObject ) {
-        my $Output .= $LayoutObject->FatalError(
-            Message => "S/MIME environment is not working. Please check log for more info!"
-        );
-        return $Output;
-    }
+    $Param{Action} = $Self->{Subaction};
 
     # ------------------------------------------------------------ #
     # delete cert
@@ -78,7 +118,7 @@ sub Run {
         my $Type     = $ParamObject->GetParam( Param => 'Type' )     || '';
         if ( !$Filename ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Filename to delete!',
+                Message => Translatable('Need param Filename to delete!'),
             );
         }
 
@@ -296,7 +336,7 @@ sub Run {
         my $Filename = $ParamObject->GetParam( Param => 'Filename' ) || '';
         if ( !$Filename ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Filename to download!',
+                Message => Translatable('Need param Filename to download!'),
             );
         }
 
@@ -322,7 +362,7 @@ sub Run {
         my $Type = $ParamObject->GetParam( Param => 'Type' ) || '';
         if ( !$Filename ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Filename to download!',
+                Message => Translatable('Need param Filename to download!'),
             );
         }
 
@@ -375,7 +415,7 @@ sub Run {
 
         if ( !$CertFingerprint || !$CAFingerprint ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Needed CertFingerprint and CAFingerprint',
+                Message => Translatable('Needed CertFingerprint and CAFingerprint!'),
             );
         }
 
@@ -390,12 +430,12 @@ sub Run {
         my $Output;
         if ( $CertFingerprint eq $CAFingerprint ) {
             $Message{Priority} = 'Error';
-            $Message{Message}  = 'CAFingerprint must be different than CertFingerprint';
+            $Message{Message}  = Translatable('CAFingerprint must be different than CertFingerprint');
             $Error             = 1;
         }
         elsif ($Exists) {
             $Message{Priority} = 'Error';
-            $Message{Message}  = 'Relation exists!';
+            $Message{Message}  = Translatable('Relation exists!');
             $Error             = 1;
         }
 
@@ -414,11 +454,11 @@ sub Run {
 
             if ($Result) {
                 $Message{Priority} = 'Notify';
-                $Message{Message}  = 'Relation added!';
+                $Message{Message}  = Translatable('Relation added!');
             }
             else {
                 $Message{Priority} = 'Error';
-                $Message{Message}  = 'Imposible to add relation!';
+                $Message{Message}  = Translatable('Impossible to add relation!');
             }
 
             $Output = $Self->_SignerCertificateOverview(
@@ -444,7 +484,7 @@ sub Run {
 
         if ( !$CertFingerprint && !$CAFingerprint ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Needed CertFingerprint and CAFingerprint!',
+                Message => Translatable('Needed CertFingerprint and CAFingerprint!'),
             );
         }
 
@@ -459,7 +499,7 @@ sub Run {
         my $Output;
         if ( !$Exists ) {
             $Message{Priority} = 'Error';
-            $Message{Message}  = 'Relation doesn\'t exists';
+            $Message{Message}  = Translatable('Relation doesn\'t exists');
             $Error             = 1;
         }
 
@@ -478,11 +518,11 @@ sub Run {
 
             if ($Success) {
                 $Message{Priority} = 'Notify';
-                $Message{Message}  = 'Relation deleted!';
+                $Message{Message}  = Translatable('Relation deleted!');
             }
             else {
                 $Message{Priority} = 'Error';
-                $Message{Message}  = 'Imposible to delete relation!';
+                $Message{Message}  = Translatable('Impossible to delete relation!');
             }
 
             $Output = $Self->_SignerCertificateOverview(
@@ -501,7 +541,7 @@ sub Run {
         my $Filename = $ParamObject->GetParam( Param => 'Filename' ) || '';
         if ( !$Filename ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Filename to download!'
+                Message => Translatable('Need param Filename to download!'),
             );
         }
 
@@ -509,7 +549,10 @@ sub Run {
 
         if ( !$Output ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Certificate $Filename could not be read!"
+                Message => $LayoutObject->{LanguageObject}->Translate(
+                    'Certificate %s could not be read!',
+                    $Filename
+                ),
             );
         }
 
@@ -539,15 +582,15 @@ sub _MaskAdd {
 
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
     $LayoutObject->Block(
-        Name => 'ActionList',
+        Name => 'Overview',
+        Data => {
+            Action => $Param{Action}
+        },
     );
-    $LayoutObject->Block(
-        Name => 'ActionList',
-    );
-    $LayoutObject->Block(
-        Name => 'ActionOverview',
-    );
+    $LayoutObject->Block( Name => 'ActionList' );
+    $LayoutObject->Block( Name => 'ActionOverview' );
 
     # show the right tt block
     $LayoutObject->Block(
@@ -578,46 +621,8 @@ sub _Overview {
 
     # get needed objects
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+    my $SMIMEObject  = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
 
-    # check if SMIME is activated in the sysconfig first
-    if ( !$ConfigObject->Get('SMIME') ) {
-        $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => $LayoutObject->{LanguageObject}->Translate( "Please activate %s first!", "SMIME" ),
-            Link =>
-                $LayoutObject->{Baselink}
-                . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::SMIME',
-        );
-    }
-
-    # check if SMIME Paths are writable
-    for my $PathKey (qw(SMIME::CertPath SMIME::PrivatePath)) {
-        if ( !-w $ConfigObject->Get($PathKey) ) {
-            $Output .= $LayoutObject->Notify(
-                Priority => 'Error',
-                Data     => $LayoutObject->{LanguageObject}->Translate(
-                    "%s is not writable!",
-                    "$PathKey " . $ConfigObject->Get($PathKey),
-                ),
-                Link =>
-                    $LayoutObject->{Baselink}
-                    . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::SMIME',
-            );
-        }
-    }
-
-    my $SMIMEObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
-
-    if ( !$SMIMEObject && $ConfigObject->Get('SMIME') ) {
-        $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => $LayoutObject->{LanguageObject}->Translate( "Cannot create %s!", "CryptObject" ),
-            Link =>
-                $LayoutObject->{Baselink}
-                . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::SMIME',
-        );
-    }
     if ( $SMIMEObject && $SMIMEObject->Check() ) {
         $Output .= $LayoutObject->Notify(
             Priority => 'Error',
@@ -637,6 +642,7 @@ sub _Overview {
     if ($SMIMEObject) {
         @List = $SMIMEObject->Search();
     }
+    $LayoutObject->Block( Name => 'Overview' );
     $LayoutObject->Block(
         Name => 'OverviewResult',
     );
@@ -673,18 +679,11 @@ sub _Overview {
             Data => {},
         );
     }
-    $LayoutObject->Block(
-        Name => 'ActionList',
-    );
-    $LayoutObject->Block(
-        Name => 'ActionAdd',
-    );
-    $LayoutObject->Block(
-        Name => 'SMIMEFilter',
-    );
-    $LayoutObject->Block(
-        Name => 'OverviewHint',
-    );
+
+    $LayoutObject->Block( Name => 'ActionList' );
+    $LayoutObject->Block( Name => 'ActionAdd' );
+    $LayoutObject->Block( Name => 'SMIMEFilter' );
+    $LayoutObject->Block( Name => 'OverviewHint' );
 
     return $Output;
 }
@@ -697,7 +696,7 @@ sub _SignerCertificateOverview {
 
     if ( !$Param{CertFingerprint} ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Needed Fingerprint',
+            Message => Translatable('Needed Fingerprint'),
         );
     }
 
@@ -733,15 +732,10 @@ sub _SignerCertificateOverview {
     @ShowCertList = grep ( !defined $RelatedCerts{ $_->{Fingerprint} }
             && $_->{Fingerprint} ne $Param{CertFingerprint}, @AvailableCerts );
 
-    $LayoutObject->Block(
-        Name => 'ActionList',
-    );
-    $LayoutObject->Block(
-        Name => 'ActionOverview',
-    );
-    $LayoutObject->Block(
-        Name => 'SignerCertHint',
-    );
+    $LayoutObject->Block( Name => 'Overview' );
+    $LayoutObject->Block( Name => 'ActionList' );
+    $LayoutObject->Block( Name => 'ActionOverview' );
+    $LayoutObject->Block( Name => 'SignerCertHint' );
 
     $LayoutObject->Block(
         Name => 'SignerCertificates',
@@ -792,52 +786,6 @@ sub _SignerCertificateOverview {
         $Output .= $LayoutObject->Notify(
             Priority => $Message{Type},
             Info     => $Message{Message},
-        );
-    }
-
-    # get config object
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
-    # check if SMIME is activated in the sysconfig first
-    if ( !$ConfigObject->Get('SMIME') ) {
-        $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => $LayoutObject->{LanguageObject}->Translate( "Please activate %s first!", "SMIME" ),
-            Link =>
-                $LayoutObject->{Baselink}
-                . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::SMIME',
-        );
-    }
-
-    # check if SMIME Paths are writable
-    for my $PathKey (qw(SMIME::CertPath SMIME::PrivatePath)) {
-        if ( !-w $ConfigObject->Get($PathKey) ) {
-            $Output .= $LayoutObject->Notify(
-                Priority => 'Error',
-                Data     => $LayoutObject->{LanguageObject}->Translate(
-                    "%s is not writable!",
-                    "$PathKey " . $ConfigObject->Get($PathKey)
-                ),
-                ,
-                Link =>
-                    $LayoutObject->{Baselink}
-                    . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::SMIME',
-            );
-        }
-    }
-    if ( !$SMIMEObject && $ConfigObject->Get('SMIME') ) {
-        $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => $LayoutObject->{LanguageObject}->Translate( "Cannot create %s!", "CryptObject" ),
-            Link =>
-                $LayoutObject->{Baselink}
-                . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::SMIME',
-        );
-    }
-    if ( $SMIMEObject && $SMIMEObject->Check() ) {
-        $Output .= $LayoutObject->Notify(
-            Priority => 'Error',
-            Data     => $LayoutObject->{LanguageObject}->Translate("' . $SMIMEObject->Check() . '"),
         );
     }
 

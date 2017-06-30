@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,6 +16,17 @@ use vars (qw($Self));
 my $DBObject  = $Kernel::OM->Get('Kernel::System::DB');
 my $XMLObject = $Kernel::OM->Get('Kernel::System::XML');
 
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# define needed variable
+my $UID;
+
 # ------------------------------------------------------------ #
 # XML test 7 - default value test (alter table)
 # ------------------------------------------------------------ #
@@ -28,6 +39,13 @@ my $XML = '
     <Column Name="name_d" Required="false" Size="20" Type="VARCHAR" />
     <Column Name="name_e" Required="false" Default="" Size="20" Type="VARCHAR" />
     <Column Name="name_f" Required="false" Default="Test1" Size="20" Type="VARCHAR" />
+    <Index Name="test_f_name_a">
+        <IndexColumn Name="name_a"/>
+    </Index>
+    <Unique Name="unique_id_name_a">
+        <UniqueColumn Name="id"/>
+        <UniqueColumn Name="name_a"/>
+    </Unique>
 </TableCreate>
 ';
 my @XMLARRAY = $XMLObject->XMLParse( String => $XML );
@@ -42,6 +60,167 @@ for my $SQL (@SQL) {
     $Self->True(
         $DBObject->Do( SQL => $SQL ) || 0,
         "Do() CREATE TABLE ($SQL)",
+    );
+}
+
+# try to add the same index again
+# this should not cause an error as the database driver
+# should take care to not create it again if it already exists
+$XML = '
+<TableAlter Name="test_f">
+    <IndexCreate Name="test_f_name_a">
+        <IndexColumn Name="name_a"/>
+    </IndexCreate>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# try to add another index with another name
+# but using the same index column
+# this should work fine
+$XML = '
+<TableAlter Name="test_f">
+    <IndexCreate Name="test_f_name_a2">
+        <IndexColumn Name="name_a"/>
+    </IndexCreate>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# try to drop the last index
+$XML = '
+<TableAlter Name="test_f">
+    <IndexDrop Name="test_f_name_a2"/>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# try to drop the last index again
+# has already been deleted, but should be fine, as IndexDrop should handle this
+$XML = '
+<TableAlter Name="test_f">
+    <IndexDrop Name="test_f_name_a2"/>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# try to add the same unique constraint again
+# this should not cause an error as the database driver
+# should take care to not create it again if it already exists
+$XML = '
+<TableAlter Name="test_f">
+    <UniqueCreate Name="unique_id_name_a">
+        <UniqueColumn Name="id"/>
+        <UniqueColumn Name="name_a"/>
+    </UniqueCreate>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# drop unique constraint
+$XML = '
+<TableAlter Name="test_f">
+    <UniqueDrop Name="unique_id_name_a"/>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# drop the same unique constraint again (should be fine)
+$XML = '
+<TableAlter Name="test_f">
+    <UniqueDrop Name="unique_id_name_a"/>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
     );
 }
 
@@ -102,11 +281,11 @@ my $DefaultTest2Insert = [
     },
 ];
 
-my $Counter3 = 1;
+my $Counter1 = 1;
 for my $Test ( @{$DefaultTest2Insert} ) {
 
     # create unique id
-    my $ID = int rand 30_000;
+    my $ID = $UID++;
 
     my @InsertColumnsSorted = sort { $a cmp $b } keys %{ $Test->{Insert} };
     my @InsertValuesSorted  = map  { $Test->{Insert}->{$_} } @InsertColumnsSorted;
@@ -117,7 +296,7 @@ for my $Test ( @{$DefaultTest2Insert} ) {
 
     $Self->True(
         $DBObject->Do( SQL => $SQLInsert ) || 0,
-        "#7.$Counter3 Do() INSERT",
+        "#7.$Counter1 Do() INSERT",
     );
 
     for my $Column ( sort { $a cmp $b } keys %{ $Test->{Select} } ) {
@@ -138,13 +317,13 @@ for my $Test ( @{$DefaultTest2Insert} ) {
             $Self->Is(
                 $SelectedValue,
                 $ReferenceValue,
-                "#7.$Counter3 SELECT check selected value of column '$Column':",
+                "#7.$Counter1 SELECT check selected value of column '$Column':",
             );
         }
     }
-}
-continue {
-    $Counter3++;
+
+    $Counter1++;
+
 }
 
 $XML = '
@@ -280,11 +459,11 @@ my $DefaultTest2Alter1 = [
     },
 ];
 
-my $Counter4 = 1;
+my $Counter2 = 1;
 for my $Test ( @{$DefaultTest2Alter1} ) {
 
     # create unique id
-    my $ID = int rand 30_000;
+    my $ID = $UID++;
 
     my @InsertColumnsSorted = sort { $a cmp $b } keys %{ $Test->{Insert} };
     my @InsertValuesSorted  = map  { $Test->{Insert}->{$_} } @InsertColumnsSorted;
@@ -295,7 +474,7 @@ for my $Test ( @{$DefaultTest2Alter1} ) {
 
     $Self->True(
         $DBObject->Do( SQL => $SQLInsert ) || 0,
-        "#7.$Counter4 Do() INSERT",
+        "#7.$Counter2 Do() INSERT",
     );
 
     for my $Column ( sort { $a cmp $b } keys %{ $Test->{Select} } ) {
@@ -316,13 +495,13 @@ for my $Test ( @{$DefaultTest2Alter1} ) {
             $Self->Is(
                 $SelectedValue,
                 $ReferenceValue,
-                "#7.$Counter4 SELECT check selected value of column '$Column':",
+                "#7.$Counter2 SELECT check selected value of column '$Column':",
             );
         }
     }
-}
-continue {
-    $Counter4++;
+
+    $Counter2++;
+
 }
 
 $XML = '
@@ -440,11 +619,11 @@ my $DefaultTest2Alter2 = [
     },
 ];
 
-my $Counter5 = 1;
+my $Counter3 = 1;
 for my $Test ( @{$DefaultTest2Alter2} ) {
 
     # create unique id
-    my $ID = int rand 30_000;
+    my $ID = $UID++;
 
     my @InsertColumnsSorted = sort { $a cmp $b } keys %{ $Test->{Insert} };
     my @InsertValuesSorted  = map  { $Test->{Insert}->{$_} } @InsertColumnsSorted;
@@ -455,7 +634,7 @@ for my $Test ( @{$DefaultTest2Alter2} ) {
 
     $Self->True(
         $DBObject->Do( SQL => $SQLInsert ) || 0,
-        "#7.$Counter5 Do() INSERT",
+        "#7.$Counter3 Do() INSERT",
     );
 
     for my $Column ( sort { $a cmp $b } keys %{ $Test->{Select} } ) {
@@ -476,13 +655,13 @@ for my $Test ( @{$DefaultTest2Alter2} ) {
             $Self->Is(
                 $SelectedValue,
                 $ReferenceValue,
-                "#7.$Counter5 SELECT check selected value of column '$Column':",
+                "#7.$Counter3 SELECT check selected value of column '$Column':",
             );
         }
     }
-}
-continue {
-    $Counter5++;
+
+    $Counter3++;
+
 }
 
 $XML      = '<TableDrop Name="test_f"/>';
@@ -630,5 +809,7 @@ for my $SQL (@SQL) {
         "Do() DROP TABLE ($SQL)",
     );
 }
+
+# cleanup cache is done by RestoreDatabase.
 
 1;

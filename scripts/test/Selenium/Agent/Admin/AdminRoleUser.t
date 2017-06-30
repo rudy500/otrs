@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,17 +12,16 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $DBObject     = $Kernel::OM->Get('Kernel::System::DB');
-my $GroupObject  = $Kernel::OM->Get('Kernel::System::Group');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -39,17 +38,23 @@ $Selenium->RunTest(
         );
 
         #add test role
-        my $RoleRandomID = "role" . $Helper->GetRandomID();
+        my $RoleName = "role" . $Helper->GetRandomID();
 
-        my $RoleID = $GroupObject->RoleAdd(
-            Name    => $RoleRandomID,
+        my $RoleID = $Kernel::OM->Get('Kernel::System::Group')->RoleAdd(
+            Name    => $RoleName,
             ValidID => 1,
             UserID  => $UserID,
         );
+        $Self->True(
+            $RoleID,
+            "Created Role - $RoleName",
+        );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminRoleUser");
+        # navigate to AdminRoleUser screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminRoleUser");
 
         # check overview AdminRoleUser
         $Selenium->find_element( "#Users",       'css' );
@@ -63,8 +68,14 @@ $Selenium->RunTest(
             "$TestUserLogin user found on page",
         );
         $Self->True(
-            index( $Selenium->get_page_source(), $RoleRandomID ) > -1,
-            "$RoleRandomID role found on page",
+            index( $Selenium->get_page_source(), $RoleName ) > -1,
+            "$RoleName role found on page",
+        );
+
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
         );
 
         # test filter for Users
@@ -77,50 +88,110 @@ $Selenium->RunTest(
         );
 
         # test filter for Roles
-        $Selenium->find_element( "#FilterRoles", 'css' )->send_keys($RoleRandomID);
+        $Selenium->find_element( "#FilterRoles", 'css' )->send_keys($RoleName);
         sleep 1;
 
         $Self->True(
-            $Selenium->find_element( "$RoleRandomID", 'link_text' )->is_displayed(),
-            "$RoleRandomID role found on page",
+            $Selenium->find_element( "$RoleName", 'link_text' )->is_displayed(),
+            "$RoleName role found on page",
         );
 
         # change test role relation for test user
-        $Selenium->find_element( $FullUserID, 'link_text' )->click();
+        $Selenium->find_element( $FullUserID, 'link_text' )->VerifiedClick();
 
-        $Selenium->find_element("//input[\@value='$RoleID']")->click();
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        $Selenium->find_element("//input[\@value='$RoleID']")->VerifiedClick();
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
         #check and edit test user relation for test role
-        $Selenium->find_element( $RoleRandomID, 'link_text' )->click();
+        $Selenium->find_element( $RoleName, 'link_text' )->VerifiedClick();
+
+        # check breadcrumb on change screen
+        my $Count = 1;
+        for my $BreadcrumbText (
+            'Manage Role-Agent Relations',
+            'Change Agent Relations for Role \'' . $RoleName . '\''
+            )
+        {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
 
         $Self->Is(
             $Selenium->find_element("//input[\@value='$UserID']")->is_selected(),
             1,
-            "Role $RoleRandomID relation for user $TestUserLogin is enabled",
+            "Role $RoleName relation for user $TestUserLogin is enabled",
+        );
+
+        # test checked and unchecked values while filter by role is used
+        # test filter with "WrongFilterRole" to uncheck a value
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys("WrongFilterRole");
+        sleep 1;
+
+        # test if no data is matches
+        $Self->True(
+            $Selenium->find_element( ".FilterMessage.Hidden>td", 'css' )->is_displayed(),
+            "'No data matches' is displayed'"
+        );
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys($TestUserLogin);
+        sleep 1;
+
+        # check role relation for agent after using filter by agent
+        $Self->Is(
+            $Selenium->find_element("//input[\@value='$UserID']")->is_selected(),
+            1,
+            "Role $RoleName relation for user $TestUserLogin is enabled",
         );
 
         # remove test relation
-        $Selenium->find_element("//input[\@value='$UserID']")->click();
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        $Selenium->find_element("//input[\@value='$UserID']")->VerifiedClick();
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
         # check if relation is clear
-        $Selenium->find_element( $RoleRandomID, 'link_text' )->click();
+        $Selenium->find_element( $RoleName, 'link_text' )->VerifiedClick();
 
         $Self->Is(
-            $Selenium->find_element("//input[\@value='$UserID']")->is_selected(),
+            $Selenium->find_element("//input[\@value='$RoleID']")->is_selected(),
             0,
-            "User $TestUserLogin is not in relation with role $RoleRandomID",
+            "User $TestUserLogin is not in relation with role $RoleName",
         );
 
-        # Since there are no tickets that rely on our test role we can remove it from DB
+        # test checked and unchecked values while filter by user is used
+        # test filter with "WrongFilterRole" to uncheck a value
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys("WrongFilterRole");
+        sleep 1;
+
+        # test if no data is matches
+        $Self->True(
+            $Selenium->find_element( ".FilterMessage.Hidden>td", 'css' )->is_displayed(),
+            "'No data matches' is displayed'"
+        );
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys($RoleName);
+        sleep 1;
+
+        # check role relation for agent after using filter by role
+        $Self->Is(
+            $Selenium->find_element("//input[\@value='$RoleID']")->is_selected(),
+            0,
+            "User $TestUserLogin is not in relation with role $RoleName",
+        );
+
+        # since there are no tickets that rely on our test role we can remove it from DB
         if ($RoleID) {
-            my $Success = $DBObject->Do(
+            my $Success = $Kernel::OM->Get('Kernel::System::DB')->Do(
                 SQL => "DELETE FROM roles WHERE id = $RoleID",
             );
             $Self->True(
                 $Success,
-                "RoleDelete - $RoleRandomID",
+                "RoleDelete - $RoleName",
             );
         }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Output::HTML::Dashboard::UserOnline;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -65,7 +67,7 @@ sub new {
     $Self->{PrefKey} = 'UserDashboardPref' . $Self->{Name} . '-Shown';
 
     $Self->{PageShown} = $Kernel::OM->Get('Kernel::Output::HTML::Layout')->{ $Self->{PrefKey} }
-        || $Self->{Config}->{Limit};
+        || $Self->{Config}->{Limit} || 10;
 
     $Self->{StartHit} = int( $ParamObject->GetParam( Param => 'StartHit' ) || 1 );
 
@@ -85,7 +87,7 @@ sub Preferences {
 
     my @Params = (
         {
-            Desc  => 'Shown',
+            Desc  => Translatable('Shown'),
             Name  => $Self->{PrefKey},
             Block => 'Option',
             Data  => {
@@ -109,6 +111,8 @@ sub Config {
     return (
         %{ $Self->{Config} },
 
+        CanRefresh => 1,
+
         # remember, do not allow to use page cache
         # (it's not working because of internal filter)
         CacheKey => undef,
@@ -123,11 +127,8 @@ sub Run {
     my $IdleMinutes = $Self->{Config}->{IdleMinutes} || 60;
     my $SortBy      = $Self->{Config}->{SortBy}      || 'UserFullname';
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-    # get current time-stamp
-    my $Time = $TimeObject->SystemTime();
+    # get current system datetime
+    my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # get cache object
     my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
@@ -197,7 +198,7 @@ sub Run {
 
             # check last request time / idle time out
             next SESSIONID if !$Data{UserLastRequest};
-            next SESSIONID if $Data{UserLastRequest} + ( $IdleMinutes * 60 ) < $Time;
+            next SESSIONID if $Data{UserLastRequest} + ( $IdleMinutes * 60 ) < $CurSystemDateTimeObject->ToEpoch();
 
             # remember user and data
             $Online->{User}->{ $Data{UserType} }->{ $Data{UserID} } = $Data{$SortBy};
@@ -238,15 +239,15 @@ sub Run {
     my $Total    = $Online->{UserCount}->{ $Self->{Filter} } || 0;
     my $LinkPage = 'Subaction=Element;Name=' . $Self->{Name} . ';Filter=' . $Self->{Filter} . ';';
     my %PageNav  = $LayoutObject->PageNavBar(
-        StartHit       => $Self->{StartHit},
-        PageShown      => $Self->{PageShown},
-        AllHits        => $Total || 1,
-        Action         => 'Action=' . $LayoutObject->{Action},
-        Link           => $LinkPage,
-        WindowSize     => 5,
-        AJAXReplace    => 'Dashboard' . $Self->{Name},
-        IDPrefix       => 'Dashboard' . $Self->{Name},
-        KeepScriptTags => $Param{AJAX},
+        StartHit    => $Self->{StartHit},
+        PageShown   => $Self->{PageShown},
+        AllHits     => $Total || 1,
+        Action      => 'Action=' . $LayoutObject->{Action},
+        Link        => $LinkPage,
+        WindowSize  => 5,
+        AJAXReplace => 'Dashboard' . $Self->{Name},
+        IDPrefix    => 'Dashboard' . $Self->{Name},
+        AJAX        => $Param{AJAX},
     );
 
     $LayoutObject->Block(
@@ -269,15 +270,16 @@ sub Run {
 
     # Check if agent has permission to start chats with the listed users
     my $EnableChat               = 1;
-    my $ChatStartingAgentsGroup  = $ConfigObject->Get('ChatEngine::PermissionGroup::ChatStartingAgents');
-    my $ChatReceivingAgentsGroup = $ConfigObject->Get('ChatEngine::PermissionGroup::ChatReceivingAgents');
+    my $ChatStartingAgentsGroup  = $ConfigObject->Get('ChatEngine::PermissionGroup::ChatStartingAgents') || 'users';
+    my $ChatReceivingAgentsGroup = $ConfigObject->Get('ChatEngine::PermissionGroup::ChatReceivingAgents') || 'users';
 
-    if (
-        !$ConfigObject->Get('ChatEngine::Active')
-        || !defined $LayoutObject->{"UserIsGroup[$ChatStartingAgentsGroup]"}
-        || $LayoutObject->{"UserIsGroup[$ChatStartingAgentsGroup]"} ne 'Yes'
-        )
-    {
+    my $ChatStartingAgentsGroupPermission = $Kernel::OM->Get('Kernel::System::Group')->PermissionCheck(
+        UserID    => $Self->{UserID},
+        GroupName => $ChatStartingAgentsGroup,
+        Type      => 'rw',
+    );
+
+    if ( !$ConfigObject->Get('ChatEngine::Active') || !$ChatStartingAgentsGroupPermission ) {
         $EnableChat = 0;
     }
     if (
@@ -297,6 +299,21 @@ sub Run {
         $EnableChat = 0;
     }
 
+    my $VideoChatEnabled               = 0;
+    my $VideoChatAgentsGroup           = $ConfigObject->Get('ChatEngine::PermissionGroup::VideoChatAgents') || 'users';
+    my $VideoChatAgentsGroupPermission = $Kernel::OM->Get('Kernel::System::Group')->PermissionCheck(
+        UserID    => $Self->{UserID},
+        GroupName => $VideoChatAgentsGroup,
+        Type      => 'rw',
+    );
+
+    # Enable the video chat feature if system is entitled and agent is a member of configured group.
+    if ( $ConfigObject->Get('ChatEngine::Active') && $VideoChatAgentsGroupPermission ) {
+        if ( $Kernel::OM->Get('Kernel::System::Main')->Require( 'Kernel::System::VideoChat', Silent => 1 ) ) {
+            $VideoChatEnabled = $Kernel::OM->Get('Kernel::System::VideoChat')->IsEnabled();
+        }
+    }
+
     USERID:
     for my $UserID ( sort { $OnlineUser{$a} cmp $OnlineUser{$b} } keys %OnlineUser ) {
 
@@ -307,13 +324,16 @@ sub Run {
         last USERID if $Count >= ( $Self->{StartHit} + $Self->{PageShown} );
 
         # extract user data
-        my $UserData        = $OnlineData{$UserID};
-        my $AgentEnableChat = 0;
-        my $ChatAccess      = 0;
+        my $UserData           = $OnlineData{$UserID};
+        my $AgentEnableChat    = 0;
+        my $CustomerEnableChat = 0;
+        my $ChatAccess         = 0;
+        my $VideoChatAvailable = 0;
+        my $VideoChatSupport   = 0;
 
         # Default status
-        my $UserState            = "Offline";
-        my $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('This user is currently offline');
+        my $UserState            = Translatable('Offline');
+        my $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('User is currently offline.');
 
         # we also need to check if the receiving agent has chat permissions
         if ( $EnableChat && $Self->{Filter} eq 'Agent' ) {
@@ -326,6 +346,11 @@ sub Run {
             my %UserGroupsReverse = reverse %UserGroups;
             $ChatAccess = $UserGroupsReverse{$ChatReceivingAgentsGroup} ? 1 : 0;
 
+            my %User = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
+                UserID => $UserID,
+            );
+            $VideoChatSupport = $User{VideoChatHasWebRTC};
+
             # Check agents availability
             if ($ChatAccess) {
                 my $AgentChatAvailability = $Kernel::OM->Get('Kernel::System::Chat')->AgentAvailabilityGet(
@@ -334,20 +359,46 @@ sub Run {
                 );
 
                 if ( $AgentChatAvailability == 3 ) {
-                    $UserState            = "Active";
+                    $UserState            = Translatable('Active');
                     $AgentEnableChat      = 1;
-                    $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('This user is currently active');
+                    $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('User is currently active.');
+                    $VideoChatAvailable   = 1;
                 }
                 elsif ( $AgentChatAvailability == 2 ) {
-                    $UserState            = "Away";
-                    $AgentEnableChat      = 1;
-                    $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('This user is currently away');
+                    $UserState       = Translatable('Away');
+                    $AgentEnableChat = 1;
+                    $UserStateDescription
+                        = $LayoutObject->{LanguageObject}->Translate('User was inactive for a while.');
                 }
                 elsif ( $AgentChatAvailability == 1 ) {
-                    $UserState = "Unavailable";
+                    $UserState = Translatable('Unavailable');
                     $UserStateDescription
-                        = $LayoutObject->{LanguageObject}->Translate('This user is currently unavailable');
+                        = $LayoutObject->{LanguageObject}->Translate('User set their status to unavailable.');
                 }
+            }
+        }
+        elsif ($EnableChat) {
+            $ChatAccess = 1;
+
+            my $CustomerChatAvailability = $Kernel::OM->Get('Kernel::System::Chat')->CustomerAvailabilityGet(
+                UserID => $UserData->{UserID},
+            );
+
+            my %CustomerUser = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserDataGet(
+                User => $UserID,
+            );
+            $VideoChatSupport = 1 if $CustomerUser{VideoChatHasWebRTC};
+
+            if ( $CustomerChatAvailability == 3 ) {
+                $UserState            = Translatable('Active');
+                $CustomerEnableChat   = 1;
+                $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('User is currently active.');
+                $VideoChatAvailable   = 1;
+            }
+            elsif ( $CustomerChatAvailability == 2 ) {
+                $UserState            = Translatable('Away');
+                $CustomerEnableChat   = 1;
+                $UserStateDescription = $LayoutObject->{LanguageObject}->Translate('User was inactive for a while.');
             }
         }
 
@@ -357,8 +408,12 @@ sub Run {
                 %{$UserData},
                 ChatAccess           => $ChatAccess,
                 AgentEnableChat      => $AgentEnableChat,
+                CustomerEnableChat   => $CustomerEnableChat,
                 UserState            => $UserState,
                 UserStateDescription => $UserStateDescription,
+                VideoChatEnabled     => $VideoChatEnabled,
+                VideoChatAvailable   => $VideoChatAvailable,
+                VideoChatSupport     => $VideoChatSupport,
             },
         );
 
@@ -371,24 +426,28 @@ sub Run {
 
         next USERID if !$UserData->{OutOfOffice};
 
-        my $Start = sprintf(
-            "%04d-%02d-%02d 00:00:00",
-            $UserData->{OutOfOfficeStartYear}, $UserData->{OutOfOfficeStartMonth},
-            $UserData->{OutOfOfficeStartDay}
-        );
-        my $TimeStart = $TimeObject->TimeStamp2SystemTime(
-            String => $Start,
-        );
-        my $End = sprintf(
-            "%04d-%02d-%02d 23:59:59",
-            $UserData->{OutOfOfficeEndYear}, $UserData->{OutOfOfficeEndMonth},
-            $UserData->{OutOfOfficeEndDay}
-        );
-        my $TimeEnd = $TimeObject->TimeStamp2SystemTime(
-            String => $End,
-        );
+        my $CreateOutOfOfficeDTObject = sub {
+            my $Type = shift;
 
-        next USERID if $TimeStart > $Time || $TimeEnd < $Time;
+            my $DTString = sprintf(
+                '%04d-%02d-%02d ' . ( $Type eq 'End' ? '23:59:59' : '00:00:00' ),
+                $UserData->{"OutOfOffice${Type}Year"}, $UserData->{"OutOfOffice${Type}Month"},
+                $UserData->{"OutOfOffice${Type}Day"}
+            );
+
+            return $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $DTString,
+                },
+            );
+        };
+
+        my $OOOStartDTObject = $CreateOutOfOfficeDTObject->('Start');
+        my $OOOEndDTObject   = $CreateOutOfOfficeDTObject->('End');
+
+        next USERID if $OOOStartDTObject > $CurSystemDateTimeObject
+            || $OOOEndDTObject < $CurSystemDateTimeObject;
 
         $LayoutObject->Block(
             Name => 'ContentSmallUserOnlineRowOutOfOffice',
@@ -414,7 +473,17 @@ sub Run {
             NameHTML    => $NameHTML,
             RefreshTime => $Refresh,
         },
-        KeepScriptTags => $Param{AJAX},
+        AJAX => $Param{AJAX},
+    );
+
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'UserOnline',
+        Value => {
+            Name        => $Self->{Name},
+            NameHTML    => $NameHTML,
+            RefreshTime => $Refresh,
+        },
     );
 
     return $Content;

@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -14,30 +15,32 @@ use vars (qw($Self));
 
 use Kernel::Language;
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        my $TestUserLogin = $Helper->TestCustomerUserCreate(
-            Groups => ['admin'],
-        ) || die "Did not get test user";
+        # create test customer user and login
+        my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate(
+        ) || die "Did not get test customer user";
 
         $Selenium->Login(
             Type     => 'Customer',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
+            User     => $TestCustomerUserLogin,
+            Password => $TestCustomerUserLogin,
         );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        $Selenium->get("${ScriptAlias}customer.pl?Action=CustomerPreferences");
+        # navigate to CustomerPreference screen
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerPreferences");
 
-        # check AgentPreferences screen
+        # check CustomerPreferences screen
         for my $ID (
             qw(UserLanguage UserShowTickets UserRefreshTime CurPw NewPw NewPw1)
             )
@@ -66,10 +69,10 @@ $Selenium->RunTest(
 
         # edit checked stored values
         $Selenium->execute_script("\$('#UserRefreshTime').val('2').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#UserRefreshTime", 'css' )->submit();
+        $Selenium->find_element( "#UserRefreshTime", 'css' )->VerifiedSubmit();
 
         $Selenium->execute_script("\$('#UserShowTickets').val('20').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#UserShowTickets", 'css' )->submit();
+        $Selenium->find_element( "#UserShowTickets", 'css' )->VerifiedSubmit();
 
         # check edited values
         $Self->Is(
@@ -90,8 +93,9 @@ $Selenium->RunTest(
         {
             # change CustomerPreference language
             $Selenium->execute_script(
-                "\$('#UserLanguage').val('$Language').trigger('redraw.InputField').trigger('change');");
-            $Selenium->find_element( "#UserLanguage option[value='$Language']", 'css' )->submit();
+                "\$('#UserLanguage').val('$Language').trigger('redraw.InputField').trigger('change');"
+            );
+            $Selenium->find_element( "#UserLanguage option[value='$Language']", 'css' )->VerifiedSubmit();
 
             # check edited language value
             $Self->Is(
@@ -120,8 +124,26 @@ $Selenium->RunTest(
             );
         }
 
-    }
+        # Inject malicious code in user language variable.
+        my $MaliciousCode = 'en\\\'});window.iShouldNotExist=true;Core.Config.AddConfig({a:\\\'';
+        $Selenium->execute_script(
+            "\$('#UserLanguage').append(
+                \$('<option/>', {
+                    value: '$MaliciousCode',
+                    text: 'Malevolent'
+                })
+            ).val('$MaliciousCode').trigger('redraw.InputField').trigger('change');"
+        );
+        $Selenium->find_element( '#UserLanguage', 'css' )->VerifiedSubmit();
 
+        # Check if malicious code was sanitized.
+        $Self->True(
+            $Selenium->execute_script(
+                "return typeof window.iShouldNotExist === 'undefined';"
+            ),
+            'Malicious variable is undefined'
+        );
+    }
 );
 
 1;

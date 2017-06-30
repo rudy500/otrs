@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -53,6 +53,8 @@ sub Run {
 
     for ( sort keys %JobList ) {
 
+        my %NamedCaptures;
+
         # get config options
         my %Config = $PostMasterFilter->FilterGet( Name => $_ );
 
@@ -71,7 +73,7 @@ sub Run {
         }
 
         # match 'Match => ???' stuff
-        my $Matched       = '';
+        my $Matched       = 0;    # Numbers are required because of the bitwise or in the negation.
         my $MatchedNot    = 0;
         my $MatchedResult = '';
         for ( sort keys %Match ) {
@@ -91,6 +93,7 @@ sub Run {
                         $LocalMatched = 1;
                         if ($SearchEmail) {
                             $MatchedResult = $SearchEmail;
+                            $NamedCaptures{email} = $SearchEmail;
                         }
                         if ( $Self->{Debug} > 1 ) {
                             $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -134,6 +137,13 @@ sub Run {
                     $MatchedResult = $1;
                 }
 
+                if (%+) {
+                    my @Keys   = keys %+;
+                    my @Values = values %+;
+
+                    @NamedCaptures{@Keys} = @Values;
+                }
+
                 if ( $Self->{Debug} > 1 ) {
                     my $Op = $Config{Not}->{$_} ? '!' : "=";
 
@@ -159,6 +169,8 @@ sub Run {
         if ( $Matched && !$MatchedNot ) {
             for ( sort keys %Set ) {
                 $Set{$_} =~ s/\[\*\*\*\]/$MatchedResult/;
+                $Set{$_} =~ s/\[\*\* \\(\w+) \*\*\]/$NamedCaptures{$1}/xmsg;
+
                 $Param{GetParam}->{$_} = $Set{$_};
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
                     Priority => 'notice',

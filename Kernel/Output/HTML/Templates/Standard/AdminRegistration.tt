@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,30 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("System Registration Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('System Registration Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% SWITCH Data.Subaction %]
+        [% CASE 'Edit' %]
+            [% BreadcrumbPath.push({ Name => Translate("Edit System Registration"),}) %]
+        [% CASE 'SentDataOverview' %]
+            [% BreadcrumbPath.push({ Name => Translate("System Registration Overview"),}) %]
+        [% CASE 'Register' %]
+            [% BreadcrumbPath.push({ Name => Translate("Register System"),}) %]
+        [% CASE 'OTRSIDValidate' %]
+            [% BreadcrumbPath.push({ Name => Translate("Validate OTRS-ID"),}) %]
+        [% CASE 'Deregister' %]
+            [% BreadcrumbPath.push({ Name => Translate("Deregister System"),}) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
 
 [% RenderBlockStart("ActionList") %]
@@ -101,7 +125,7 @@
 [% RenderBlockEnd("OverviewRegistered") %]
 [% RenderBlockStart("DaemonNotRunning") %]
             <div class="Header">
-                <h2>[% Translate("System registration not possible") | html %]</h2>
+                <h2>[% Translate("System Registration not Possible") | html %]</h2>
             </div>
             <div class="Content">
                 <p>
@@ -113,7 +137,7 @@
 [% RenderBlockEnd("DaemonNotRunning") %]
 [% RenderBlockStart("OTRSIDDeregistrationNotPossible") %]
             <div class="Header">
-                <h2>[% Translate("System deregistration not possible") | html %]</h2>
+                <h2>[% Translate("System Deregistration not Possible") | html %]</h2>
             </div>
             <div class="Content">
                 <p>
@@ -144,34 +168,6 @@
                             <a href="#" id="RegistrationDataProtection">[% Translate("Data Protection") | html %]</a>
                         </p>
                     </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    $('#RegistrationMoreInfo').bind('click', function() {
-        Core.UI.Dialog.ShowDialog({
-            Modal: true,
-            Title: [% Translate("System Registration") | JSON %],
-            HTML: $('#QADialog').html(),
-            PositionTop: '70px',
-            PositionLeft: 'Center',
-            CloseOnEscape: true,
-            CloseOnClickOutside: true
-        });
-        return false;
-    });
-    $('#RegistrationDataProtection').bind('click', function() {
-        Core.UI.Dialog.ShowDialog({
-            Modal: true,
-            Title: [% Translate("Data Protection") | JSON %],
-            HTML: $('#DPDialog').html(),
-            PositionTop: '10px',
-            PositionLeft: 'Center',
-            CloseOnEscape: true,
-            CloseOnClickOutside: true
-        });
-        return false;
-    })
-//]]></script>
-[% END %]
                     <div id="QADialog" class="Hidden">
                         <div class="TextDialog">
                             <h1>[% Translate("What are the advantages of system registration?") | html %]</h1>
@@ -215,7 +211,7 @@
                                 [% Translate("Your system will send updates to the registration server at regular intervals.") | html %] [% Translate("Typically this would be around once every three days.") | html %]
                             </p>
                             <p>
-                                [% Translate("In case you would have further questions we would be glad to answer them.") | html %] [% Translate("Please visit our") | html %] <a href="https://portal.otrs.com/" target="_blank">[% Translate("portal") | html %]</a> [% Translate("and file a request.") | html %]
+                                [% Translate("In case you would have further questions we would be glad to answer them.") | html %] [% Translate("Please visit our customer portal and file a request.") | html %]
                             </p>
                         </div>
                     </div>
@@ -573,7 +569,7 @@
 [% RenderBlockEnd("Edit") %]
 [% RenderBlockStart("SentDataOverview") %]
             <div class="Header">
-                <h2>[% Translate("Overview of transmitted data") | html %]</h2>
+                <h2>[% Translate("Overview of Transmitted Data") | html %]</h2>
             </div>
             <div class="Content">
 [% RenderBlockStart("SentDataOverviewNoData") %]
@@ -592,13 +588,7 @@
                 <h3 class="SpacingTop SpacingBottom">[% Translate('Support Data') | html %]</h3>
                 <textarea class="SupportData AsBlock W95pc" rows="10">[% Data.SupportData | replace('\$VAR1 = ', '') | html %]</textarea>
                 [% END %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('textarea.SupportData').bind('focus', function() {
-    $(this).select();
-});
-//]]></script>
-[% END %]
+
 [% RenderBlockEnd("SentDataOverviewData") %]
             </div>
             <div class="Clear"></div>

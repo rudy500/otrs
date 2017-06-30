@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -21,14 +22,14 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::SupportDataCollector',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
 );
 
 =head1 NAME
 
 Kernel::System::Registration - Registration lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All Registration functions.
 
@@ -53,16 +54,10 @@ UpdateID the Portal refuses the update and an updated registration is required.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $RegistrationObject = $Kernel::OM->Get('Kernel::System::Registration');
 
 
@@ -80,10 +75,13 @@ sub new {
     # timeout for the registration cloud service requests
     $Self->{TimeoutRequest} = 60;
 
+    # check if cloud services are disabled
+    $Self->{CloudServicesDisabled} = $Kernel::OM->Get('Kernel::Config')->Get('CloudServices::Disabled') || 0;
+
     return $Self;
 }
 
-=item TokenGet()
+=head2 TokenGet()
 
 Get a token needed for system registration.
 To obtain this token, you need to pass a valid OTRS ID and password.
@@ -135,6 +133,8 @@ sub TokenGet {
         Success => 0,
     );
 
+    return %Result if $Self->{CloudServicesDisabled};
+
     my $CloudService = 'SystemRegistration';
     my $Operation    = 'TokenGet';
 
@@ -166,7 +166,7 @@ sub TokenGet {
             Priority => 'notice',
             Message  => "Registration - Can't contact server",
         );
-        $Result{Reason} = "Can't contact registration server. Please try again later.";
+        $Result{Reason} = Translatable("Can't contact registration server. Please try again later.");
 
         return %Result;
     }
@@ -175,7 +175,7 @@ sub TokenGet {
             Priority => 'notice',
             Message  => "Registration - Request Failed ($RequestResult->{ErrorMessage})",
         );
-        $Result{Reason} = "Can't contact registration server. Please try again later.";
+        $Result{Reason} = Translatable("Can't contact registration server. Please try again later.");
 
         return %Result;
     }
@@ -191,12 +191,12 @@ sub TokenGet {
             Priority => 'notice',
             Message  => "Registration - No content received from server",
         );
-        $Result{Reason} = "No content received from registration server. Please try again later.";
+        $Result{Reason} = Translatable("No content received from registration server. Please try again later.");
 
         return %Result;
     }
     elsif ( !$OperationResult->{Success} ) {
-        $Result{Reason} = $OperationResult->{ErrorMessage} || "Can't get Token from sever";
+        $Result{Reason} = $OperationResult->{ErrorMessage} || Translatable("Can't get Token from sever");
 
         return %Result;
     }
@@ -205,7 +205,7 @@ sub TokenGet {
 
     # if auth is incorrect
     if ( !defined $ResponseData->{Auth} || $ResponseData->{Auth} ne 'ok' ) {
-        $Result{Reason} = 'Username and password do not match. Please try again.';
+        $Result{Reason} = Translatable('Username and password do not match. Please try again.');
         return %Result;
     }
 
@@ -215,7 +215,7 @@ sub TokenGet {
             Priority => 'error',
             Message  => "Registration - received no Token!",
         );
-        $Result{Reason} = 'Problems processing server result. Please try again later.';
+        $Result{Reason} = Translatable('Problems processing server result. Please try again later.');
         return %Result;
     }
 
@@ -226,7 +226,7 @@ sub TokenGet {
     return %Result;
 }
 
-=item Register()
+=head2 Register()
 
 Register the system;
 
@@ -252,6 +252,8 @@ sub Register {
             return;
         }
     }
+
+    return if $Self->{CloudServicesDisabled};
 
     # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -396,21 +398,21 @@ sub Register {
         Message  => "Registration - received UniqueID '$ResponseData->{UniqueID}'.",
     );
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    # get datetime object
+    my $DateTimeObject   = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $CurrentTimestamp = $DateTimeObject->ToString();
 
     # calculate due date for next update, fall back to 24h
     my $NextUpdateSeconds = int $ResponseData->{NextUpdate} || ( 60 * 60 * 24 );
-    my $NextUpdateTime = $TimeObject->SystemTime2TimeStamp(
-        SystemTime => $TimeObject->SystemTime() + $NextUpdateSeconds,
-    );
+    $DateTimeObject->Add( Seconds => $NextUpdateSeconds );
+    my $NextUpdateTime = $DateTimeObject->ToString();
 
     my %RegistrationData = (
         State              => 'registered',
         UniqueID           => $ResponseData->{UniqueID},
         APIKey             => $ResponseData->{APIKey},
         LastUpdateID       => $ResponseData->{LastUpdateID},
-        LastUpdateTime     => $TimeObject->CurrentTimestamp(),
+        LastUpdateTime     => $CurrentTimestamp,
         Type               => $ResponseData->{Type} || $Param{Type},
         Description        => $ResponseData->{Description} || $Param{Description},
         SupportDataSending => $ResponseData->{SupportDataSending} || $SupportDataSending,
@@ -503,7 +505,7 @@ sub Register {
     return 1;
 }
 
-=item RegistrationDataGet()
+=head2 RegistrationDataGet()
 
 Get the registration data from the system.
 
@@ -548,7 +550,7 @@ sub RegistrationDataGet {
     return %RegistrationData;
 }
 
-=item RegistrationUpdateSend()
+=head2 RegistrationUpdateSend()
 
 Register the system as Active.
 This also updates any information on Database, OTRS Version and Perl version that
@@ -580,6 +582,13 @@ or
 
 sub RegistrationUpdateSend {
     my ( $Self, %Param ) = @_;
+
+    if ( $Self->{CloudServicesDisabled} ) {
+        return (
+            Success => 0,
+            Reason  => 'Cloud services are disabled!',
+        );
+    }
 
     # get registration data
     my %RegistrationData = $Self->RegistrationDataGet();
@@ -615,8 +624,12 @@ sub RegistrationUpdateSend {
     # send SupportData if sending is activated
     if ( $SupportDataSending eq 'Yes' ) {
 
+        my $SupportDataCollectorWebTimeout = $ConfigObject->Get('SupportDataCollector::WebUserAgent::Timeout');
+
         my %CollectResult = eval {
-            $Kernel::OM->Get('Kernel::System::SupportDataCollector')->Collect();
+            $Kernel::OM->Get('Kernel::System::SupportDataCollector')->Collect(
+                WebTimeout => $SupportDataCollectorWebTimeout,
+            );
         };
         if ( !$CollectResult{Success} ) {
             my $ErrorMessage = $CollectResult{ErrorMessage} || $@ || 'unknown error';
@@ -753,19 +766,19 @@ sub RegistrationUpdateSend {
         Message  => "RegistrationUpdate - received UpdateID '$ResponseData->{UpdateID}'.",
     );
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    # get datetime object
+    my $DateTimeObject   = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $CurrentTimestamp = $DateTimeObject->ToString();
 
-    # calculate due date for next update, fall back to 24 hours
+    # calculate due date for next update, fall back to 24h
     my $NextUpdateSeconds = int $ResponseData->{NextUpdate} || ( 60 * 60 * 24 );
-    my $NextUpdateTime = $TimeObject->SystemTime2TimeStamp(
-        SystemTime => $TimeObject->SystemTime() + $NextUpdateSeconds,
-    );
+    $DateTimeObject->Add( Seconds => $NextUpdateSeconds );
+    my $NextUpdateTime = $DateTimeObject->ToString();
 
     # gather and update provided data in SystemData table
     my %UpdateData = (
         LastUpdateID       => $ResponseData->{UpdateID},
-        LastUpdateTime     => $TimeObject->CurrentTimestamp(),
+        LastUpdateTime     => $CurrentTimestamp,
         Type               => $ResponseData->{Type},
         Description        => $ResponseData->{Description},
         SupportDataSending => $ResponseData->{SupportDataSending} || $SupportDataSending,
@@ -844,7 +857,7 @@ sub RegistrationUpdateSend {
     );
 }
 
-=item Deregister()
+=head2 Deregister()
 
 Deregister the system. Deregistering also stops any update jobs.
 
@@ -870,6 +883,8 @@ sub Deregister {
             return;
         }
     }
+
+    return if $Self->{CloudServicesDisabled};
 
     my %RegistrationInfo = $Self->RegistrationDataGet();
 
@@ -970,8 +985,6 @@ sub Deregister {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

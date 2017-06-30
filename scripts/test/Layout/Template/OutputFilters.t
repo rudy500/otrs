@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,14 @@ use vars (qw($Self));
 use Kernel::Output::HTML::Layout;
 
 use Kernel::System::VariableCheck qw(:all);
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 my @Tests = (
     {
@@ -103,7 +111,7 @@ Test: B&B 4
 
 for my $Test (@Tests) {
 
-    # Cleanup the cache and run every test twice to also test the disk caching
+    # cleanup the cache and run every test twice to also test the disk caching
     $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
         Type => 'TemplateProvider',
     );
@@ -124,10 +132,10 @@ for my $Test (@Tests) {
             Lang   => 'de',
         );
 
-        # Call Output() once so that the TT objects are created.
+        # call Output() once so that the TT objects are created.
         $LayoutObject->Output( Template => '' );
 
-        # Now add this directory as include path to be able to use the test templates
+        # now add this directory as include path to be able to use the test templates
         my $IncludePaths = $LayoutObject->{TemplateProviderObject}->include_path();
         unshift @{$IncludePaths}, $ConfigObject->Get('Home') . '/scripts/test/Layout/Template';
         $LayoutObject->{TemplateProviderObject}->include_path($IncludePaths);
@@ -148,7 +156,9 @@ for my $Test (@Tests) {
         );
 
         my $FileName = $ConfigObject->Get('Home') . '/scripts/test/Layout/Template/' . $Test->{Output} . '.tt';
-        $FileName =~ s{/{2,}}{/}g;    # remove duplicated //
+
+        # remove duplicated //
+        $FileName =~ s{/{2,}}{/}g;
         $Self->True(
             $LayoutObject->{TemplateProviderObject}->{_TemplateCache}->{$FileName},
             'Template added to cache',
@@ -156,5 +166,7 @@ for my $Test (@Tests) {
     }
 
 }
+
+# cleanup cache is done by RestoreDatabase
 
 1;

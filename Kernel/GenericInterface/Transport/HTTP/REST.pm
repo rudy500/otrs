@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,15 +25,9 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::GenericInterface::Transport::REST - GenericInterface network transport interface for HTTP::REST
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 usually, you want to create an instance of this
 by using Kernel::GenericInterface::Transport->new();
@@ -55,14 +49,14 @@ sub new {
     return $Self;
 }
 
-=item ProviderProcessRequest()
+=head2 ProviderProcessRequest()
 
 Process an incoming web service request. This function has to read the request data
 from from the web server process.
 
 Based on the request the Operation to be used is determined.
 
-No outbound communication is done here, except from continue requests.
+No out-bound communication is done here, except from continue requests.
 
 In case of an error, the resulting http error code and message are remembered for the response.
 
@@ -105,12 +99,15 @@ sub ProviderProcessRequest {
         );
     }
 
+    # get Encode object
+    my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
+
     my $Operation;
     my %URIData;
     my $RequestURI = $ENV{REQUEST_URI} || $ENV{PATH_INFO};
     $RequestURI =~ s{.*Webservice(?:ID)?\/[^\/]+(\/.*)$}{$1}xms;
 
-    # remove any query parameter form the URL
+    # remove any query parameter from the URL
     # e.g. from /Ticket/1/2?UserLogin=user&Password=secret
     # to /Ticket/1/2?
     $RequestURI =~ s{([^?]+)(.+)?}{$1};
@@ -130,12 +127,20 @@ sub ProviderProcessRequest {
         #       UserLogin => 'user',
         #       Password  => 'secret',
         #    );
-        for my $QueryParam ( split '&', $QueryParamsStr ) {
+        for my $QueryParam ( split /[;&]/, $QueryParamsStr ) {
             my ( $Key, $Value ) = split '=', $QueryParam;
 
-            # unscape URI strings in query parameters
+            # Convert + characters to its encoded representation, see bug#11917
+            $Value =~ s{\+}{%20}g;
+
+            # unescape URI strings in query parameters
             $Key   = URI::Escape::uri_unescape($Key);
             $Value = URI::Escape::uri_unescape($Value);
+
+            # encode variables
+            $EncodeObject->EncodeInput( \$Key );
+            $EncodeObject->EncodeInput( \$Value );
+
             if ( !defined $QueryParams{$Key} ) {
                 $QueryParams{$Key} = $Value || '';
             }
@@ -180,7 +185,20 @@ sub ProviderProcessRequest {
 
         next ROUTE if !( $RequestURI =~ m{^ $RouteRegEx $}xms );
 
-        %URIData   = %+;
+        # import URI params
+        for my $URIKey ( sort keys %+ ) {
+            my $URIValue = $+{$URIKey};
+
+            # unescape value
+            $URIValue = URI::Escape::uri_unescape($URIValue);
+
+            # encode value
+            $EncodeObject->EncodeInput( \$URIValue );
+
+            # add to URI data
+            $URIData{$URIKey} = $URIValue;
+        }
+
         $Operation = $CurrentOperation;
 
         # leave with the first matching regexp
@@ -225,6 +243,15 @@ sub ProviderProcessRequest {
     my $Content;
     read STDIN, $Content, $Length;
 
+    # If there is no STDIN data it might be caused by fastcgi already having read the request.
+    # In this case we need to get the data from CGI.
+    if ( !IsStringWithData($Content) && $RequestMethod ne 'GET' ) {
+        my $ParamName = $RequestMethod . 'DATA';
+        $Content = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam(
+            Param => $ParamName,
+        );
+    }
+
     # check if we have content
     if ( !IsStringWithData($Content) ) {
         return $Self->_Error(
@@ -239,13 +266,13 @@ sub ProviderProcessRequest {
         $ContentCharset = $1;
     }
     if ( $ContentCharset && $ContentCharset !~ m{ \A utf [-]? 8 \z }xmsi ) {
-        $Content = $Kernel::OM->Get('Kernel::System::Encode')->Convert2CharsetInternal(
+        $Content = $EncodeObject->Convert2CharsetInternal(
             Text => $Content,
             From => $ContentCharset,
         );
     }
     else {
-        $Kernel::OM->Get('Kernel::System::Encode')->EncodeInput( \$Content );
+        $EncodeObject->EncodeInput( \$Content );
     }
 
     # send received data to debugger
@@ -298,7 +325,7 @@ sub ProviderProcessRequest {
     };
 }
 
-=item ProviderGenerateResponse()
+=head2 ProviderGenerateResponse()
 
 Generates response for an incoming web service request.
 
@@ -306,9 +333,9 @@ In case of an error, error code and message are taken from environment
 (previously set on request processing).
 
 The HTTP code is set accordingly
-- 200 for (syntactically) correct messages
-- 4xx for http errors
-- 500 for content syntax errors
+- C<200> for (syntactically) correct messages
+- C<4xx> for http errors
+- C<500> for content syntax errors
 
     my $Result = $TransportObject->ProviderGenerateResponse(
         Success => 1
@@ -377,7 +404,7 @@ sub ProviderGenerateResponse {
     );
 }
 
-=item RequesterPerformRequest()
+=head2 RequesterPerformRequest()
 
 Prepare data payload as XML structure, generate an outgoing web service request,
 receive the response and return its data.
@@ -443,7 +470,10 @@ sub RequesterPerformRequest {
         };
     }
 
-    my $Headers = {};
+    # create header container
+    # and add proper content type
+    my $Headers = { 'Content-Type' => 'application/json; charset=UTF-8' };
+
     if ( IsHashRefWithData( $Config->{Authentication} ) ) {
 
         # basic authentication
@@ -608,8 +638,9 @@ sub RequesterPerformRequest {
         delete $Param{Data}->{$ParamName};
     }
 
-    # get JSON object
-    my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
+    # get JSON and Encode object
+    my $JSONObject   = $Kernel::OM->Get('Kernel::System::JSON');
+    my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 
     my $Body;
     if ( IsHashRefWithData( $Param{Data} ) ) {
@@ -629,6 +660,9 @@ sub RequesterPerformRequest {
             $Param{Data} = $JSONObject->Encode(
                 Data => $Param{Data},
             );
+
+            # make sure data is correctly encoded
+            $EncodeObject->EncodeOutput( \$Param{Data} );
         }
 
         # whereas GET and the others just have a the data added to the Query URI.
@@ -665,10 +699,8 @@ sub RequesterPerformRequest {
         push @RequestParam, $Body;
     }
 
-    # Headers is an optional tag, so just add it if present.
-    if ( IsHashRefWithData($Headers) ) {
-        push @RequestParam, $Headers;
-    }
+    # add headers to request
+    push @RequestParam, $Headers;
 
     $RestClient->$RestCommand(@RequestParam);
 
@@ -681,7 +713,7 @@ sub RequesterPerformRequest {
         $ResponseError = $ErrorMessage;
     }
 
-    if ( $ResponseCode ne '200' ) {
+    if ( $ResponseCode !~ m{ \A 20 \d \z }xms ) {
         $ResponseError = $ErrorMessage . " Response code '$ResponseCode'.";
     }
 
@@ -714,8 +746,8 @@ sub RequesterPerformRequest {
 
     my $SizeExeeded = 0;
     {
-        my $MaxSize
-            = $Kernel::OM->Get('Kernel::Config')->Get('GenericInterface::Operation::ResponseLoggingMaxSize') || 200;
+        my $MaxSize = $Kernel::OM->Get('Kernel::Config')->Get('GenericInterface::Operation::ResponseLoggingMaxSize')
+            || 200;
         $MaxSize = $MaxSize * 1024;
         use bytes;
 
@@ -743,7 +775,7 @@ sub RequesterPerformRequest {
         Data    => $ResponseContent,
     );
 
-    $ResponseContent = $Kernel::OM->Get('Kernel::System::Encode')->Convert2CharsetInternal(
+    $ResponseContent = $EncodeObject->Convert2CharsetInternal(
         Text => $ResponseContent,
         From => 'utf-8',
     );
@@ -776,7 +808,7 @@ sub RequesterPerformRequest {
 
 =begin Internal:
 
-=item _Output()
+=head2 _Output()
 
 Generate http response for provider and send it back to remote system.
 Environment variables are checked for potential error messages.
@@ -853,6 +885,16 @@ sub _Output {
     # set keep-alive
     my $Connection = $Self->{KeepAlive} ? 'Keep-Alive' : 'close';
 
+    # prepare additional headers
+    my $AdditionalHeaderStrg = '';
+    if ( IsHashRefWithData( $Self->{TransportConfig}->{Config}->{AdditionalHeaders} ) ) {
+        my %AdditionalHeaders = %{ $Self->{TransportConfig}->{Config}->{AdditionalHeaders} };
+        for my $AdditionalHeader ( sort keys %AdditionalHeaders ) {
+            $AdditionalHeaderStrg
+                .= $AdditionalHeader . ': ' . ( $AdditionalHeaders{$AdditionalHeader} || '' ) . "\r\n";
+        }
+    }
+
     # in the constructor of this module STDIN and STDOUT are set to binmode without any additional
     # layer (according to the documentation this is the same as set :raw). Previous solutions for
     # binary responses requires the set of :raw or :utf8 according to IO layers.
@@ -871,6 +913,7 @@ sub _Output {
     print STDOUT "Content-Type: $ContentType; charset=UTF-8\r\n";
     print STDOUT "Content-Length: $ContentLength\r\n";
     print STDOUT "Connection: $Connection\r\n";
+    print STDOUT $AdditionalHeaderStrg;
     print STDOUT "\r\n";
     print STDOUT $Param{Content};
 
@@ -880,7 +923,7 @@ sub _Output {
     };
 }
 
-=item _Error()
+=head2 _Error()
 
 Take error parameters from request processing.
 Error message is written to debugger, written to environment for response.
@@ -930,8 +973,6 @@ sub _Error {
 1;
 
 =end Internal:
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

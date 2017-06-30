@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,6 +7,8 @@
 # --
 
 package Kernel::Output::HTML::NavBar::AgentTicketProcess;
+
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -20,19 +22,6 @@ our @ObjectDependencies = (
     'Kernel::System::ProcessManagement::Process',
 );
 
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
-
 sub Run {
     my ( $Self, %Param ) = @_;
 
@@ -40,13 +29,15 @@ sub Run {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     # get process management configuration
-    my $FrontendModuleConfig = $ConfigObject->Get('Frontend::Module')->{AgentTicketProcess};
+    my $FrontendModuleConfig     = $ConfigObject->Get('Frontend::Module')->{AgentTicketProcess};
+    my $FrontendNavigationConfig = $ConfigObject->Get('Frontend::Navigation')->{AgentTicketProcess};
 
     # check if the registration config is valid
     return if !IsHashRefWithData($FrontendModuleConfig);
-    return if !IsHashRefWithData( $FrontendModuleConfig->{NavBar}->[0] );
+    return if !IsHashRefWithData($FrontendNavigationConfig);
+    return if !IsHashRefWithData( $FrontendNavigationConfig->{1} );
 
-    my $NameForID = $FrontendModuleConfig->{NavBar}->[0]->{Name};
+    my $NameForID = $FrontendNavigationConfig->{1}->{Name};
     $NameForID =~ s/[ &;]//ig;
 
     # check if the module name is valid
@@ -135,7 +126,7 @@ sub Run {
 
     # frontend module is enabled but there is no selectable process, then remove the menu entry
     my $NavBarName = $FrontendModuleConfig->{NavBarName};
-    my $Priority = sprintf( "%07d", $FrontendModuleConfig->{NavBar}->[0]->{Prio} );
+    my $Priority = sprintf( "%07d", $FrontendNavigationConfig->{1}->{Prio} );
 
     my %Return = %{ $Param{NavBar}->{Sub} || {} };
 

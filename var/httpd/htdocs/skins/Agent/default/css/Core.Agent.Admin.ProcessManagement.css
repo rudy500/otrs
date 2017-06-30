@@ -173,6 +173,10 @@ ul#ProcessElements li.AccordionElement div.Content ul {
 ul#ProcessElements li.AccordionElement div.Content ul li {
     padding: 2px 5px 2px 5px;
     position: relative;
+    cursor: default;
+}
+
+ul#ProcessElements li.AccordionElement div.Content ul li.OneRow {
     cursor: move;
 }
 
@@ -423,6 +427,7 @@ em.EntityID:after {
     margin: 32px 5px 5px 5px;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding-top: 3px;
 }
 
 #Canvas .Activity .Icon,
@@ -561,6 +566,53 @@ em.EntityID:after {
 
 .Fields {
     margin-top: 15px;
+}
+
+#TransitionForm .WidgetSimple .WidgetSimple {
+    margin-top: 10px;
+}
+
+#TransitionForm .WidgetSimple .WidgetSimple + .WidgetSimple {
+    margin-top: -5px;
+}
+
+#TransitionForm .WidgetSimple .WidgetSimple .WidgetSimple {
+    margin-bottom: 0px;
+}
+
+#TransitionForm #PresentConditionsContainer > label,
+#TransitionForm #PresentConditionsContainer p {
+    width: auto;
+    display: inline-block;
+    margin-right: 5px;
+    margin-left: 10px;
+}
+
+#TransitionForm #ConditionAdd {
+    margin-left: 10px;
+    margin-top: -5px;
+}
+
+#TransitionForm .Condition > fieldset > label {
+    width: auto;
+    display: inline-block;
+    margin: 0px 5px 0px 10px;
+}
+
+#TransitionForm fieldset + fieldset {
+    margin-top: 7px;
+}
+
+#TransitionForm .FieldWidget label {
+    margin: 0px 3px 0px 5px;
+}
+
+#TransitionForm #ConfigParams input {
+    width: 40%;
+}
+
+#TransitionForm #ConfigParams input + label {
+    margin-left: 5px;
 }
 
 /**

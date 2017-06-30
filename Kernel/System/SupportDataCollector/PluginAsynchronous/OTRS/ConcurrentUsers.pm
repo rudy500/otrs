@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,17 +11,16 @@ package Kernel::System::SupportDataCollector::PluginAsynchronous::OTRS::Concurre
 use strict;
 use warnings;
 
-use base qw(Kernel::System::SupportDataCollector::PluginAsynchronous);
+use parent qw(Kernel::System::SupportDataCollector::PluginAsynchronous);
 
-use Date::Pcalc qw(Add_Delta_YMD Add_Delta_DHMS);
-
+use Kernel::Language qw(Translatable);
 use Kernel::System::VariableCheck qw(:all);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::AuthSession',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
 );
 
 sub GetDisplayPath {
@@ -36,7 +35,7 @@ sub Run {
 
     # the table details data
     $Self->AddResultInformation(
-        Label => 'Concurrent Users Details',
+        Label => Translatable('Concurrent Users Details'),
         Value => $ConcurrentUsers || [],
     );
 
@@ -67,13 +66,14 @@ sub Run {
         ENTRY:
         for my $Entry ( @{$ConcurrentUsers} ) {
 
+            next ENTRY if !$Entry->{$Identifier};
             next ENTRY if $Entry->{$Identifier} && $Entry->{$Identifier} <= $MaxValue;
 
             $MaxValue = $Entry->{$Identifier} || 0;
         }
 
         $Self->AddResultInformation(
-            DisplayPath => 'OTRS/Concurrent Users',
+            DisplayPath => Translatable('OTRS') . '/' . Translatable('Concurrent Users'),
             Identifier  => $Identifier,
             Label       => "Max. $Label",
             Value       => $MaxValue,
@@ -86,28 +86,22 @@ sub Run {
 sub RunAsynchronous {
     my $Self = shift;
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $SystemTimeNow  = $DateTimeObject->ToEpoch();
 
-    # get system time
-    my $SystemTimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    $DateTimeObject->Add( Hours => 1 );
 
-    my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-        SystemTime => $SystemTimeNow + 3600,
-    );
-
-    my $SystemTime = $TimeObject->Date2SystemTime(
-        Year   => $Year,
-        Month  => $Month,
-        Day    => $Day,
-        Hour   => $Hour,
+    # Get the time values and use only the full hour.
+    my $DateTimeValues = $DateTimeObject->Get();
+    $DateTimeObject->Set(
+        Year   => $DateTimeValues->{Year},
+        Month  => $DateTimeValues->{Month},
+        Day    => $DateTimeValues->{Day},
+        Hour   => $DateTimeValues->{Hour},
         Minute => 0,
         Second => 0,
     );
-
-    my $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-        SystemTime => $SystemTime,
-    );
+    my $TimeStamp = $DateTimeObject->ToString();
 
     my $AsynchronousData = $Self->_GetAsynchronousData();
 
@@ -116,11 +110,11 @@ sub RunAsynchronous {
     if ( IsArrayRefWithData($AsynchronousData) ) {
 
         # already existing entry counter
-        my $AsynchronousDataCounter = scalar @{$AsynchronousData} - 1;
+        my $AsynchronousDataCount = scalar @{$AsynchronousData} - 1;
 
         # check if for the current hour already a value exists
         COUNTER:
-        for my $Counter ( 0 .. $AsynchronousDataCounter ) {
+        for my $Counter ( 0 .. $AsynchronousDataCount ) {
 
             next COUNTER
                 if $AsynchronousData->[$Counter]->{TimeStamp}
@@ -132,20 +126,8 @@ sub RunAsynchronous {
         }
 
         # set the check timestamp to one week ago
-        my ( $CheckYear, $CheckMonth, $CheckDay ) = Date::Pcalc::Add_Delta_YMD( $Year, $Month, $Day, 0, 0, -7 );
-
-        my $CheckSystemTime = $TimeObject->Date2SystemTime(
-            Year   => $CheckYear,
-            Month  => $CheckMonth,
-            Day    => $CheckDay,
-            Hour   => $Hour,
-            Minute => 0,
-            Second => 0,
-        );
-
-        my $CheckTimeStamp = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $CheckSystemTime,
-        );
+        $DateTimeObject->Subtract( Days => 7 );
+        my $CheckTimeStamp = $DateTimeObject->ToString();
 
         # remove all entries older than one week
         @{$AsynchronousData} = grep { $_->{TimeStamp} && $_->{TimeStamp} ge $CheckTimeStamp } @{$AsynchronousData};
@@ -162,9 +144,6 @@ sub RunAsynchronous {
         }
     }
 
-    # get the session active time
-    my $SessionActiveTime = $Kernel::OM->Get('Kernel::Config')->Get('SessionActiveTime') || 60 * 10;
-
     # get all sessions
     my @Sessions = $AuthSessionObject->GetAllSessionIDs();
 
@@ -177,47 +156,18 @@ sub RunAsynchronous {
         CustomerSessionUnique => 0,
     );
 
-    # to save the unique agents and customer users
-    my %LookupUsers;
-    my %LookupCustomers;
+    for my $UserType (qw(User Customer)) {
 
-    # collect the existing sessions of each user (not customer user)
-    SESSION:
-    for my $SessionID (@Sessions) {
+        my %ActiveSessions = $AuthSessionObject->GetActiveSessions(
+            UserType => $UserType,
+        );
 
-        # get session data
-        my %SessionData = $AuthSessionObject->GetSessionIDData( SessionID => $SessionID );
-
-        next SESSION if !%SessionData;
-
-        # get needed data
-        my $UserType        = $SessionData{UserType}        || '';
-        my $UserLastRequest = $SessionData{UserLastRequest} || $SystemTimeNow;
-        my $UserLogin       = $SessionData{UserLogin};
-
-        next SESSION if $UserType ne 'User' && $UserType ne 'Customer';
-        next SESSION if ( $UserLastRequest + $SessionActiveTime ) < $SystemTimeNow;
-
-        $CountConcurrentUser{ $UserType . 'Session' }++;
-
-        if ( $UserType eq 'User' ) {
-
-            if ( !$LookupUsers{$UserLogin} ) {
-                $CountConcurrentUser{UserSessionUnique}++;
-                $LookupUsers{$UserLogin} = 1;
-            }
-        }
-        elsif ( $UserType eq 'Customer' ) {
-
-            if ( !$LookupCustomers{$UserLogin} ) {
-                $CountConcurrentUser{CustomerSessionUnique}++;
-                $LookupCustomers{$UserLogin} = 1;
-            }
-        }
+        $CountConcurrentUser{ $UserType . 'Session' }       = $ActiveSessions{Total};
+        $CountConcurrentUser{ $UserType . 'SessionUnique' } = scalar keys %{ $ActiveSessions{PerUser} };
     }
 
     # update the concurrent user counter, if a higher value for the current hour exists
-    if ($CurrentHourPosition) {
+    if ( defined $CurrentHourPosition ) {
 
         my $ChangedConcurrentUserCounter;
 
@@ -244,17 +194,5 @@ sub RunAsynchronous {
 
     return 1;
 }
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -29,22 +29,16 @@ our @ObjectDependencies = (
 
 Kernel::System::JSON - the JSON wrapper lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Functions for encoding perl data structures to JSON.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create a JSON object. Do not use it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
 
 =cut
@@ -59,13 +53,14 @@ sub new {
     return $Self;
 }
 
-=item Encode()
+=head2 Encode()
 
 Encode a perl data structure to a JSON string.
 
     my $JSONString = $JSONObject->Encode(
         Data     => $Data,
         SortKeys => 1,          # (optional) (0|1) default 0, to sort the keys of the json data
+        Pretty => 1,            # (optional) (0|1) default 0, to pretty print
     );
 
 =cut
@@ -89,16 +84,32 @@ sub Encode {
 
     # sort the keys of the JSON data
     if ( $Param{SortKeys} ) {
-        $JSONObject->canonical( [1] );
+        $JSONObject->canonical(1);
+    }
+
+    # pretty print - can be useful for debugging purposes
+    if ( $Param{Pretty} ) {
+        $JSONObject->pretty(1);
     }
 
     # get JSON-encoded presentation of perl structure
     my $JSONEncoded = $JSONObject->encode( $Param{Data} ) || '""';
 
+    # Special handling for unicode line terminators (\u2028 and \u2029),
+    # they are allowed in JSON but not in JavaScript
+    # see: http://timelessrepo.com/json-isnt-a-javascript-subset
+    #
+    # Should be fixed in JSON module, but bug report is still open
+    # see: https://rt.cpan.org/Public/Bug/Display.html?id=75755
+    #
+    # Therefore must be encoded manually
+    $JSONEncoded =~ s/\x{2028}/\\u2028/xmsg;
+    $JSONEncoded =~ s/\x{2029}/\\u2029/xmsg;
+
     return $JSONEncoded;
 }
 
-=item Decode()
+=head2 Decode()
 
 Decode a JSON string to a perl data structure.
 
@@ -133,10 +144,15 @@ sub Decode {
         return;
     }
 
+    # sanitize leftover boolean objects
+    $Scalar = $Self->_BooleansProcess(
+        JSON => $Scalar,
+    );
+
     return $Scalar;
 }
 
-=item True()
+=head2 True()
 
 returns a constant that can be mapped to a boolean true value
 in JSON rather than a string with "true".
@@ -154,22 +170,73 @@ as a JavaScript string instead.
 =cut
 
 sub True {
-    return JSON::true();
+
+    # Use constant instead of JSON::false() as this can cause nasty problems with JSON::XS on some platforms.
+    # (encountered object '1', but neither allow_blessed, convert_blessed nor allow_tags settings are enabled)
+    return \1;
 }
 
-=item False()
+=head2 False()
 
 like C<True()>, but for a false boolean value.
 
 =cut
 
 sub False {
-    return JSON::false();
+
+    # Use constant instead of JSON::false() as this can cause nasty problems with JSON::XS on some platforms.
+    # (encountered object '0', but neither allow_blessed, convert_blessed nor allow_tags settings are enabled)
+    return \0;
+}
+
+=begin Internal:
+
+=cut
+
+=head2 _BooleansProcess()
+
+decode boolean values leftover from JSON decoder to simple scalar values
+
+    my $ProcessedJSON = $JSONObject->_BooleansProcess(
+        JSON => $JSONData,
+    );
+
+=cut
+
+sub _BooleansProcess {
+    my ( $Self, %Param ) = @_;
+
+    # convert scalars if needed
+    if ( JSON::is_bool( $Param{JSON} ) ) {
+        $Param{JSON} = ( $Param{JSON} ? 1 : 0 );
+    }
+
+    # recurse into arrays
+    elsif ( ref $Param{JSON} eq 'ARRAY' ) {
+
+        for my $Value ( @{ $Param{JSON} } ) {
+            $Value = $Self->_BooleansProcess(
+                JSON => $Value,
+            );
+        }
+    }
+
+    # recurse into hashes
+    elsif ( ref $Param{JSON} eq 'HASH' ) {
+
+        for my $Value ( values %{ $Param{JSON} } ) {
+            $Value = $Self->_BooleansProcess(
+                JSON => $Value,
+            );
+        }
+    }
+
+    return $Param{JSON};
 }
 
 1;
 
-=back
+=end Internal:
 
 =head1 TERMS AND CONDITIONS
 

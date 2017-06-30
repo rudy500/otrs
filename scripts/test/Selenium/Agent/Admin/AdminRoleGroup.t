@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,15 +12,16 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -31,55 +32,70 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $RoleRandomID  = $Helper->GetRandomID();
-        my $GroupRandomID = $Helper->GetRandomID();
-
         #add test role
-        my $RoleID = $Kernel::OM->Get('Kernel::System::Group')->RoleAdd(
-            Name    => $RoleRandomID,
+        my $RoleName = $Helper->GetRandomID();
+        my $RoleID   = $Kernel::OM->Get('Kernel::System::Group')->RoleAdd(
+            Name    => $RoleName,
             ValidID => 1,
             UserID  => 1,
+        );
+        $Self->True(
+            $RoleID,
+            "Created Role - $RoleName",
         );
 
         # add test group
-        my $GroupID = $Kernel::OM->Get('Kernel::System::Group')->GroupAdd(
-            Name    => $GroupRandomID,
+        my $GroupName = $Helper->GetRandomID();
+        my $GroupID   = $Kernel::OM->Get('Kernel::System::Group')->GroupAdd(
+            Name    => $GroupName,
             ValidID => 1,
             UserID  => 1,
         );
+        $Self->True(
+            $GroupID,
+            "Created Group - $RoleName",
+        );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminRoleGroup");
+        # navigate to AdminRoleGroup screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminRoleGroup");
 
         # check overview AdminRoleGroup
         $Selenium->find_element( "#Roles",  'css' );
         $Selenium->find_element( "#Groups", 'css' );
 
+        # check breadcrumb on Overview screen
         $Self->True(
-            index( $Selenium->get_page_source(), $RoleRandomID ) > -1,
-            "$RoleRandomID role found on page",
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
         );
 
         $Self->True(
-            index( $Selenium->get_page_source(), $GroupRandomID ) > -1,
-            "$GroupRandomID group found on page",
+            index( $Selenium->get_page_source(), $RoleName ) > -1,
+            "$RoleName role found on page",
+        );
+
+        $Self->True(
+            index( $Selenium->get_page_source(), $GroupName ) > -1,
+            "$GroupName group found on page",
         );
 
         # test filter for Roles
-        $Selenium->find_element( "#FilterRoles", 'css' )->send_keys($RoleRandomID);
+        $Selenium->find_element( "#FilterRoles", 'css' )->send_keys($RoleName);
         sleep 1;
         $Self->True(
-            $Selenium->find_element( "$RoleRandomID", 'link_text' )->is_displayed(),
-            "$RoleRandomID role found on page",
+            $Selenium->find_element( "$RoleName", 'link_text' )->is_displayed(),
+            "$RoleName role found on page",
         );
 
         # test filter for Groups
-        $Selenium->find_element( "#FilterGroups", 'css' )->send_keys($GroupRandomID);
+        $Selenium->find_element( "#FilterGroups", 'css' )->send_keys($GroupName);
         sleep 1;
         $Self->True(
-            $Selenium->find_element( "$GroupRandomID", 'link_text' )->is_displayed(),
-            "$GroupRandomID group found on page",
+            $Selenium->find_element( "$GroupName", 'link_text' )->is_displayed(),
+            "$GroupName group found on page",
         );
 
         # clear test filter for Roles and Groups
@@ -88,100 +104,148 @@ $Selenium->RunTest(
         sleep 1;
 
         # edit group relations for test role
-        $Selenium->find_element( $RoleRandomID, 'link_text' )->click();
-        $Selenium->find_element("//input[\@value='$GroupID'][\@name='ro']")->click();
-        $Selenium->find_element("//input[\@value='$GroupID'][\@name='note']")->click();
-        $Selenium->find_element("//input[\@value='$GroupID'][\@name='owner']")->click();
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        $Selenium->find_element( $RoleName, 'link_text' )->VerifiedClick();
+
+        # check breadcrumb on change screen
+        my $Count = 1;
+        for my $BreadcrumbText (
+            'Manage Role-Group Relations',
+            'Change Group Relations for Role \'' . $RoleName . '\''
+            )
+        {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
+        # set permissions
+        for my $Permission (qw(ro note owner)) {
+            $Selenium->find_element("//input[\@value='$GroupID'][\@name='$Permission']")->VerifiedClick();
+        }
+
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
+
+        my %TestFirst = (
+            'ro'        => 1,
+            'move_into' => 0,
+            'create'    => 0,
+            'note'      => 1,
+            'owner'     => 1,
+            'priority'  => 0,
+            'rw'        => 0,
+        );
+
+        my %TestSecond = (
+            'ro'        => 1,
+            'move_into' => 1,
+            'create'    => 1,
+            'note'      => 0,
+            'owner'     => 1,
+            'priority'  => 1,
+            'rw'        => 0,
+        );
 
         # check edited test group permissions
-        $Selenium->find_element( $RoleRandomID, 'link_text' )->click();
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$GroupID'][\@name='ro']")->is_selected(),
-            1,
-            "ro permission for group $GroupRandomID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$GroupID'][\@name='note']")->is_selected(),
-            1,
-            "note permission for group $GroupRandomID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$GroupID'][\@name='owner']")->is_selected(),
-            1,
-            "owner permission for group $GroupRandomID is enabled",
-        );
+        $Selenium->find_element( $RoleName, 'link_text' )->VerifiedClick();
 
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$GroupID'][\@name='move_into']")->is_selected(),
-            0,
-            "move_into permission for group $GroupRandomID is disabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$GroupID'][\@name='priority']")->is_selected(),
-            0,
-            "priority permission for group $GroupRandomID is disabled",
-        );
+        # check permissions
+        for my $Permission ( sort keys %TestFirst ) {
+            my $Enabled = $TestFirst{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$GroupID'][\@name='$Permission']")->is_selected(),
+                $TestFirst{$Permission},
+                "$Permission permission for group $GroupName and role $RoleName is $Enabled",
+            );
+        }
 
-        # go back to AdminRoleGroup screen
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminRoleGroup");
+        # test checked and unchecked values while filter by group is used
+        # test filter with "WrongFilterGroup" to uncheck all values
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys("WrongFilterGroup");
+        sleep 1;
+
+        # test if no data is matches
+        $Self->True(
+            $Selenium->find_element( ".FilterMessage.Hidden>td", 'css' )->is_displayed(),
+            "'No data matches' is displayed'"
+        );
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+
+        # check permissions
+        for my $Permission ( sort keys %TestFirst ) {
+            my $Enabled = $TestFirst{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$GroupID'][\@name='$Permission']")->is_selected(),
+                $TestFirst{$Permission},
+                "$Permission permission for group $GroupName and role $RoleName is $Enabled",
+            );
+        }
+
+        # navigate to AdminRoleGroup screen again
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminRoleGroup");
 
         # edit role relations for test group
-        $Selenium->find_element( $GroupRandomID, 'link_text' )->click();
-        $Selenium->find_element("//input[\@value='$RoleID'][\@name='move_into']")->click();
-        $Selenium->find_element("//input[\@value='$RoleID'][\@name='priority']")->click();
-        $Selenium->find_element("//input[\@value='$RoleID'][\@name='create']")->click();
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        $Selenium->find_element( $GroupName, 'link_text' )->VerifiedClick();
+
+        # set permissions
+        for my $Permission (qw(note move_into priority create)) {
+            $Selenium->find_element("//input[\@value='$RoleID'][\@name='$Permission']")->VerifiedClick();
+        }
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
         # check edited test group permissions
-        $Selenium->find_element( $GroupRandomID, 'link_text' )->click();
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$RoleID'][\@name='ro']")->is_selected(),
-            1,
-            "ro permission for role $RoleRandomID is enabled",
-        );
+        $Selenium->find_element( $GroupName, 'link_text' )->VerifiedClick();
 
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$RoleID'][\@name='note']")->is_selected(),
-            1,
-            "note permission for role $RoleRandomID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$RoleID'][\@name='owner']")->is_selected(),
-            1,
-            "owner permission for role $RoleRandomID is enabled",
-        );
+        # check permissions
+        for my $Permission ( sort keys %TestSecond ) {
+            my $Enabled = $TestSecond{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$RoleID'][\@name='$Permission']")->is_selected(),
+                $TestSecond{$Permission},
+                "$Permission permission for group $GroupName and role $RoleName is $Enabled",
+            );
+        }
 
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$RoleID'][\@name='move_into']")->is_selected(),
-            1,
-            "move_into permission for role $RoleRandomID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$RoleID'][\@name='priority']")->is_selected(),
-            1,
-            "priority permission for role $RoleRandomID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$RoleID'][\@name='create']")->is_selected(),
-            1,
-            "create permission for role $RoleRandomID is enabled",
-        );
+        # test checked and unchecked values while filter is used for Role
+        # test filter with "WrongFilterRole" to uncheck all values
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys("WrongFilterRole");
+        sleep 1;
 
-        # Since there are no tickets that rely on our test group and role, we can remove them again
-        # from the DB.
+        # test is no data matches
+        $Self->True(
+            $Selenium->find_element( ".FilterMessage.Hidden>td", 'css' )->is_displayed(),
+            "'No data matches' is displayed'"
+        );
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+
+        # check role relations for group after using filter by role
+        # check permissions
+        for my $Permission ( sort keys %TestSecond ) {
+            my $Enabled = $TestSecond{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$RoleID'][\@name='$Permission']")->is_selected(),
+                $TestSecond{$Permission},
+                "$Permission permission for group $GroupName and role $RoleName is $Enabled",
+            );
+        }
+
+        # since there are no tickets that rely on our test group and role, we can remove them again
+        # from the DB
         my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
         if ($GroupID) {
             my $Success = $DBObject->Do(
                 SQL => "DELETE FROM group_role WHERE group_id = $GroupID",
             );
 
-            if ($Success) {
-                $Self->True(
-                    $Success,
-                    "GroupRoleDelete - for $GroupRandomID",
-                );
-            }
+            $Self->True(
+                $Success,
+                "GroupRoleDelete - for $GroupName",
+            );
 
             $Success = $DBObject->Do(
                 SQL => "DELETE FROM groups WHERE id = $GroupID",
@@ -189,7 +253,7 @@ $Selenium->RunTest(
 
             $Self->True(
                 $Success,
-                "GroupDelete - $GroupRandomID",
+                "GroupDelete - $GroupName",
             );
         }
 
@@ -201,14 +265,19 @@ $Selenium->RunTest(
 
             $Self->True(
                 $Success,
-                "RoleDelete - $RoleRandomID",
+                "RoleDelete - $RoleName",
             );
         }
 
-        # Make sure the cache is correct.
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Group' );
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Role' );
-
+        # make sure the cache is correct.
+        for my $Cache (
+            qw (Group Role)
+            )
+        {
+            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+                Type => $Cache,
+            );
+        }
     }
 );
 

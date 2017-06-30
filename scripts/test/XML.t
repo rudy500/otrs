@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,12 +12,19 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $XMLObject    = $Kernel::OM->Get('Kernel::System::XML');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+my $StorableObject = $Kernel::OM->Get('Kernel::System::Storable');
+my $XMLObject      = $Kernel::OM->Get('Kernel::System::XML');
 
-# test XMLParse2XMLHash() with an iso-8859-1 encoded xml
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# test XMLParse2XMLHash() with an iso-8859-1 encoded XML
 my $String = '<?xml version="1.0" encoding="iso-8859-1" ?>
     <Contact>
       <Name type="long">' . "\x{00FC}" . ' Some Test</Name>
@@ -561,10 +568,16 @@ for my $Key (@Keys) {
 }
 
 #------------------------------------------------#
-# a test to find charset problems with xml files
+# a test to find charset problems with XML files
 #------------------------------------------------#
 
-# get the example xml
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Internal',
+);
+
+# get the example XML
 my $Path = $ConfigObject->Get('Home');
 $Path .= "/scripts/test/sample/XML/";
 my $File = 'XML-Test-file.xml';
@@ -575,15 +588,15 @@ if ( open( my $DATA, "<", "$Path/$File" ) ) {    ## no critic
     }
     close($DATA);
 
-    # charset test - use file form the filesystem and parse it
+    # charset test - use file from the filesystem and parse it
     @XMLHash = $XMLObject->XMLParse2XMLHash( String => $String );
     $Self->True(
         $#XMLHash == 1
             && $XMLHash[1]->{'EISPP-Advisory'}->[1]->{System_Information}->[1]->{information},
-        'XMLParse2XMLHash() - charset test - use file form the filesystem and parse it',
+        'XMLParse2XMLHash() - charset test - use file from the filesystem and parse it',
     );
 
-    # charset test - use file form the article attachment and parse it
+    # charset test - use file from the article attachment and parse it
     my $TicketID = $TicketObject->TicketCreate(
         Title        => 'Some Ticket Title',
         Queue        => 'Raw',
@@ -600,15 +613,15 @@ if ( open( my $DATA, "<", "$Path/$File" ) ) {    ## no critic
         'XMLParse2XMLHash() - charset test - create ticket',
     );
 
-    my $ArticleID = $TicketObject->ArticleCreate(
-        TicketID    => $TicketID,
-        ArticleType => 'note-internal',
-        SenderType  => 'agent',
-        From        => 'Some Agent <email@example.com>',
-        To          => 'Some Customer <customer-a@example.com>',
-        Cc          => 'Some Customer <customer-b@example.com>',
-        ReplyTo     => 'Some Customer <customer-b@example.com>',
-        Subject     => 'some short description',
+    my $ArticleID = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketID,
+        IsVisibleForCustomer => 0,
+        SenderType           => 'agent',
+        From                 => 'Some Agent <email@example.com>',
+        To                   => 'Some Customer <customer-a@example.com>',
+        Cc                   => 'Some Customer <customer-b@example.com>',
+        ReplyTo              => 'Some Customer <customer-b@example.com>',
+        Subject              => 'some short description',
         Body =>
             'the message text Perl modules provide a range of featurheel, and can be downloaded',
         ContentType    => 'text/plain; charset=ISO-8859-15',
@@ -623,7 +636,7 @@ if ( open( my $DATA, "<", "$Path/$File" ) ) {    ## no critic
         'XMLParse2XMLHash() - charset test - create article',
     );
 
-    my $Feedback = $TicketObject->ArticleWriteAttachment(
+    my $Feedback = $ArticleBackendObject->ArticleWriteAttachment(
         Content     => $String,
         ContentType => 'text/html; charset="iso-8859-15"',
         Filename    => $File,
@@ -635,7 +648,7 @@ if ( open( my $DATA, "<", "$Path/$File" ) ) {    ## no critic
         'XMLParse2XMLHash() - charset test - write an article attachment to storage',
     );
 
-    my %Attachment = $TicketObject->ArticleAttachment(
+    my %Attachment = $ArticleBackendObject->ArticleAttachment(
         ArticleID => $ArticleID,
         FileID    => 1,
         UserID    => 1,
@@ -645,7 +658,7 @@ if ( open( my $DATA, "<", "$Path/$File" ) ) {    ## no critic
     $Self->True(
         $#XMLHash == 1
             && $XMLHash[1]->{'EISPP-Advisory'}->[1]->{System_Information}->[1]->{information},
-        'XMLParse2XMLHash() - charset test - use file form the article attachment and parse it',
+        'XMLParse2XMLHash() - charset test - use file from the article attachment and parse it',
     );
 
 }
@@ -655,5 +668,37 @@ else {
         "XMLParse2XMLHash() - charset test - failed because example file not found",
     );
 }
+
+# test bug#[12761]
+# (https://bugs.otrs.org/show_bug.cgi?id=12761) - Cache values can be modified from the outside in function XMLParse().
+#
+$XML = '<Test Name="test123" />';
+my @XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+# make a copy of the XMLArray (deep clone it),
+# it will be needed for a later comparison
+my @XMLARRAYCopy = @{ $StorableObject->Clone( Data => \@XMLARRAY ) };
+
+# check that the copy is the same as the original
+$Self->IsDeeply(
+    \@XMLARRAY,
+    \@XMLARRAYCopy,
+    '@XMLARRAY equals @XMLARRAYCopy',
+);
+
+# modify the original, this should not influence the cache of XMLParse()
+$XMLARRAY[0]->{Hello} = 'World';
+
+# create a new xml array from the same xml string than the first
+my @XMLARRAY2 = $XMLObject->XMLParse( String => $XML );
+
+# check that the new array is the same as the original copy
+$Self->IsDeeply(
+    \@XMLARRAY2,
+    \@XMLARRAYCopy,
+    '@XMLARRAY2 equals @XMLARRAYCopy',
+);
+
+# cleanup is done by RestoreDatabase
 
 1;

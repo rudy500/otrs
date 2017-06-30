@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,7 +20,7 @@ our @ObjectDependencies = (
 
 Kernel::System::Cache - Key/value based data cache for OTRS
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This is a simple data cache. It can store key/value data both
 in memory and in a configured cache backend for persistent caching.
@@ -31,16 +31,10 @@ C<Cache::Module> and defaults to file system based storage for permanent caching
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
 
 =cut
@@ -67,7 +61,7 @@ sub new {
     return $Self;
 }
 
-=item Configure()
+=head2 Configure()
 
 change cache configuration settings at runtime. You can use this to disable the cache in
 environments where it is not desired, such as in long running scripts.
@@ -93,7 +87,7 @@ sub Configure {
     return;
 }
 
-=item Set()
+=head2 Set()
 
 store a value in the cache.
 
@@ -109,8 +103,8 @@ usually this will represent the OTRS object that is supposed to be cached, like 
 
 The Key identifies the entry (together with the type) for retrieval and deletion of this value.
 
-The TTL controls when the cache will expire. Please note that the in-memory cache is not persistent
-and thus has no TTL/expiry mechanism.
+The C<TTL> controls when the cache will expire. Please note that the in-memory cache is not persistent
+and thus has no C<TTL>/expiry mechanism.
 
 Please note that if you store complex data, you have to make sure that the data is not modified
 in other parts of the code as the in-memory cache only refers to it. Otherwise also the cache would
@@ -188,7 +182,7 @@ sub Set {
     return 1;
 }
 
-=item Get()
+=head2 Get()
 
 fetch a value from the cache.
 
@@ -248,7 +242,7 @@ sub Get {
     return $Value;
 }
 
-=item Delete()
+=head2 Delete()
 
 deletes a single value from the cache.
 
@@ -285,7 +279,7 @@ sub Delete {
     return $Self->{CacheObject}->Delete(%Param);
 }
 
-=item CleanUp()
+=head2 CleanUp()
 
 delete parts of the cache or the full cache data.
 
@@ -345,8 +339,6 @@ sub CleanUp {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

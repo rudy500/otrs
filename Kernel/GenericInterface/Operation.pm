@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,18 +22,14 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::GenericInterface::Operation - GenericInterface Operation interface
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Operations are called by web service requests from remote
 systems.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create an object.
 
@@ -105,7 +101,7 @@ sub new {
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
 perform the selected Operation.
 
@@ -133,8 +129,6 @@ sub Run {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

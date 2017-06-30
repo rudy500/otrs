@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,6 +11,8 @@ package Kernel::System::ProcessManagement::DB::Process::State;
 use strict;
 use warnings;
 
+use Kernel::Language qw(Translatable);
+
 our @ObjectDependencies = (
     'Kernel::System::Log',
 );
@@ -19,22 +21,16 @@ our @ObjectDependencies = (
 
 Kernel::System::ProcessManagement::DB::Process::State.pm
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Process Management DB State backend
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $ProcessStateObject = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::Process::State');
 
 =cut
@@ -48,15 +44,15 @@ sub new {
 
     # create States list
     $Self->{StateList} = {
-        'S1' => 'Active',
-        'S2' => 'Inactive',
-        'S3' => 'FadeAway',
+        'S1' => Translatable('Active'),
+        'S2' => Translatable('Inactive'),
+        'S3' => Translatable('FadeAway'),
     };
 
     return $Self;
 }
 
-=item StateList()
+=head2 StateList()
 
 get a State list
 
@@ -71,6 +67,7 @@ get a State list
         'S2' => 'Inactive',
         'S3' => 'FadeAway',
     }
+
 =cut
 
 sub StateList {
@@ -88,7 +85,7 @@ sub StateList {
     return $Self->{StateList};
 }
 
-=item StateLookup()
+=head2 StateLookup()
 
 get State name or State EntityID
 
@@ -107,6 +104,7 @@ get State name or State EntityID
 
     Returns:
     $EntityID = 'S1';
+
 =cut
 
 sub StateLookup {
@@ -145,8 +143,6 @@ sub StateLookup {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,19 +11,21 @@ package Kernel::System::Console::Command::Dev::Tools::TranslationsUpdate;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 use File::Basename;
+use File::Copy;
 use Lingua::Translit;
 use Pod::Strip;
-use Storable ();
 
 use Kernel::Language;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Encode',
     'Kernel::System::Main',
+    'Kernel::System::Storable',
     'Kernel::System::SysConfig',
 );
 
@@ -131,11 +133,14 @@ sub Run {
 
 my @OriginalTranslationStrings;
 
+# Remember which strings came from JavaScript
+my %UsedInJS;
+
 sub HandleLanguage {
     my ( $Self, %Param ) = @_;
 
     my $Language = $Param{Language};
-    my $Module   = $Param{Module};
+    my $Module = $Param{Module} || '';
 
     my $ModuleDirectory = $Module;
     my $LanguageFile;
@@ -181,19 +186,15 @@ sub HandleLanguage {
     my $WritePOT = $Param{WritePO} || -e $TargetPOTFile;
 
     if ( !-w $TargetFile ) {
-        $Self->PrintError("Ignoring nonexisting file $TargetFile!");
-        return;
-    }
-
-    if ($IsSubTranslation) {
-        $Self->Print(
-            "Processing language <yellow>$Language</yellow> template files from <yellow>$Module</yellow>, writing output to <yellow>$TargetFile</yellow>\n"
-        );
-    }
-    else {
-        $Self->Print(
-            "Processing language <yellow>$Language</yellow> template files, writing output to <yellow>$TargetFile</yellow>\n"
-        );
+        if ( -w $TargetPOFile ) {
+            $Self->Print(
+                "Creating missing file <yellow>$TargetFile</yellow>\n"
+            );
+        }
+        else {
+            $Self->PrintError("Ignoring missing file $TargetFile!");
+            return;
+        }
     }
 
     if ( !@OriginalTranslationStrings ) {
@@ -211,7 +212,18 @@ sub HandleLanguage {
         my @TemplateList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
             Directory => $Directory,
             Filter    => '*.tt',
+            Recursive => 1,
         );
+
+        my $CustomTemplatesDir = "$ModuleDirectory/Custom/Kernel/Output/HTML/Templates/$DefaultTheme";
+        if ( $IsSubTranslation && -d $CustomTemplatesDir ) {
+            my @CustomTemplateList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $CustomTemplatesDir,
+                Filter    => '*.tt',
+                Recursive => 1,
+            );
+            push @TemplateList, @CustomTemplateList;
+        }
 
         for my $File (@TemplateList) {
 
@@ -261,6 +273,27 @@ sub HandleLanguage {
             Recursive => 1,
         );
 
+        # include Custom folder for modules
+        my $CustomKernelDir = "$ModuleDirectory/Custom/Kernel";
+        if ( $IsSubTranslation && -d $CustomKernelDir ) {
+            my @CustomPerlModuleList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $CustomKernelDir,
+                Filter    => '*.pm',
+                Recursive => 1,
+            );
+            push @PerlModuleList, @CustomPerlModuleList;
+        }
+
+        # include var/packagesetup folder for modules
+        if ($IsSubTranslation) {
+            my @PackageSetupModuleList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => "$ModuleDirectory/var/packagesetup",
+                Filter    => '*.pm',
+                Recursive => 1,
+            );
+            push @PerlModuleList, @PackageSetupModuleList;
+        }
+
         FILE:
         for my $File (@PerlModuleList) {
 
@@ -277,6 +310,7 @@ sub HandleLanguage {
             }
 
             $File =~ s{^.*/(Kernel/)}{$1}smx;
+            $File =~ s{^.*/(var/packagesetup/)}{$1}smx;
 
             my $Content = ${$ContentRef};
 
@@ -366,8 +400,74 @@ sub HandleLanguage {
             }egx;
         }
 
+        # add translatable strings from JavaScript code
+        my @JSFileList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+            Directory => $IsSubTranslation ? "$ModuleDirectory/var/httpd/htdocs/js" : "$Home/var/httpd/htdocs/js",
+            Filter    => '*.js',
+            Recursive => 1,
+        );
+
+        FILE:
+        for my $File (@JSFileList) {
+
+            my $ContentRef = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
+                Location => $File,
+                Mode     => 'utf8',
+            );
+
+            if ( !ref $ContentRef ) {
+                die "Can't open $File: $!";
+            }
+
+            # skip js cache files
+            next FILE if ( $File =~ m{\/js\/js-cache\/}xmsg );
+
+            my $Content = ${$ContentRef};
+
+            # skip thirdparty files without custom markers
+            if ( $File =~ m{\/js\/thirdparty\/}xmsg ) {
+                next FILE if ( $Content !~ m{\/\/\s*OTRS}xmsg );
+            }
+
+            $File =~ s{^.*/(.+?)\.js}{$1}smx;
+
+            # Purge all comments
+            $Content =~ s{^ \s* // .*? \n}{\n}xmsg;
+
+            # do translation
+            $Content =~ s{
+                (?:
+                    Core.Language.Translate
+                )
+                \(
+                    \s*
+                    (["'])(.*?)(?<!\\)\1
+            }
+            {
+                my $Word = $2 // '';
+
+                # unescape any \" or \' signs
+                $Word =~ s{\\"}{"}smxg;
+                $Word =~ s{\\'}{'}smxg;
+
+                if ( $Word && !$UsedWords{$Word}++ ) {
+
+                    push @OriginalTranslationStrings, {
+                        Location => "JS File: $File",
+                        Source => $Word,
+                    };
+
+                }
+
+                # also save that this string was used in JS (for later use in Loader)
+                $UsedInJS{$Word} = 1;
+
+                '';
+            }egx;
+        }
+
         # add translatable strings from SysConfig
-        my @Strings = $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemTranslatableStrings();
+        my @Strings = $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigurationTranslatableStrings();
 
         STRING:
         for my $String ( sort @Strings ) {
@@ -379,6 +479,17 @@ sub HandleLanguage {
                 Source   => $String,
             };
         }
+    }
+
+    if ($IsSubTranslation) {
+        $Self->Print(
+            "Processing language <yellow>$Language</yellow> template files from <yellow>$Module</yellow>, writing output to <yellow>$TargetFile</yellow>\n"
+        );
+    }
+    else {
+        $Self->Print(
+            "Processing language <yellow>$Language</yellow> template files, writing output to <yellow>$TargetFile</yellow>\n"
+        );
     }
 
     # Language file, which only contains the OTRS core translations
@@ -403,7 +514,7 @@ sub HandleLanguage {
         },
     );
     if ( $TranslitLanguagesMap{$Language} ) {
-        $TranslitObject             = new Lingua::Translit( $TranslitLanguagesMap{$Language}->{TranslitTable} );
+        $TranslitObject = new Lingua::Translit( $TranslitLanguagesMap{$Language}->{TranslitTable} );    ## no critic
         $TranslitLanguageCoreObject = Kernel::Language->new(
             UserLanguage    => $TranslitLanguagesMap{$Language}->{SourceLanguage},
             TranslationFile => 1,
@@ -423,6 +534,7 @@ sub HandleLanguage {
 
     my @TranslationStrings;
 
+    STRING:
     for my $OriginalTranslationString (@OriginalTranslationStrings) {
 
         my $String = $OriginalTranslationString->{Source};
@@ -481,7 +593,10 @@ sub HandleLanguage {
         LanguageFile       => $LanguageFile,
         TargetFile         => $TargetFile,
         TranslationStrings => \@TranslationStrings,
+        UsedInJS           => \%UsedInJS,
     );
+
+    return 1;
 }
 
 sub LoadPOFile {
@@ -562,6 +677,8 @@ sub WritePOFile {
 
     Locale::PO->save_file_fromarray( $Param{TargetPOFile}, $POEntries )
         || die "Could not save file $Param{TargetPOFile}: $!";
+
+    return 1;
 }
 
 sub WritePOTFile {
@@ -573,11 +690,16 @@ sub WritePOTFile {
 
     my $Package = $Param{Module} // 'OTRS';
 
+    # build creation date, only YEAR-MO-DA HO:MI is needed without seconds
+    my $CreationDate = $Kernel::OM->Create('Kernel::System::DateTime')->Format(
+        Format => '%Y-%m-%d %H:%M+0000'
+    );
+
     push @POTEntries, Locale::PO->new(
         -msgid => '',
         -msgstr =>
             "Project-Id-Version: $Package\n" .
-            "POT-Creation-Date: 2014-08-08 19:10+0200\n" .
+            "POT-Creation-Date: $CreationDate\n" .
             "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n" .
             "Last-Translator: FULL NAME <EMAIL\@ADDRESS>\n" .
             "Language-Team: LANGUAGE <LL\@li.org>\n" .
@@ -658,6 +780,26 @@ sub WritePerlLanguageFile {
         }
     }
 
+    # add data structure for JS translations
+    my $JSData = "    \$Self->{JavaScriptStrings} = [\n";
+
+    if ( $Param{IsSubTranslation} ) {
+        $JSData = '    push @{ $Self->{JavaScriptStrings} // [] }, (' . "\n";
+    }
+
+    for my $String ( sort keys %{ $Param{UsedInJS} // {} } ) {
+        my $Key = $String;
+        $Key =~ s/'/\\'/g;
+        $JSData .= $Indent . "'" . $Key . "',\n";
+    }
+
+    if ( $Param{IsSubTranslation} ) {
+        $JSData .= "    );\n";
+    }
+    else {
+        $JSData .= "    ];\n";
+    }
+
     my %MetaData;
     my $NewOut = '';
 
@@ -669,7 +811,7 @@ sub WritePerlLanguageFile {
 
         $NewOut = <<"EOF";
 $Separator
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 $Separator
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -685,6 +827,8 @@ use utf8;
 sub Data {
     my \$Self = shift;
 $Data
+
+$JSData
 }
 
 1;
@@ -739,10 +883,13 @@ EOF
                 $NewOut .= <<"EOF";
     \$Self->{Translation} = {
 $Data
+    };
+
 EOF
+                $NewOut .= $JSData . "\n";
             }
+
             if ( $_ =~ /\$\$STOP\$\$/ ) {
-                $NewOut .= "    };\n";
                 $NewOut .= $Line;
                 $MetaData{DataPrinted} = 0;
             }
@@ -761,18 +908,8 @@ EOF
         Content  => \$NewOut,
         Mode     => 'utf8',        # binmode|utf8
     );
+
+    return 1;
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

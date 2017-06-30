@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,26 +8,18 @@
 
 package Kernel::Output::HTML::NavBar::ModuleAdmin;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::Output::HTML::Layout',
+    'Kernel::System::Group',
+    'Kernel::System::JSON',
+    'Kernel::System::User',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -46,57 +38,49 @@ sub Run {
     $ManualVersion =~ m{^(\d{1,2}).+};
     $ManualVersion = $1;
 
-    $LayoutObject->Block(
-        Name => 'AdminNavBar',
-        Data => {
-            ManualVersion => $ManualVersion,
-        },
-    );
-
     # get all Frontend::Module
     my %NavBarModule;
-    my $FrontendModuleConfig = $ConfigObject->Get('Frontend::Module');
+
+    my $NavigationModule = $ConfigObject->Get('Frontend::NavigationModule') || {};
+
     MODULE:
-    for my $Module ( sort keys %{$FrontendModuleConfig} ) {
-        my %Hash = %{ $FrontendModuleConfig->{$Module} };
-        if (
-            $Hash{NavBarModule}
-            && $Hash{NavBarModule}->{Module} eq 'Kernel::Output::HTML::NavBar::ModuleAdmin'
-            )
-        {
+    for my $Module ( sort keys %{$NavigationModule} ) {
+        my %Hash = %{ $NavigationModule->{$Module} };
+
+        next MODULE if !$Hash{Name};
+
+        if ( $Hash{Module} eq 'Kernel::Output::HTML::NavBar::ModuleAdmin' ) {
 
             # check permissions (only show accessable modules)
-            my $Shown = 0;
+            my $Shown       = 0;
+            my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
+
             for my $Permission (qw(GroupRo Group)) {
 
-                # array access restriction
-                if ( $Hash{$Permission} && ref $Hash{$Permission} eq 'ARRAY' ) {
-                    for ( @{ $Hash{$Permission} } ) {
-                        my $Key = 'UserIs' . $Permission . '[' . $_ . ']';
-                        if (
-                            $LayoutObject->{$Key}
-                            && $LayoutObject->{$Key} eq 'Yes'
-                            )
-                        {
-                            $Shown = 1;
-                        }
-
-                    }
-                }
-
-                # scalar access restriction
-                elsif ( $Hash{$Permission} ) {
-                    my $Key = 'UserIs' . $Permission . '[' . $Hash{$Permission} . ']';
-                    if ( $LayoutObject->{$Key} && $LayoutObject->{$Key} eq 'Yes' ) {
-                        $Shown = 1;
-                    }
-                }
-
                 # no access restriction
-                elsif ( !$Hash{GroupRo} && !$Hash{Group} ) {
+                if (
+                    ref $Hash{GroupRo} eq 'ARRAY'
+                    && !scalar @{ $Hash{GroupRo} }
+                    && ref $Hash{Group} eq 'ARRAY'
+                    && !scalar @{ $Hash{Group} }
+                    )
+                {
                     $Shown = 1;
                 }
 
+                # array access restriction
+                elsif ( $Hash{$Permission} && ref $Hash{$Permission} eq 'ARRAY' ) {
+                    for my $Group ( @{ $Hash{$Permission} } ) {
+                        my $HasPermission = $GroupObject->PermissionCheck(
+                            UserID    => $Self->{UserID},
+                            GroupName => $Group,
+                            Type      => $Permission eq 'GroupRo' ? 'ro' : 'rw',
+                        );
+                        if ($HasPermission) {
+                            $Shown = 1;
+                        }
+                    }
+                }
             }
             next MODULE if !$Shown;
 
@@ -116,20 +100,54 @@ sub Run {
                 %Hash,
                 %{ $Hash{NavBarModule} },
             };
+        }
+    }
 
+    my %UserPreferences = $Kernel::OM->Get('Kernel::System::User')->GetPreferences(
+        UserID => $Self->{UserID},
+    );
+
+    my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
+
+    my @Favourites;
+    my @FavouriteModules;
+    my $PrefFavourites = $JSONObject->Decode(
+        Data => $UserPreferences{AdminNavigationBarFavourites},
+    ) || [];
+
+    my @NavBarModule;
+    for my $Item ( sort keys %NavBarModule ) {
+        if ( grep { $_ eq $NavBarModule{$Item}->{'Frontend::Module'} } @{$PrefFavourites} ) {
+            push @Favourites,       $NavBarModule{$Item};
+            push @FavouriteModules, $NavBarModule{$Item}->{'Frontend::Module'};
+            $NavBarModule{$Item}->{IsFavourite} = 1;
         }
+        push @NavBarModule, $NavBarModule{$Item};
     }
-    my %Count;
-    for my $Module ( sort keys %NavBarModule ) {
-        my $BlockName = $NavBarModule{$Module}->{NavBarModule}->{Block} || 'Item';
-        $LayoutObject->Block(
-            Name => $BlockName,
-            Data => $NavBarModule{$Module},
-        );
-        if ( $Count{$BlockName}++ % 2 ) {
-            $LayoutObject->Block( Name => $BlockName . 'Clear' );
-        }
-    }
+
+    @NavBarModule = sort {
+        $LayoutObject->{LanguageObject}->Translate( $a->{Name} )
+            cmp $LayoutObject->{LanguageObject}->Translate( $b->{Name} )
+    } @NavBarModule;
+    @Favourites = sort {
+        $LayoutObject->{LanguageObject}->Translate( $a->{Name} )
+            cmp $LayoutObject->{LanguageObject}->Translate( $b->{Name} )
+    } @Favourites;
+
+    $LayoutObject->Block(
+        Name => 'AdminNavBar',
+        Data => {
+            ManualVersion => $ManualVersion,
+            View          => $UserPreferences{AdminNavigationBarView} || 'Grid',
+            Items         => \@NavBarModule,
+            Favourites    => \@Favourites,
+        },
+    );
+
+    $LayoutObject->AddJSData(
+        Key   => 'Favourites',
+        Value => \@FavouriteModules,
+    );
 
     my $Output = $LayoutObject->Output(
         TemplateFile => 'AdminNavigationBar',

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -17,29 +17,29 @@ use Socket;
 use Kernel::GenericInterface::Debugger;
 use Kernel::GenericInterface::Operation::Session::SessionCreate;
 
-# get needed objects
+# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-# helper object
+# get helper object
 # skip SSL certificate verification
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
     },
 );
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-my $RandomID = $HelperObject->GetRandomID();
+my $RandomID = $Helper->GetRandomID();
 
 # set user details
-my $UserLogin    = $HelperObject->TestUserCreate();
+my $UserLogin    = $Helper->TestUserCreate();
 my $UserPassword = $UserLogin;
 my $UserID       = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
     UserLogin => $UserLogin,
 );
 
 # set customer user details
-my $CustomerUserLogin    = $HelperObject->TestCustomerUserCreate();
+my $CustomerUserLogin    = $Helper->TestCustomerUserCreate();
 my $CustomerUserPassword = $CustomerUserLogin;
 my $CustomerUserID       = $CustomerUserLogin;
 
@@ -75,23 +75,7 @@ $Self->True(
 );
 
 # get remote host with some precautions for certain unit test systems
-my $Host;
-my $FQDN = $ConfigObject->Get('FQDN');
-
-# try to resolve FQDN host
-if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
-    $Host = $FQDN;
-}
-
-# try to resolve localhost instead
-if ( !$Host && gethostbyname('localhost') ) {
-    $Host = 'localhost';
-}
-
-# use hard coded localhost IP address
-if ( !$Host ) {
-    $Host = '127.0.0.1';
-}
+my $Host = $Helper->GetTestHTTPHostname();
 
 # prepare webservice config
 my $RemoteSystem =
@@ -358,7 +342,7 @@ for my $Test (@Tests) {
 
     # sleep between requests to have different timestamps
     # because of failing tests on windows
-    sleep(1);
+    sleep 1;
 
     # check result
     $Self->Is(
@@ -419,7 +403,7 @@ for my $Test (@Tests) {
         $Self->IsNotDeeply(
             $LocalResult,
             $RequesterResult,
-            "$Test->{Name} - Local SessionID is different that Remote SessionID.",
+            "$Test->{Name} - Local SessionID is different than Remote SessionID.",
         );
     }
 

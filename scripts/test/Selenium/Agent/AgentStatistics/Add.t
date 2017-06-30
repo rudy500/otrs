@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,11 +19,6 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # create test user and login
@@ -57,7 +52,7 @@ $Selenium->RunTest(
             ],
         };
 
-        my $Success = $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        my $Success = $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 1,
@@ -82,10 +77,10 @@ $Selenium->RunTest(
 
             $Self->True(
                 $ServiceID,
-                "Service $ServiceID has been created."
+                "Service $ServiceID has been created.",
             );
 
-            # add service as defalut service for all customers
+            # add service as default service for all customers
             $ServiceObject->CustomerUserServiceMemberAdd(
                 CustomerUserLogin => '<DEFAULT>',
                 ServiceID         => $ServiceID,
@@ -104,7 +99,7 @@ $Selenium->RunTest(
 
             $Self->True(
                 $SLAID,
-                "SLA $SLAID has been created."
+                "SLA $SLAID has been created.",
             );
 
             push @SLAIDs, $SLAID;
@@ -113,8 +108,21 @@ $Selenium->RunTest(
 
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # check add statsistics screen
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Add");
+        # check add statistics screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Add");
+
+        # check breadcrumb on Add screen
+        my $Count = 1;
+        for my $BreadcrumbText ( 'Statistics Overview', 'Add Statistics' )
+        {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
 
         # check link 'DynamicMatrix'
         $Self->True(
@@ -135,7 +143,14 @@ $Selenium->RunTest(
         );
 
         # check "Go to overview" button
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentStatistics;Subaction=Overview\' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Action=AgentStatistics;Subaction=Overview\' )]")
+            ->VerifiedClick();
+
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
 
         my @Tests = (
             {
@@ -148,22 +163,32 @@ $Selenium->RunTest(
                 Restrictionvalue => 3,
             },
             {
+                Title             => 'Statistic DynamicMatrix' . $Helper->GetRandomID(),
+                Object            => 'Kernel::System::Stats::Dynamic::Ticket',
+                Type              => 'DynamicMatrix',
+                XAxis             => 'XAxisCreateTime',
+                YAxis             => 'YAxisSLAIDs',
+                RestrictionID     => 'RestrictionsQueueIDs',
+                Restrictionvalue  => 3,
+                SelectedTimeField => 1,
+            },
+            {
                 Title            => 'Statistic - TicketAccountedTime' . $Helper->GetRandomID(),
                 Object           => 'Kernel::System::Stats::Dynamic::TicketAccountedTime',
-                Type             => 'DynamicList',
-                XAxis            => 'XAxisServiceIDs',
+                Type             => 'DynamicMatrix',
+                XAxis            => 'XAxisKindsOfReporting',
                 YAxis            => 'YAxisSLAIDs',
-                RestrictionID    => 'RestrictionsKindsOfReporting',
-                Restrictionvalue => 'TotalTime',
+                RestrictionID    => 'RestrictionsServiceIDs',
+                Restrictionvalue => $ServiceIDs[0],
             },
             {
                 Title            => 'Statistic - TicketSolutionResponseTime' . $Helper->GetRandomID(),
                 Object           => 'Kernel::System::Stats::Dynamic::TicketSolutionResponseTime',
-                Type             => 'DynamicList',
-                XAxis            => 'XAxisServiceIDs',
+                Type             => 'DynamicMatrix',
+                XAxis            => 'XAxisKindsOfReporting',
                 YAxis            => 'YAxisSLAIDs',
-                RestrictionID    => 'RestrictionsKindsOfReporting',
-                Restrictionvalue => 'SolutionAverageAllOver',
+                RestrictionID    => 'RestrictionsServiceIDs',
+                Restrictionvalue => $ServiceIDs[0],
             },
             {
                 Title            => 'Statistic - TicketList' . $Helper->GetRandomID(),
@@ -174,10 +199,9 @@ $Selenium->RunTest(
                 RestrictionID    => 'RestrictionsServiceIDs',
                 Restrictionvalue => $ServiceIDs[0],
             },
-
         );
 
-        my @StatsFormat = (
+        my @StatsFormatDynamicMatrix = (
             {
                 Format         => 'Print',
                 PreviewContent => 'PreviewContentPrint',
@@ -195,106 +219,138 @@ $Selenium->RunTest(
                 Format         => 'D3::BarChart',
                 PreviewContent => 'PreviewContentD3BarChart',
             },
+        );
 
+        my @StatsFormatDynamicList = (
+            {
+                Format         => 'Print',
+                PreviewContent => 'PreviewContentPrint',
+            },
         );
 
         # add new statistics
         for my $StatsData (@Tests) {
 
-            # go to add statsistics screen
-            $Selenium->get("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Add");
-
-            #$Selenium->find_element("//a[contains(\@href, \'Action=AgentStatistics;Subaction=Add\' )]")->click();
+            # go to add statistics screen
+            $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Add");
 
             # add new statistics
-            $Selenium->find_element("//a[contains(\@data-statistic-preselection, \'$StatsData->{Type}\' )]")->click();
+            $Selenium->find_element("//a[contains(\@data-statistic-preselection, \'$StatsData->{Type}\' )]")
+                ->VerifiedClick();
             $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#Title").length' );
 
             my $Description = 'Description ' . $StatsData->{Title};
 
-            # set velues for new statistics - General Specifications
+            # set values for new statistics - General Specifications
             $Selenium->find_element( "#Title",       'css' )->send_keys( $StatsData->{Title} );
             $Selenium->find_element( "#Description", 'css' )->send_keys($Description);
             $Selenium->execute_script(
-                "\$('#ObjectModule').val('$StatsData->{Object}').trigger('redraw.InputField').trigger('change');");
-            $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->click();
-
-            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".EditXAxis").length' );
+                "\$('#ObjectModule').val('$StatsData->{Object}').trigger('redraw.InputField').trigger('change');"
+            );
+            $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
             # check X-axis configuration dialog
-            $Selenium->find_element( ".EditXAxis", 'css' )->click();
+            $Selenium->find_element( ".EditXAxis", 'css' )->VerifiedClick();
             if ( $StatsData->{Object} ne 'Kernel::System::Stats::Dynamic::TicketList' ) {
                 $Selenium->execute_script(
                     "\$('#EditDialog select').val('$StatsData->{XAxis}').trigger('redraw.InputField').trigger('change');"
                 );
             }
-            $Selenium->find_element( "#DialogButton1", 'css' )->click();
+            $Selenium->find_element( "#DialogButton1", 'css' )->VerifiedClick();
 
             # check Y-axis configuration dialog
-            $Selenium->find_element( ".EditYAxis", 'css' )->click();
+            $Selenium->find_element( ".EditYAxis", 'css' )->VerifiedClick();
             $Selenium->execute_script(
-                "\$('#EditDialog select').val('$StatsData->{YAxis}').trigger('redraw.InputField').trigger('change');");
+                "\$('#EditDialog select').val('$StatsData->{YAxis}').trigger('redraw.InputField').trigger('change');"
+            );
 
             if ( $StatsData->{Object} eq 'Kernel::System::Stats::Dynamic::TicketList' ) {
 
-                # wait for load selected Restriction
-                $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('#$StatsData->{YAxis}').length;" );
+                # wait for load selected YAxis
+                $Selenium->WaitFor(
+                    JavaScript => "return typeof(\$) === 'function' && \$('#$StatsData->{YAxis}').length;"
+                );
 
                 # select order by option
                 $Selenium->execute_script(
                     "\$('#EditDialog #$StatsData->{YAxis}').val('$StatsData->{OrderBy}').trigger('redraw.InputField').trigger('change');"
                 );
             }
-            $Selenium->find_element( "#DialogButton1", 'css' )->click();
+            $Selenium->find_element( "#DialogButton1", 'css' )->VerifiedClick();
 
             # check Restrictions configuration dialog
-            $Selenium->find_element( ".EditRestrictions", 'css' )->click();
+            $Selenium->find_element( ".EditRestrictions", 'css' )->VerifiedClick();
             $Selenium->execute_script(
-                "\$('#EditDialog select').val('$StatsData->{RestrictionID}').trigger('redraw.InputField').trigger('change');"
+                "\$('#EditDialog select option[value=\"$StatsData->{RestrictionID}\"]').prop('selected', true).trigger('redraw.InputField').trigger('change');"
             );
 
             # wait for load selected Restriction
-            $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('#$StatsData->{RestrictionID}').length;" );
+            $Selenium->WaitFor(
+                JavaScript => "return typeof(\$) === 'function' && \$('#$StatsData->{RestrictionID}').length;"
+            );
 
             # add restriction
             $Selenium->execute_script(
-                "\$('#EditDialog #$StatsData->{RestrictionID}').val('$StatsData->{RestrictionValue}').trigger('redraw.InputField').trigger('change');"
+                "\$('#EditDialog #$StatsData->{RestrictionID} option[value=\"$StatsData->{Restrictionvalue}\"]').prop('selected', true).trigger('redraw.InputField').trigger('change');"
             );
-            $Selenium->find_element( "#DialogButton1", 'css' )->click();
+            $Selenium->find_element( "#DialogButton1", 'css' )->VerifiedClick();
 
             # change preview format to Print
-            $Selenium->find_element("//button[contains(\@data-format, \'Print')]")->click();
+            $Selenium->find_element("//button[contains(\@data-format, \'Print')]")->VerifiedClick();
             $Self->True(
                 $Selenium->execute_script("return \$('#PreviewContentPrint').css('display')") eq 'block',
                 "Print format is displayed",
             );
 
+            my @StatsFormat = @StatsFormatDynamicMatrix;
+
+            if ( $StatsData->{Type} eq 'DynamicList' ) {
+                @StatsFormat = @StatsFormatDynamicList;
+            }
+
             for my $StatsFormat (@StatsFormat) {
 
                 # change preview format
-                $Selenium->find_element("//button[contains(\@data-format, \'$StatsFormat->{Format}')]")->click();
+                $Selenium->find_element("//button[contains(\@data-format, \'$StatsFormat->{Format}')]")
+                    ->VerifiedClick();
                 $Self->True(
                     $Selenium->execute_script("return \$('#$StatsFormat->{PreviewContent}').css('display')") eq 'block',
                     "StackedArea format is displayed",
                 );
             }
 
+            # Check the options for the cache field in the general section.
+            if ( $StatsData->{SelectedTimeField} ) {
+
+                $Self->True(
+                    $Selenium->execute_script(
+                        "return \$('#Cache option[value=\"1\"]').val() == 1 && \$('#Cache option[value=\"1\"]')[0].innerHTML == 'Yes'"
+                    ),
+                    'Found element "Yes" in Cache the select field.',
+                );
+            }
+            else {
+
+                $Self->False(
+                    $Selenium->execute_script("return \$('#Cache option[value=\"1\"]').val() == 1"),
+                    'Found no element "Yes" in the Cache select field.',
+                );
+            }
+
             # save and finish test statistics
-            $Selenium->find_element("//button[\@name='SaveAndFinish'][\@type='submit']")->click();
+            $Selenium->find_element("//button[\@name='SaveAndFinish'][\@type='submit']")->VerifiedClick();
 
             my $CheckConfirmJS = <<"JAVASCRIPT";
 (function () {
-    var lastConfirm = undefined;
     window.confirm = function (message) {
-        lastConfirm = message;
         return true;
     };
 }());
 JAVASCRIPT
 
             # sort decreasing by StatsID
-            $Selenium->get(
-                "${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Overview;Direction=DESC;OrderBy=ID;StartHit=1\' )]"
+            $Selenium->VerifiedGet(
+                "${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Overview;Direction=DESC;OrderBy=ID;StartHit=1"
             );
 
             my $StatsObject = $Kernel::OM->Get('Kernel::System::Stats');
@@ -320,16 +376,13 @@ JAVASCRIPT
             # click on delete icon
             $Selenium->find_element(
                 "//a[contains(\@href, \'Action=AgentStatistics;Subaction=DeleteAction;StatID=$StatsIDLast\' )]"
-            )->click();
-
-            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".Dialog:visible").length === 0;' );
+            )->VerifiedClick();
 
             $Self->True(
                 index( $Selenium->get_page_source(), "Action=AgentStatistics;Subaction=Edit;StatID=$StatsIDLast" )
                     == -1,
                 "StatsData statistic is deleted - $StatsData->{Title} "
             );
-
         }
 
         # get DB object

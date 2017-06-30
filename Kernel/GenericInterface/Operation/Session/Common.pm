@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,15 +19,9 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::GenericInterface::Operation::Session::Common - Base class for Session Operations
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item CreateSessionID()
+=head2 CreateSessionID()
 
 performs user authentication and return a new SessionID value
 
@@ -92,40 +86,10 @@ sub CreateSessionID {
     # login is invalid
     return if !$User;
 
-    my $GroupObjectName = $UserType eq 'User' ? 'Kernel::System::Group' : 'Kernel::System::CustomerGroup';
-
-    # get groups rw/ro
-    for my $Type (qw(rw ro)) {
-
-        my %GroupData;
-        if ( $GroupObjectName eq 'Kernel::System::Group' ) {
-            %GroupData = $Kernel::OM->Get('Kernel::System::Group')->PermissionUserGet(
-                UserID => $UserData{UserID},
-                Type   => $Type,
-            );
-        }
-        else {
-            %GroupData = $Kernel::OM->Get('Kernel::System::CustomerGroup')->GroupMemberList(
-                UserID => $UserData{UserID},
-                Type   => $Type,
-                Result => 'HASH',
-            );
-        }
-
-        for ( sort keys %GroupData ) {
-            if ( $Type eq 'rw' ) {
-                $UserData{"UserIsGroup[$GroupData{$_}]"} = 'Yes';
-            }
-            else {
-                $UserData{"UserIsGroupRo[$GroupData{$_}]"} = 'Yes';
-            }
-        }
-    }
-
     # create new session id
     my $NewSessionID = $Kernel::OM->Get('Kernel::System::AuthSession')->CreateSessionID(
         %UserData,
-        UserLastRequest => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+        UserLastRequest => $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch(),
         UserType        => $UserType,
     );
 
@@ -135,8 +99,6 @@ sub CreateSessionID {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

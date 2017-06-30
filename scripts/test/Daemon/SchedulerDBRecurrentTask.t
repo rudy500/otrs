@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -32,7 +32,7 @@ if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     sleep $SleepTime;
 }
 
-# get scheduler database object
+my $Helper            = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
 
 $Self->Is(
@@ -41,51 +41,55 @@ $Self->Is(
     "Kernel::System::Daemon::SchedulerDB->new()",
 );
 
-# get task worker object
 my $TaskWorkerObject = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker');
 
-# wait until task is executed
-ACTIVESLEEP:
-for my $Sec ( 1 .. 120 ) {
+my $RunTasks = sub {
 
-    # run the worker
-    $TaskWorkerObject->Run();
+    local $SIG{CHLD} = "IGNORE";
 
-    my @List = $SchedulerDBObject->TaskList();
+    # wait until task is executed
+    ACTIVESLEEP:
+    for my $Sec ( 1 .. 120 ) {
 
-    last ACTIVESLEEP if !scalar @List;
+        # run the worker
+        $TaskWorkerObject->Run();
+        $TaskWorkerObject->_WorkerPIDsCheck();
 
-    sleep 1;
+        my @List = $SchedulerDBObject->TaskList();
 
-    print "Waiting $Sec secs for scheduler tasks to be executed\n";
-}
+        last ACTIVESLEEP if !scalar @List;
+
+        sleep 1;
+
+        print "Waiting $Sec secs for scheduler tasks to be executed\n";
+    }
+};
+
+$RunTasks->();
+
+# get cache object
+my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
 
 # delete any cache
-$Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+$CacheObject->CleanUp(
     Type => 'SchedulerDBRecurrentTaskExecute'
 );
 
-# get HelperObject;
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
 # freeze time
-$HelperObject->FixedTimeSet();
+$Helper->FixedTimeSet();
 
-# get time object
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-my $SystemTime = $TimeObject->SystemTime();
-
-my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-    SystemTime => $SystemTime,
-);
-
-my $SecsDiff = 60 - $Sec;
+my $SystemTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+my $SecsDiff         = 60 - $SystemTimeObject->Get()->{Second};
 
 # fix time to have 0 seconds in the current minute
-$HelperObject->FixedTimeAddSeconds($SecsDiff);
+$Helper->FixedTimeAddSeconds($SecsDiff);
 
-$SystemTime = $TimeObject->SystemTime();
+my $DateTime   = $Kernel::OM->Create('Kernel::System::DateTime');
+my $SystemTime = $DateTime->ToEpoch();
+my $TimeStamp  = $DateTime->ToString();
+
+$DateTime->Add( Seconds => 60 );
+my $TimeStamp2 = $DateTime->ToString();
 
 # RecurrentTaskExecute() tests (RecurrentTaskGet() and RecurrentTaskList() are implicit)
 my @Tests = (
@@ -100,7 +104,7 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
             Data                   => {},
         },
         Success => 0,
@@ -111,7 +115,7 @@ my @Tests = (
             NodeID                 => 1,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
             Data                   => {},
         },
         Success => 0,
@@ -122,7 +126,7 @@ my @Tests = (
             NodeID                 => 1,
             PID                    => 456,
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
             Data                   => {},
         },
         Success => 0,
@@ -133,7 +137,7 @@ my @Tests = (
             NodeID                 => 1,
             PID                    => 456,
             TaskName               => 'UnitTest1',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
             Data                   => {},
         },
         Success => 0,
@@ -156,7 +160,7 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
         },
         Success => 0,
     },
@@ -167,13 +171,13 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
             Data                   => {},
         },
         ExpectedTask => {
             Name              => 'UnitTest1',
             Type              => 'UnitTest',
-            LastExecutionTime => $SystemTime,
+            LastExecutionTime => $TimeStamp,
             LockKey           => 0,
             LockTime          => '',
             CreateTime        => $SystemTime,
@@ -190,13 +194,13 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime,
+            PreviousEventTimestamp => $TimeStamp,
             Data                   => {},
         },
         ExpectedTask => {
             Name              => 'UnitTest1',
             Type              => 'UnitTest',
-            LastExecutionTime => $SystemTime,
+            LastExecutionTime => $TimeStamp,
             LockKey           => 0,
             LockTime          => '',
             CreateTime        => $SystemTime,
@@ -214,13 +218,13 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime + 60,
+            PreviousEventTimestamp => $TimeStamp2,
             Data                   => {},
         },
         ExpectedTask => {
             Name              => 'UnitTest1',
             Type              => 'UnitTest',
-            LastExecutionTime => $SystemTime + 60,
+            LastExecutionTime => $TimeStamp2,
             LockKey           => 0,
             LockTime          => '',
             CreateTime        => $SystemTime,
@@ -238,13 +242,13 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime + 60,
+            PreviousEventTimestamp => $TimeStamp2,
             Data                   => {},
         },
         ExpectedTask => {
             Name              => 'UnitTest1',
             Type              => 'UnitTest',
-            LastExecutionTime => $SystemTime + 60,
+            LastExecutionTime => $TimeStamp2,
             LockKey           => 0,
             LockTime          => '',
             CreateTime        => $SystemTime,
@@ -262,13 +266,13 @@ my @Tests = (
             PID                    => 456,
             TaskName               => 'UnitTest1',
             TaskType               => 'UnitTest',
-            PreviousEventTimestamp => $SystemTime + 60,
+            PreviousEventTimestamp => $TimeStamp2,
             Data                   => {},
         },
         ExpectedTask => {
             Name              => 'UnitTest1',
             Type              => 'UnitTest',
-            LastExecutionTime => $SystemTime + 60,
+            LastExecutionTime => $TimeStamp2,
             LockKey           => 0,
             LockTime          => '',
             CreateTime        => $SystemTime,
@@ -282,17 +286,14 @@ my @Tests = (
     },
 );
 
-# get cache object
-my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
-
 TEST:
 for my $Test (@Tests) {
 
     if ( $Test->{AddSecondsBefore} ) {
-        my $StartSystemTime = $TimeObject->SystemTime();
-        $HelperObject->FixedTimeAddSeconds( $Test->{AddSecondsBefore} );
-        my $EndSystemTime = $TimeObject->SystemTime();
-        print("  Added $Test->{AddSecondsBefore} seconds to time form $StartSystemTime to $EndSystemTime\n");
+        my $StartSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+        $Helper->FixedTimeAddSeconds( $Test->{AddSecondsBefore} );
+        my $EndSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+        print("  Added $Test->{AddSecondsBefore} seconds to time from $StartSystemTime to $EndSystemTime\n");
     }
 
     # cleanup Task Manager Cache
@@ -364,10 +365,13 @@ for my $Test (@Tests) {
         for my $Attribute ( sort keys %{ $Test->{ExpectedTask} } ) {
 
             # set time stamps from system times
-            if ( $Attribute eq 'LastExecutionTime' || $Attribute eq 'CreateTime' || $Attribute eq 'ChangeTime' ) {
-                $ExpectedTask{$Attribute} = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $Test->{ExpectedTask}->{$Attribute},
-                );
+            if ( $Attribute eq 'CreateTime' || $Attribute eq 'ChangeTime' ) {
+                $ExpectedTask{$Attribute} = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        Epoch => $Test->{ExpectedTask}->{$Attribute},
+                    },
+                )->ToString();
             }
             else {
                 $ExpectedTask{$Attribute} = $Test->{ExpectedTask}->{$Attribute}
@@ -511,11 +515,12 @@ for my $Test (@Tests) {
 
     for my $Counter ( 0 .. 10 ) {
 
-        my $SystemTime = $TimeObject->SystemTime();
+        my $DateTime = $Kernel::OM->Create('Kernel::System::DateTime');
+        $DateTime->Subtract( Seconds => 60 );
 
         my $Success = $SchedulerDBObject->RecurrentTaskExecute(
             %TaskTemplate,
-            PreviousEventTimestamp   => $SystemTime - 60,
+            PreviousEventTimestamp   => $DateTime->ToString(),
             MaximumParallelInstances => $Test->{MaximumParallelInstances},
         );
         $Self->True(
@@ -523,7 +528,7 @@ for my $Test (@Tests) {
             "$Test->{Name} RecurrentTaskExecute() - result with true",
         );
 
-        $HelperObject->FixedTimeAddSeconds(60);
+        $Helper->FixedTimeAddSeconds(60);
     }
 
     my @List = $SchedulerDBObject->TaskList(
@@ -612,7 +617,7 @@ $Self->Is(
 for my $Test (@Tests) {
 
     if ( $Test->{AddSeconds} ) {
-        $HelperObject->FixedTimeAddSeconds( $Test->{AddSeconds} );
+        $Helper->FixedTimeAddSeconds( $Test->{AddSeconds} );
     }
 
     $SchedulerDBObject->RecurrentTaskUnlockExpired(
@@ -635,6 +640,7 @@ for my $Test (@Tests) {
 
 }
 
+# System cleanup.
 my $Success = $SchedulerDBObject->RecurrentTaskDelete(
     TaskID => $List[0]->{TaskID},
 );

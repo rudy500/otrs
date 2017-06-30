@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,30 +19,46 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+        # Overload CustomerUser => Map setting defined in the Defaults.pm.
+        my $DefaultCustomerUser = $Kernel::OM->Get('Kernel::Config')->Get("CustomerUser");
+        $DefaultCustomerUser->{Map}->[5] = [
+            'UserEmail',
+            'Email',
+            'email',
+            1,
+            1,
+            'var',
+            '[% Env("CGIHandle") %]?Action=AgentTicketCompose;ResponseID=1;TicketID=[% Data.TicketID | uri %];ArticleID=[% Data.ArticleID | uri %]',
+            0,
+            '',
+            'AsPopup OTRSPopup_TicketAction',
+        ];
+        $Helper->ConfigSettingChange(
+            Key   => 'CustomerUser',
+            Value => $DefaultCustomerUser,
+        );
+
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
 
         # do not check RichText
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
         # do not check service and type
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 0
         );
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Type',
             Value => 0
@@ -59,19 +75,16 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketPhone");
-
         # get test user ID
         my $TestUserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        # add test customers for testing
+        # add test customer users for testing
         my @TestCustomers;
         for ( 1 .. 2 )
         {
-            my $TestCustomer = 'Customer' . $Helper->GetRandomID();
+            my $TestCustomer = 'CustomerUser' . $Helper->GetRandomID();
             my $UserLogin    = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
                 Source         => 'CustomerUser',
                 UserFirstname  => $TestCustomer,
@@ -83,54 +96,47 @@ $Selenium->RunTest(
                 UserID         => $TestUserID,
             );
 
+            $Self->True(
+                $UserLogin,
+                "Test customer user is created - $UserLogin",
+            );
+
             push @TestCustomers, $TestCustomer;
 
         }
 
-        # create test phone ticket
-        my $AutoCompleteString
-            = "\"$TestCustomers[0] $TestCustomers[0]\" <$TestCustomers[0]\@localhost.com> ($TestCustomers[0])";
-        my $TicketSubject = "Selenium Ticket";
-        my $TicketBody    = "Selenium body test";
-        $Selenium->find_element( "#FromCustomer", 'css' )->send_keys( $TestCustomers[0] );
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
+        # get ticket object
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-        $Selenium->find_element("//*[text()='$AutoCompleteString']")->click();
-        $Selenium->execute_script("\$('#Dest').val('2||Raw').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Subject",  'css' )->send_keys($TicketSubject);
-        $Selenium->find_element( "#RichText", 'css' )->send_keys($TicketBody);
-
-        $Selenium->find_element( "#Subject", 'css' )->submit();
-
-        # Wait until form has loaded, if neccessary
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("form").length' );
-
-        # search for new created ticket on AgentTicketZoom screen
-        my %TicketIDs = $Kernel::OM->Get('Kernel::System::Ticket')->TicketSearch(
-            Result         => 'HASH',
-            Limit          => 1,
-            CustomerUserID => $TestCustomers[0],
+        my $TicketNumber = $TicketObject->TicketCreateNumber();
+        my $TicketID     = $TicketObject->TicketCreate(
+            TN           => $TicketNumber,
+            Title        => 'Selenium Test Ticket',
+            Queue        => 'Raw',
+            Lock         => 'unlock',
+            Priority     => '3 normal',
+            State        => 'open',
+            CustomerID   => 'TestCustomer',
+            CustomerUser => $TestCustomers[0],
+            OwnerID      => $TestUserID,
+            UserID       => $TestUserID,
         );
-        my $TicketNumber = (%TicketIDs)[1];
-        my $TicketID     = (%TicketIDs)[0];
-
         $Self->True(
             $TicketID,
-            "Ticket created",
+            "Ticket is created - $TicketID",
         );
 
-        $Self->True(
-            index( $Selenium->get_page_source(), $TicketNumber ) > -1,
-            "Ticket with ticket id $TicketID ($TicketNumber) is created"
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
+
+        # wait for displaying submenu items for 'People' ticket menu item
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return typeof($) === "function" && $("#nav-People ul").css({ "height": "auto", "opacity": "100" });'
         );
 
-        # go to ticket zoom page of created test ticket
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketZoom' )]")->click();
-
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#nav-People ul").css({ "height": "auto", "opacity": "100" });' );
-
-        # go to AgentTicketCustomer
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketCustomer' )]")->click();
+        # go to AgentTicketCustomer, it causes open popup screen, wait will be done by WaitFor
+        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketCustomer' )]")->VerifiedClick();
 
         # switch to another window
         $Selenium->WaitFor( WindowCount => 2 );
@@ -139,6 +145,14 @@ $Selenium->RunTest(
 
         # set size for small screens, because of sidebar with customer info overflow form for customer data
         $Selenium->set_window_size( 1000, 700 );
+
+        # Check if user email is a link in the Customer Information widget and has target property.
+        my $LinkTarget = $Selenium->execute_script("return \$('#CustomerInfo a.AsPopup').attr('target');");
+        $Self->Is(
+            $LinkTarget,
+            '_blank',
+            "Check if user email is a link in the Customer Information widget and has target property."
+        );
 
         # check AgentTicketCustomer screen
         for my $ID (
@@ -150,26 +164,22 @@ $Selenium->RunTest(
             $Element->is_displayed();
         }
 
-        $AutoCompleteString
-            = "\"$TestCustomers[1] $TestCustomers[1]\" <$TestCustomers[1]\@localhost.com> ($TestCustomers[1])";
         $Selenium->find_element( "#CustomerAutoComplete", 'css' )->clear();
-        $Selenium->find_element( "#CustomerID",           'css' )->clear();
         $Selenium->find_element( "#CustomerAutoComplete", 'css' )->send_keys( $TestCustomers[1] );
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
-
-        $Selenium->find_element("//*[text()='$AutoCompleteString']")->click();
+        $Selenium->find_element("//*[text()='$TestCustomers[1]']")->VerifiedClick();
 
         # wait until customer data is loading (CustomerID is filled after CustomerAutoComplete)
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#CustomerID").val().length' );
+
+        # submit customer data, it causes close popup screen, wait will be done by WaitFor
         $Selenium->find_element( "#CustomerAutoComplete", 'css' )->submit();
 
-        # Wait for update
+        # wait for update
         $Selenium->WaitFor( WindowCount => 1 );
-        sleep 1;
-
         $Selenium->switch_to_window( $Handles->[0] );
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
 
         # verify that action worked as expected
         my $HistoryText = "CustomerID=$TestCustomers[1];CustomerUser=$TestCustomers[1]";
@@ -180,7 +190,7 @@ $Selenium->RunTest(
         );
 
         # delete created test ticket
-        my $Success = $Kernel::OM->Get('Kernel::System::Ticket')->TicketDelete(
+        my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => 1,
         );
@@ -204,8 +214,14 @@ $Selenium->RunTest(
         }
 
         # make sure the cache is correct.
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Ticket' );
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'CustomerUser' );
+        for my $Cache (
+            qw (Ticket CustomerUser)
+            )
+        {
+            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+                Type => $Cache,
+            );
+        }
 
     }
 );

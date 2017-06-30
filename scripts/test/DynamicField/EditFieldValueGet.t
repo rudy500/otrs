@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,7 +19,6 @@ use Kernel::System::Web::Request;
 use Kernel::System::VariableCheck qw(:all);
 
 # get needed objects
-my $HelperObject    = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $DFBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 my $ParamObject     = $Kernel::OM->Get('Kernel::System::Web::Request');
 
@@ -256,6 +255,25 @@ my @Tests = (
         ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
     },
     {
+        Name   => 'Text: wrong template and UTF8 ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{Text},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
+                DynamicField_TextField => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        Success         => 1,
+        ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+    },
+
+    {
         Name   => 'Text: Empty template and no ParamObject (ValueStructure)',
         Config => {
             DynamicFieldConfig      => $DynamicFieldConfigs{Text},
@@ -436,6 +454,26 @@ my @Tests = (
         ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
     },
     {
+        Name   => 'TextArea: wrong template and UTF8 ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{TextArea},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
+                DynamicField_TextAreaField =>
+                    'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        Success         => 1,
+        ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+    },
+
+    {
         Name   => 'TextArea: Empty template and no ParamObject (ValueStructure)',
         Config => {
             DynamicFieldConfig      => $DynamicFieldConfigs{TextArea},
@@ -610,6 +648,26 @@ my @Tests = (
             Template           => {},
             ParamObject        => $ParamObject,
             CGIParam           => {
+                DynamicField_CheckboxField =>
+                    'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+                DynamicField_CheckboxFieldUsed => 1,
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        Success         => 1,
+        ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+    },
+    {
+        Name   => 'Checkbox: wrong template and UTF8 ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{Checkbox},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
                 DynamicField_CheckboxField =>
                     'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
                 DynamicField_CheckboxFieldUsed => 1,
@@ -937,6 +995,25 @@ my @Tests = (
         ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
     },
     {
+        Name   => 'Dropdown: wrong template and UTF8 ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{Dropdown},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
+                DynamicField_DropdownField =>
+                    'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        Success         => 1,
+        ExpectedResults => 'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+    },
+    {
         Name   => 'Dropdown: Empty template and no ParamObject (ValueStructure)',
         Config => {
             DynamicFieldConfig      => $DynamicFieldConfigs{Dropdown},
@@ -1111,6 +1188,25 @@ my @Tests = (
             Template           => {},
             ParamObject        => $ParamObject,
             CGIParam           => {
+                DynamicField_MultiselectField =>
+                    'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        ExpectedResults => ['äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß'],
+        Success         => 1,
+    },
+    {
+        Name   => 'Multiselect: empty template and UTF8 ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{Multiselect},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
                 DynamicField_MultiselectField =>
                     'äëïöüÄËÏÖÜáéíóúÁÉÍÓÚñÑ€исß',
             },
@@ -1442,6 +1538,29 @@ my @Tests = (
             Template           => {},
             ParamObject        => $ParamObject,
             CGIParam           => {
+                DynamicField_DateTimeFieldUsed   => 1,
+                DynamicField_DateTimeFieldYear   => 2013,
+                DynamicField_DateTimeFieldMonth  => 8,
+                DynamicField_DateTimeFieldDay    => 21,
+                DynamicField_DateTimeFieldHour   => 16,
+                DynamicField_DateTimeFieldMinute => 45,
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        ExpectedResults => '2013-08-21 16:45:00',
+        Success         => 1,
+    },
+    {
+        Name   => 'DateTime: wrong template and Correct ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{DateTime},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
                 DynamicField_DateTimeFieldUsed   => 1,
                 DynamicField_DateTimeFieldYear   => 2013,
                 DynamicField_DateTimeFieldMonth  => 8,
@@ -2067,6 +2186,27 @@ my @Tests = (
         Success         => 1,
     },
     {
+        Name   => 'Date: wrong template and Correct ParamObject (Normal)',
+        Config => {
+            DynamicFieldConfig => $DynamicFieldConfigs{Date},
+            Template           => {
+                Some => 'Data',
+            },
+            ParamObject => $ParamObject,
+            CGIParam    => {
+                DynamicField_DateFieldUsed  => 1,
+                DynamicField_DateFieldYear  => 2013,
+                DynamicField_DateFieldMonth => 8,
+                DynamicField_DateFieldDay   => 21,
+            },
+            TransformDates          => 0,
+            ReturnValueStructure    => 0,
+            ReturnTemplateStructure => 0,
+        },
+        ExpectedResults => '2013-08-21 00:00:00',
+        Success         => 1,
+    },
+    {
         Name   => 'Date: Empty template and no ParamObject (ValueStructure)',
         Config => {
             DynamicFieldConfig      => $DynamicFieldConfigs{Date},
@@ -2562,7 +2702,7 @@ for my $Test (@Tests) {
 
         if ( IsHashRefWithData( $Test->{Config}->{CGIParam} ) ) {
 
-            # creatate a new CGI object to simulate a web request
+            # create a new CGI object to simulate a web request
             my $WebRequest = CGI->new( $Test->{Config}->{CGIParam} );
 
             my $LocalParamObject = Kernel::System::Web::Request->new(
@@ -2596,4 +2736,5 @@ for my $Test (@Tests) {
 }
 
 # we don't need any cleanup
+
 1;

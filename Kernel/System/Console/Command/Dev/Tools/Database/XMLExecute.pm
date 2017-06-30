@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Dev::Tools::Database::XMLExecute;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::System::DB',
@@ -29,6 +29,14 @@ sub Configure {
         Description => "Specify the location of the database XML file to be executed.",
         Required    => 1,
         ValueRegex  => qr/.*/smx,
+    );
+
+    $Self->AddOption(
+        Name        => 'sql-part',
+        Description => "Generate only 'pre' or 'post' SQL",
+        Required    => 0,
+        HasValue    => 1,
+        ValueRegex  => qr/^(pre|post)$/smx,
     );
 
     return;
@@ -65,7 +73,19 @@ sub Run {
 
     my @SQLPost = $Kernel::OM->Get('Kernel::System::DB')->SQLProcessorPost();
 
-    for my $SQL ( @SQL, @SQLPost ) {
+    my $SQLPart = $Self->GetOption('sql-part') || 'both';
+    my @SQLCollection;
+    if ( $SQLPart eq 'both' ) {
+        push @SQLCollection, @SQL, @SQLPost;
+    }
+    elsif ( $SQLPart eq 'pre' ) {
+        push @SQLCollection, @SQL;
+    }
+    elsif ( $SQLPart eq 'post' ) {
+        push @SQLCollection, @SQLPost;
+    }
+
+    for my $SQL (@SQLCollection) {
         $Self->Print("$SQL\n");
         my $Success = $Kernel::OM->Get('Kernel::System::DB')->Do( SQL => $SQL );
         if ( !$Success ) {
@@ -79,15 +99,3 @@ sub Run {
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

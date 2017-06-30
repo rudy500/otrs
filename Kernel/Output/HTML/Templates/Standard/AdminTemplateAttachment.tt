@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,8 +8,24 @@
 
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Manage Templates <-> Attachments Relations") | html %]</h1>
+    <h1>[% Translate("Manage Templates-Attachments Relations") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Manage Templates-Attachments Relations'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% IF Data.BreadcrumbTitle %]
+            [% USE EditTitle = String(Data.BreadcrumbTitle) %]
+            [% BreadcrumbPath.push({ Name => EditTitle.append( " '", Data.Name, "'" ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
 
 [% RenderBlockStart("ActionList") %]
@@ -58,13 +74,6 @@
             </div>
         </div>
 
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.Table.InitTableFilter($('#FilterTemplates'), $('#Templates'));
-    Core.UI.Table.InitTableFilter($('#FilterAttachments'), $('#Attachments'));
-//]]></script>
-[% END %]
-
 [% RenderBlockEnd("Filters") %]
 
     </div>
@@ -108,23 +117,12 @@
 
 
 [% RenderBlockEnd("OverviewResult") %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.Table.InitTableFilter($('#FilterTemplates'), $('#Templates'));
-    Core.UI.Table.InitTableFilter($('#FilterAttachments'), $('#Attachments'));
-//]]></script>
-[% END %]
 
 [% RenderBlockStart("Change") %]
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>
-[% RenderBlockStart("ChangeHeaderTemplate") %]
-                    [% Translate("Change Template Relations for Attachment") | html %]
-[% RenderBlockEnd("ChangeHeaderTemplate") %]
-[% RenderBlockStart("ChangeHeaderAttachment") %]
-                    [% Translate("Change Attachment Relations for Template") | html %]
-[% RenderBlockEnd("ChangeHeaderAttachment") %]
+                    [% Data.BreadcrumbTitle | html %]
                     <a href="[% Env("Baselink") %]Action=[% Data.ActionHome | uri %];Subaction=Change;ID=[% Data.ID | uri %]">[% Data.Name | html %]</a>
                 </h2>
             </div>
@@ -133,6 +131,7 @@
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="Change[% Data.Type | html %]"/>
                     <input type="hidden" name="ID" value="[% Data.ID | html %]"/>
+                    <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
                     <table class="DataTable VariableWidth" id="TemplateAttachment">
                         <thead>
                             <tr>
@@ -142,15 +141,6 @@
                                     <input type="checkbox" name="ItemsSelected" id="SelectAllItemsSelected" title="[% Translate("Toggle active for all") | html %]" value="" />
                                     [% Translate("Active") | html %]
                                 </th>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Form.InitSelectAllCheckboxes($('table td input[type="checkbox"][name=ItemsSelected]'), $('#SelectAllItemsSelected'));
-$('input[type="checkbox"][name=ItemsSelected]').bind('click', function () {
-    Core.Form.SelectAllCheckboxes($(this), $('#SelectAllItemsSelected'));
-});
-Core.UI.Table.InitTableFilter($('#Filter'), $('#TemplateAttachment'));
-//]]></script>
-[% END %]
 [% RenderBlockEnd("ChangeHeader") %]
                             </tr>
                         </thead>
@@ -177,7 +167,9 @@ Core.UI.Table.InitTableFilter($('#Filter'), $('#TemplateAttachment'));
                         </tbody>
                     </table>
                     <div class="Field SpacingTop">
-                        <button class="Primary CallForAction" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                        <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                        [% Translate("or") | html %]
+                        <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
                         [% Translate("or") | html %]
                         <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                     </div>

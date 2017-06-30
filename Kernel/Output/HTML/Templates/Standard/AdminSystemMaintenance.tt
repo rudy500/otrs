@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,17 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1 class="Header">[% Translate("System Maintenance Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate("System Maintenance Management"),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
 
         <div class="WidgetSimple">
@@ -25,7 +36,14 @@
                 </ul>
             </div>
         </div>
-
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterSystemMaintenances">[% Translate("Filter for System Maintenances") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterSystemMaintenances" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterSystemMaintenances" value="" title="[% Translate("Filter for system maintenances") | html %]">
+            </div>
+        </div>
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>[% Translate("Hint") | html %]</h2>
@@ -50,16 +68,14 @@
                 <h2>[% Translate("List") | html %]</h2>
             </div>
             <div class="Content">
-                <table class="DataTable">
+                <table class="DataTable" id="SystemMaintenances">
                     <thead>
                         <tr>
                             <th>[% Translate("Start date") | html %]</th>
                             <th>[% Translate("Stop date") | html %]</th>
                             <th>[% Translate("Comment") | html %]</th>
                             <th>[% Translate("Validity") | html %]</th>
-                            <th>[% Translate("Delete") | html %]</th>
-
-
+                            <th class="Center">[% Translate("Delete") | html %]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -83,7 +99,6 @@
                         </tr>
 [% RenderBlockEnd("ViewRow") %]
 
-
 [% RenderBlockStart("NoDataRow") %]
                         <tr>
                             <td colspan="5">
@@ -92,6 +107,9 @@
                         </tr>
 [% RenderBlockEnd("NoDataRow") %]
 
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="5">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -100,30 +118,5 @@
 
     <div class="Clear"></div>
 </div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('.MasterAction').bind('click', function (Event) {
-    var $MasterActionLink = $(this).find('.MasterActionLink');
-    // only act if the link was not clicked directly
-    if (Event.target !== $MasterActionLink.get(0)) {
-        window.location = $MasterActionLink.attr('href');
-        return false;
-    }
-});
-
-$('.SystemMaintenanceDelete').bind('click', function (Event) {
-
-    if (window.confirm([% Translate("Do you really want to delete this scheduled system maintenance?") | JSON %])) {
-        return true;
-    }
-
-    // don't interfere with MasterAction
-    Event.stopPropagation();
-    Event.preventDefault();
-    return false;
-});
-//]]></script>
-[% END %]
 
 <!-- end -->

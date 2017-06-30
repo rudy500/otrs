@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -26,20 +26,12 @@ our @ObjectDependencies = (
 
 Kernel::GenericInterface::Requester - GenericInterface handler for sending web service requests to remote providers
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create an object. Do not create it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $RequesterObject = $Kernel::OM->Get('Kernel::GenericInterface::Requester');
 
 =cut
@@ -54,7 +46,7 @@ sub new {
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
 receives the current incoming web service request, handles it,
 and returns an appropriate answer based on the configured requested
@@ -425,8 +417,6 @@ sub Run {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

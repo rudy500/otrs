@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -191,12 +191,10 @@ sub _Fetch {
 
                 # safety protection
                 $FetchCounter++;
-                if ( $FetchCounter > 10 ) {
-                    if ($CMD) {
-                        print
-                            "$AuthType: Safety protection: waiting 2 second before processing next mail...\n";
-                    }
-                    sleep 2;
+                my $FetchDelay = ( $FetchCounter % 20 == 0 ? 1 : 0 );
+                if ( $FetchDelay && $CMD ) {
+                    print "$AuthType: Safety protection: waiting 1 second before processing next mail...\n";
+                    sleep 1;
                 }
 
                 # get message (header and body)
@@ -229,11 +227,12 @@ sub _Fetch {
                                 . "$File, report it on http://bugs.otrs.org/)!",
                         );
                     }
-                    undef $PostMasterObject;
-                }
 
-                # mark email to delete if it got processed
-                $IMAPObject->delete($Messageno);
+                    # mark email to delete once it was processed
+                    $IMAPObject->delete($Messageno);
+                    undef $PostMasterObject;
+
+                }
 
                 # check limit
                 $Self->{Limit}++;

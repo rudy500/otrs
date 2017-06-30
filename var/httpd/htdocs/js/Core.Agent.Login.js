@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -19,15 +19,18 @@ Core.Agent = Core.Agent || {};
  *      This namespace contains the special module functions for the Login.
  */
 Core.Agent.Login = (function (TargetNS) {
+
     /**
      * @name Init
      * @memberof Core.Agent.Login
      * @function
-     * @param {Boolean} LoginFailed
      * @description
      *      This function initializes the special module functions.
      */
-    TargetNS.Init = function (LoginFailed) {
+    TargetNS.Init = function () {
+
+        var LoginFailed = Core.Config.Get('LoginFailed');
+
         // Browser is too old
         if (!Core.Agent.SupportedBrowser) {
             $('#LoginBox').hide();
@@ -52,19 +55,45 @@ Core.Agent.Login = (function (TargetNS) {
             return false;
         });
 
-        // save TimeOffset data for OTRS
-        $('#TimeOffset').val((new Date()).getTimezoneOffset());
+        // save TimeZoneOffset data for OTRS
+        $('#TimeZoneOffset').val((new Date()).getTimezoneOffset());
 
         // shake login box on authentication failure
-        if (LoginFailed) {
-            Core.UI.Shake($('#LoginBox'));
+        if (typeof LoginFailed !== 'undefined' && parseInt(LoginFailed, 10) === 1) {
+            Core.UI.Animate($('#LoginBox'), 'Shake');
         }
 
-        // if in PreLogin mode, automatically submit form
+        // Automatically submit the login form in case of a pre login scenario.
         if ($('#LoginBox').hasClass('PreLogin')) {
             $('#LoginBox form').submit();
         }
+
+        // display ad blocker warning
+        if (window.OTRSAdblockDisabled === undefined && !localStorage.getItem("UserDontShowAdBlockWarning") && !$('#LoginBox').hasClass('PreLogin')) {
+            $('#LoginBox')
+                .prepend('<div class="ErrorBox" style="display: none;"><span>' + Core.Language.Translate("Are you using a browser plugin like AdBlock or AdBlockPlus? This can cause several issues and we highly recommend you to add an exception for this domain.") + ' <i class="fa fa-long-arrow-right"></i> <a href="#" id="HideAdBlockMessage">' + Core.Language.Translate("Do not show this warning again.") + '</a></span></div>')
+                .find('#HideAdBlockMessage')
+                .on('click', function() {
+                    localStorage.setItem('UserDontShowAdBlockWarning', 1); // do this in local storage because it needs to be saved per device
+                    $(this).closest('.ErrorBox').fadeOut('slow', function() {
+                        $(this).remove();
+                    });
+                    return false;
+                })
+                .closest('.ErrorBox')
+                .fadeIn('slow');
+        }
+
+        // Clear chat availability
+        $('#LoginButton').click(function () {
+            localStorage.removeItem('Availability');
+
+            // continue
+            return true;
+        });
     };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.Agent.Login || {}));

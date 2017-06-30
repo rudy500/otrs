@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,6 +16,7 @@ our @ObjectDependencies = (
     'Kernel::System::DynamicField::Backend',
     'Kernel::System::Log',
     'Kernel::System::Ticket',
+    'Kernel::System::Ticket::Article',
 );
 
 sub new {
@@ -61,26 +62,30 @@ sub Run {
     my $Lock             = $Param{Lock}             || '';
     my $AutoResponseType = $Param{AutoResponseType} || '';
 
+    my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+        ChannelName => 'Email',
+    );
+
     # do db insert
-    my $ArticleID = $TicketObject->ArticleCreate(
-        TicketID         => $Param{TicketID},
-        ArticleType      => $GetParam{'X-OTRS-ArticleType'},
-        SenderType       => $GetParam{'X-OTRS-SenderType'},
-        From             => $GetParam{From},
-        ReplyTo          => $GetParam{ReplyTo},
-        To               => $GetParam{To},
-        Cc               => $GetParam{Cc},
-        Subject          => $GetParam{Subject},
-        MessageID        => $GetParam{'Message-ID'},
-        InReplyTo        => $GetParam{'In-Reply-To'},
-        References       => $GetParam{'References'},
-        ContentType      => $GetParam{'Content-Type'},
-        Body             => $GetParam{Body},
-        UserID           => $Param{InmailUserID},
-        HistoryType      => 'FollowUp',
-        HistoryComment   => "\%\%$Param{Tn}\%\%$Comment",
-        AutoResponseType => $AutoResponseType,
-        OrigHeader       => \%GetParam,
+    my $ArticleID = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $Param{TicketID},
+        IsVisibleForCustomer => $GetParam{'X-OTRS-IsVisibleForCustomer'} // 1,
+        SenderType           => $GetParam{'X-OTRS-SenderType'},
+        From                 => $GetParam{From},
+        ReplyTo              => $GetParam{ReplyTo},
+        To                   => $GetParam{To},
+        Cc                   => $GetParam{Cc},
+        Subject              => $GetParam{Subject},
+        MessageID            => $GetParam{'Message-ID'},
+        InReplyTo            => $GetParam{'In-Reply-To'},
+        References           => $GetParam{'References'},
+        ContentType          => $GetParam{'Content-Type'},
+        Body                 => $GetParam{Body},
+        UserID               => $Param{InmailUserID},
+        HistoryType          => 'FollowUp',
+        HistoryComment       => "\%\%$Param{Tn}\%\%$Comment",
+        AutoResponseType     => $AutoResponseType,
+        OrigHeader           => \%GetParam,
     );
     if ( !$ArticleID ) {
         return;
@@ -97,7 +102,7 @@ sub Run {
     }
 
     # write plain email to the storage
-    $TicketObject->ArticleWritePlain(
+    $ArticleBackendObject->ArticleWritePlain(
         ArticleID => $ArticleID,
         Email     => $Self->{ParserObject}->GetPlainEmail(),
         UserID    => $Param{InmailUserID},
@@ -105,7 +110,7 @@ sub Run {
 
     # write attachments to the storage
     for my $Attachment ( $Self->{ParserObject}->GetAttachments() ) {
-        $TicketObject->ArticleWriteAttachment(
+        $ArticleBackendObject->ArticleWriteAttachment(
             Filename           => $Attachment->{Filename},
             Content            => $Attachment->{Content},
             ContentType        => $Attachment->{ContentType},
@@ -135,7 +140,7 @@ sub Run {
         next DYNAMICFIELDID if !$DynamicFieldID;
         next DYNAMICFIELDID if !$DynamicFieldList->{$DynamicFieldID};
         my $Key = 'X-OTRS-FollowUp-DynamicField-' . $DynamicFieldList->{$DynamicFieldID};
-        if ( $GetParam{$Key} ) {
+        if ( defined $GetParam{$Key} && length $GetParam{$Key} ) {
 
             # get dynamic field config
             my $DynamicFieldGet = $DynamicFieldObject->DynamicFieldGet(
@@ -167,8 +172,12 @@ sub Run {
     for my $Item ( sort keys %Values ) {
         for my $Count ( 1 .. 16 ) {
             my $Key = $Item . $Count;
-            if ( $GetParam{$Key} && $DynamicFieldListReversed{ $Values{$Item} . $Count } ) {
-
+            if (
+                defined $GetParam{$Key}
+                && length $GetParam{$Key}
+                && $DynamicFieldListReversed{ $Values{$Item} . $Count }
+                )
+            {
                 # get dynamic field config
                 my $DynamicFieldGet = $DynamicFieldObject->DynamicFieldGet(
                     ID => $DynamicFieldListReversed{ $Values{$Item} . $Count },

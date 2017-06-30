@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,7 +24,7 @@ our @ObjectDependencies = (
 
 Kernel::GenericInterface::Event::Handler - GenericInterface event handler
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This event handler intercepts all system events and fires connected GenericInterface
 invokers.

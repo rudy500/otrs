@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,12 +14,19 @@ use vars (qw($Self));
 
 # get needed objects
 my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
 my $BackendObject      = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
-my $TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
 
-my $RandomID = $HelperObject->GetRandomID();
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $RandomID = $Helper->GetRandomID();
 
 my @DynamicFieldsToAdd = (
     {
@@ -90,11 +97,15 @@ for my $DynamicField (@DynamicFieldsToAdd) {
 # constructor
 my $TemplateGeneratorObject = $Kernel::OM->Get('Kernel::System::TemplateGenerator');
 
-my $TestCustomerLogin = $HelperObject->TestCustomerUserCreate(
+my $TestCustomerLogin = $Helper->TestCustomerUserCreate(
     Language => 'en',
 );
 
-my $TestUserLogin = $HelperObject->TestUserCreate(
+my %TestCustomerData = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserDataGet(
+    User => $TestCustomerLogin,
+);
+
+my $TestUserLogin = $Helper->TestUserCreate(
     Language => 'en',
 );
 
@@ -102,7 +113,7 @@ my %TestUser = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
     User => $TestUserLogin,
 );
 
-my $TestUser2Login = $HelperObject->TestUserCreate(
+my $TestUser2Login = $Helper->TestUserCreate(
     Language => 'en',
 );
 
@@ -110,7 +121,7 @@ my %TestUser2 = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
     User => $TestUserLogin,
 );
 
-my $TestUser3Login = $HelperObject->TestUserCreate(
+my $TestUser3Login = $Helper->TestUserCreate(
     Language => 'en',
 );
 
@@ -118,7 +129,7 @@ my %TestUser3 = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
     User => $TestUserLogin,
 );
 
-my $TestUser4Login = $HelperObject->TestUserCreate(
+my $TestUser4Login = $Helper->TestUserCreate(
     Language => 'en',
 );
 
@@ -126,17 +137,17 @@ my %TestUser4 = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
     User => $TestUserLogin,
 );
 
-my $TicketID = $TicketObject->TicketCreate(
-    Title        => 'Some Ticket_Title',
-    Queue        => 'Raw',
-    Lock         => 'unlock',
-    Priority     => '3 normal',
-    State        => 'closed successful',
-    CustomerNo   => '123465',
-    CustomerUser => $TestCustomerLogin,
-    OwnerID      => $TestUser{UserID},
-    ResponsibleID      => $TestUser2{UserID},
-    UserID       => $TestUser3{UserID},
+my $TicketID = $Kernel::OM->Get('Kernel::System::Ticket')->TicketCreate(
+    Title         => 'Some Ticket_Title',
+    Queue         => 'Raw',
+    Lock          => 'unlock',
+    Priority      => '3 normal',
+    State         => 'closed successful',
+    CustomerNo    => '123465',
+    CustomerUser  => $TestCustomerLogin,
+    OwnerID       => $TestUser{UserID},
+    ResponsibleID => $TestUser2{UserID},
+    UserID        => $TestUser3{UserID},
 );
 $Self->IsNot(
     $TicketID,
@@ -166,19 +177,23 @@ $Self->True(
     'DynamicField ValueSet() Dynamic Field Dropdown - with true',
 );
 
-my $ArticleID = $TicketObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'note-internal',
-    SenderType     => 'agent',
-    From           => 'Some Agent <email@example.com>',
-    To             => 'Some Customer <customer-a@example.com>',
-    Subject        => 'some short description',
-    Body           => 'the message text',
-    ContentType    => 'text/plain; charset=ISO-8859-15',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => 1,
-    NoAgentNotify  => 1,                                          # if you don't want to send agent notifications
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Email',
+);
+
+my $ArticleID = $ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 0,
+    SenderType           => 'customer',
+    Subject              => 'some short description',
+    Body                 => 'the message text',
+    From                 => $TestCustomerData{UserEmail},
+    Charset              => 'ISO-8859-15',
+    MimeType             => 'text/plain',
+    HistoryType          => 'EmailCustomer',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
+    NoAgentNotify        => 1,                              # if you don't want to send agent notifications
 );
 $Self->IsNot(
     $ArticleID,
@@ -254,7 +269,7 @@ my @Tests = (
         Result   => "Test $TestUser2{UserFirstname} -",
     },
     {
-        Name => 'OTRS_TICKET_RESPONSIBLE firstname',                     # <OTRS_RESPONSIBLE_UserFirstname>
+        Name => 'OTRS_TICKET_RESPONSIBLE firstname',              # <OTRS_RESPONSIBLE_UserFirstname>
         Data => {
             From => 'test@home.com',
         },
@@ -272,7 +287,7 @@ my @Tests = (
         Result   => "Test $TestUser{UserFirstname} -",
     },
     {
-        Name => 'OTRS_TICKET_OWNER firstname',                           # <OTRS_OWNER_*>
+        Name => 'OTRS_TICKET_OWNER firstname',                    # <OTRS_OWNER_*>
         Data => {
             From => 'test@home.com',
         },
@@ -335,16 +350,37 @@ my @Tests = (
         Result   => 'Test A',
     },
     {
-        Name => 'OTRS config value',                              # <OTRS_CONFIG_*>
-        Data => {
-            From => 'test@home.com',
-        },
+        Name     => 'OTRS config value',                          # <OTRS_CONFIG_*>
+        Data     => {},
         RichText => 0,
         Template => 'Test <OTRS_CONFIG_DefaultTheme>',
         Result   => 'Test Standard',
     },
     {
-        Name => 'mailto-Links',
+        Name     => 'OTRS secret config values, must be masked (even unknown settings)',
+        Data     => {},
+        RichText => 0,
+        Template =>
+            'Test <OTRS_CONFIG_DatabasePw> <OTRS_CONFIG_Core::MirrorDB::Password> <OTRS_CONFIG_SomeOtherValue::Password> <OTRS_CONFIG_SomeOtherValue::Pw>',
+        Result => 'Test xxx xxx xxx xxx',
+    },
+    {
+        Name     => 'OTRS secret config value and normal config value',
+        Data     => {},
+        RichText => 0,
+        Template => 'Test <OTRS_CONFIG_DatabasePw> and <OTRS_CONFIG_DefaultTheme>',
+        Result   => 'Test xxx and Standard',
+    },
+    {
+        Name     => 'OTRS secret config values with numbers',
+        Data     => {},
+        RichText => 0,
+        Template =>
+            'Test <OTRS_CONFIG_AuthModule::LDAP::SearchUserPw1> and <OTRS_CONFIG_AuthModule::LDAP::SearchUserPassword1>',
+        Result => 'Test xxx and xxx',
+    },
+    {
+        Name => 'mailto-Links RichText enabled',
         Data => {
             From => 'test@home.com',
         },
@@ -357,6 +393,25 @@ mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20%3COTRS_CUSTOME
 mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20%3COTRS_CUSTOMER_From%3E">E-Mail mit Body</a><br />',
         Result =>
             'mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20test%40home.com&amp;body=From%3A%20test%40home.com">E-Mail mit Subject und Body</a><br /><br />mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20test%40home.com">E-Mail mit Subject</a><br /><br />mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20test%40home.com">E-Mail mit Body</a><br />',
+    },
+    {
+        Name => 'mailto-Links',
+        Data => {
+            From => 'test@home.com',
+        },
+        RichText => 0,
+        Template =>
+            'mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20%3COTRS_CUSTOMER_From%3E&amp;body=From%3A%20%3COTRS_CUSTOMER_From%3E">E-Mail mit Subject und Body</a><br />
+<br />
+mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20%3COTRS_CUSTOMER_From%3E">E-Mail mit Subject</a><br />
+<br />
+mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20%3COTRS_CUSTOMER_From%3E">E-Mail mit Body</a><br />',
+        Result =>
+            'mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20test%40home.com&amp;body=From%3A%20test%40home.com">E-Mail mit Subject und Body</a><br />
+<br />
+mailto-Link <a href="mailto:skywalker@otrs.org?subject=From%3A%20test%40home.com">E-Mail mit Subject</a><br />
+<br />
+mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20test%40home.com">E-Mail mit Body</a><br />',
     },
     {
         Name => 'OTRS AGENT + CUSTOMER FROM',    # <OTRS_TICKET_DynamicField_*_Value>
@@ -384,6 +439,24 @@ mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20%3COTRS_CUSTOMER_F
         Result   => "Test Line1\nLine2\nLine3 - Line1\nLine2\nLine3",
     },
     {
+        Name =>
+            'OTRS AGENT + CUSTOMER BODY With RichText enabled'
+        ,    # this is an special case, it sets the Body as it is since is the Data param
+        Data => {
+            Body => "Line1\nLine2\nLine3",
+        },
+        DataAgent => {
+            Body => "Line1\nLine2\nLine3",
+        },
+        RichText => 1,
+        Template => 'Test &lt;OTRS_AGENT_BODY&gt; - &lt;OTRS_CUSTOMER_BODY&gt;',
+        Result   => "Test Line1<br/>
+Line2<br/>
+Line3 - Line1<br/>
+Line2<br/>
+Line3",
+    },
+    {
         Name => 'OTRS AGENT + CUSTOMER BODY[2]',
         Data => {
             Body => "Line1\nLine2\nLine3",
@@ -394,6 +467,31 @@ mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20%3COTRS_CUSTOMER_F
         RichText => 0,
         Template => 'Test <OTRS_AGENT_BODY[2]> - <OTRS_CUSTOMER_BODY[2]>',
         Result   => "Test > Line1\n> Line2 - > Line1\n> Line2",
+    },
+    {
+        Name => 'OTRS AGENT + CUSTOMER BODY[7] with RichText enabled',
+        Data => {
+            Body => "Line1\nLine2\nLine3\nLine4\nLine5\nLine6\nLine7\nLine8\nLine9",
+        },
+        DataAgent => {
+            Body => "Line1\nLine2\nLine3\nLine4\nLine5\nLine6\nLine7\nLine8\nLine9",
+        },
+        RichText => 1,
+        Template => 'Test &lt;OTRS_AGENT_BODY[7]&gt; - &lt;OTRS_CUSTOMER_BODY[7]&gt;',
+        Result =>
+            'Test <div  type="cite" style="border:none;border-left:solid blue 1.5pt;padding:0cm 0cm 0cm 4.0pt">Line1<br/>
+Line2<br/>
+Line3<br/>
+Line4<br/>
+Line5<br/>
+Line6<br/>
+Line7</div> - <div  type="cite" style="border:none;border-left:solid blue 1.5pt;padding:0cm 0cm 0cm 4.0pt">Line1<br/>
+Line2<br/>
+Line3<br/>
+Line4<br/>
+Line5<br/>
+Line6<br/>
+Line7</div>',
     },
     {
         Name => 'OTRS AGENT + CUSTOMER EMAIL',    # EMAIL without [ ] does not exists
@@ -442,8 +540,10 @@ mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20%3COTRS_CUSTOMER_F
         Result   => "Test 98 [...] - 01 [...]",
     },
     {
-        Name     => 'OTRS CUSTOMER REALNAME',
-        Data     => {},
+        Name => 'OTRS CUSTOMER REALNAME',
+        Data => {
+            From => $TestCustomerData{UserEmail},
+        },
         RichText => 0,
         Template => 'Test <OTRS_CUSTOMER_REALNAME>',
         Result   => "Test $TestCustomerLogin $TestCustomerLogin",
@@ -466,12 +566,12 @@ mailto-Link <a href="mailto:skywalker@otrs.org?body=From%3A%20%3COTRS_CUSTOMER_F
 
 for my $Test (@Tests) {
     my $Result = $TemplateGeneratorObject->_Replace(
-        Text      => $Test->{Template},
-        Data      => $Test->{Data},
-        DataAgent => $Test->{DataAgent},
-        RichText  => $Test->{RichText},
-        TicketID  => $TicketID,
-        UserID    => $TestUser3{UserID},
+        Text        => $Test->{Template},
+        Data        => $Test->{Data},
+        DataAgent   => $Test->{DataAgent},
+        RichText    => $Test->{RichText},
+        TicketID    => $TicketID,
+        UserID      => $TestUser3{UserID},
         RecipientID => $TestUser4{UserID},
     );
     $Self->Is(
@@ -481,31 +581,6 @@ for my $Test (@Tests) {
     );
 }
 
-# cleanup the system
-for my $DynamicFieldID ( sort keys %AddedDynamicFieldIds ) {
-
-    my $DynamicFieldConfig = $DynamicFieldObject->DynamicFieldGet(
-        Name => $AddedDynamicFieldIds{$DynamicFieldID},
-    );
-
-    my $Success = $BackendObject->AllValuesDelete(
-        DynamicFieldConfig => $DynamicFieldConfig,
-        UserID             => 1,
-    );
-    $Self->True(
-        $Success,
-        "DynamicField AllValuesDelete() - for DynamicFieldID '$DynamicFieldID' with true",
-    );
-}
-
-# the ticket is no longer needed
-$Success = $TicketObject->TicketDelete(
-    TicketID => $TicketID,
-    UserID   => 1,
-);
-$Self->True(
-    $Success,
-    "TicketDelete() - fort TicketID '$TicketID' with true",
-);
+# Cleanup is done by RestoreDatabase.
 
 1;

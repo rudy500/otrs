@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,8 @@ use strict;
 use warnings;
 
 our $ObjectManagerDisabled = 1;
+
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -26,22 +28,59 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # get needed objects
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+    # get layout objects
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
     # ------------------------------------------------------------ #
     # check if feature is active
     # ------------------------------------------------------------ #
-    if ( !$ConfigObject->Get('PGP') ) {
+    if ( !$Kernel::OM->Get('Kernel::Config')->Get('PGP') ) {
 
         my $Output .= $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
 
         $LayoutObject->Block( Name => 'Overview' );
+        $LayoutObject->Block( Name => 'Notice' );
         $LayoutObject->Block( Name => 'Disabled' );
+        $LayoutObject->Block( Name => 'OverviewResult' );
+        $LayoutObject->Block(
+            Name => 'NoDataFoundMsg',
+            Data => {},
+        );
 
         $Output .= $LayoutObject->Output( TemplateFile => 'AdminPGP' );
+        $Output .= $LayoutObject->Footer();
+
+        return $Output;
+    }
+
+    # get PGP object
+    my $PGPObject = $Kernel::OM->Get('Kernel::System::Crypt::PGP');
+
+    if ( !$PGPObject ) {
+
+        my $Output = $LayoutObject->Header();
+        $Output .= $LayoutObject->NavigationBar();
+
+        $Output .= $LayoutObject->Notify(
+            Priority => 'Error',
+            Data     => Translatable("PGP environment is not working. Please check log for more info!"),
+            Link     => $LayoutObject->{Baselink} . 'Action=AdminLog',
+        );
+
+        $LayoutObject->Block( Name => 'Overview' );
+        $LayoutObject->Block( Name => 'Notice' );
+        $LayoutObject->Block( Name => 'NotWorking' );
+        $LayoutObject->Block( Name => 'OverviewResult' );
+        $LayoutObject->Block(
+            Name => 'NoDataFoundMsg',
+            Data => {},
+        );
+
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'AdminPGP',
+        );
+
         $Output .= $LayoutObject->Footer();
 
         return $Output;
@@ -67,9 +106,6 @@ sub Run {
         Value     => $Param{Search},
     );
 
-    # get PGP object
-    my $PGPObject = $Kernel::OM->Get('Kernel::System::Crypt::PGP');
-
     # ------------------------------------------------------------ #
     # delete key
     # ------------------------------------------------------------ #
@@ -89,7 +125,7 @@ sub Run {
         my $Type = $ParamObject->GetParam( Param => 'Type' ) || '';
         if ( !$Key ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Key to delete!',
+                Message => Translatable('Need param Key to delete!'),
             );
         }
         my $Success = '';
@@ -118,7 +154,7 @@ sub Run {
         $Output .= $LayoutObject->NavigationBar();
         my $Message = '';
         if ($Success) {
-            $Message = "Key $Key deleted!";
+            $Message = $LayoutObject->{LanguageObject}->Translate( 'Key %s deleted!', $Key );
         }
         else {
             $Message = $Kernel::OM->Get('Kernel::System::Log')->GetLogEntry(
@@ -143,7 +179,12 @@ sub Run {
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
 
-        $LayoutObject->Block( Name => 'Overview' );
+        $LayoutObject->Block(
+            Name => 'Overview',
+            Data => {
+                Subaction => 'Add',
+            },
+        );
         $LayoutObject->Block( Name => 'ActionList' );
         $LayoutObject->Block( Name => 'ActionOverview' );
         $LayoutObject->Block( Name => 'AddKey' );
@@ -242,7 +283,7 @@ sub Run {
         my $Type = $ParamObject->GetParam( Param => 'Type' ) || '';
         if ( !$Key ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Key to download!',
+                Message => Translatable('Need param Key to download!'),
             );
         }
         my $KeyString = '';
@@ -272,7 +313,7 @@ sub Run {
         my $Type = $ParamObject->GetParam( Param => 'Type' ) || '';
         if ( !$Key ) {
             return $LayoutObject->ErrorScreen(
-                Message => 'Need param Key to download!',
+                Message => Translatable('Need param Key to download!'),
             );
         }
         my $Download = '';
@@ -303,16 +344,6 @@ sub Run {
 
         my $Output .= $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
-
-        if ( !$PGPObject && $ConfigObject->Get('PGP') ) {
-            $Output .= $LayoutObject->Notify(
-                Priority => 'Error',
-                Data     => $LayoutObject->{LanguageObject}->Translate( "Cannot create %s!", "CryptObject" ),
-                Link =>
-                    $LayoutObject->{Baselink}
-                    . 'Action=AdminSysConfig;Subaction=Edit;SysConfigGroup=Framework;SysConfigSubGroup=Crypt::PGP',
-            );
-        }
 
         $LayoutObject->Block( Name => 'Overview' );
         $LayoutObject->Block( Name => 'ActionList' );

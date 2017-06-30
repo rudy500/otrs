@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -19,6 +19,15 @@ Core.UI = Core.UI || {};
  *      Contains the code for the different dialogs.
  */
 Core.UI.Dialog = (function (TargetNS) {
+    /**
+     * @private
+     * @name DialogCounter
+     * @memberof Core.UI.Dialog
+     * @member {Number}
+     * @description
+     *      Number of used/opened dialogs on a page. Used to restore the correct HTML backup after dialog is closed.
+     */
+    var DialogCounter = 1;
 
     /*
      * check dependencies first
@@ -79,10 +88,27 @@ Core.UI.Dialog = (function (TargetNS) {
      *      Focuses the first element within the dialog.
      */
     function FocusFirstElement() {
-        $('div.Dialog:visible .Content')
-            .find('a:visible, input:visible, textarea:visible, select:visible, button:visible')
-            .filter(':first')
-            .focus(1);
+        var $FirstElement = $('div.Dialog:visible .Content')
+                .find('a:visible, input:visible, textarea:visible, select:visible, button:visible')
+                .filter(':first'),
+            $FocusField;
+
+        if (!$FirstElement) {
+            return;
+        }
+
+        // If first element is modernized input field, prepend a semi-hidden text field and set focus on it instead.
+        //   This will prevent automatic expansion of the input field, but still move tab index to the dialog and allow
+        //   for keyboard navigation in it. See bug#12681 for more information.
+        if ($FirstElement.hasClass('InputField_Search')) {
+            $FocusField = $('<input/>')
+                .addClass('FocusField')
+                .insertBefore($FirstElement);
+            $FocusField.focus();
+        }
+        else {
+            $FirstElement.focus();
+        }
     }
 
     /**
@@ -102,13 +128,13 @@ Core.UI.Dialog = (function (TargetNS) {
          * to prevent the default action for the special keys.
          * See http://www.quirksmode.org/dom/events/keys.html for details
          */
-        $(document).unbind('keypress.Dialog').bind('keypress.Dialog', function (Event) {
+        $(document).off('keypress.Dialog').on('keypress.Dialog', function (Event) {
             if ($.browser.opera && (Event.keyCode === 9 || (Event.keyCode === 27 && CloseOnEscape))) {
                 Event.preventDefault();
                 Event.stopPropagation();
                 return false;
             }
-        }).unbind('keydown.Dialog').bind('keydown.Dialog', function (Event) {
+        }).off('keydown.Dialog').on('keydown.Dialog', function (Event) {
             var $Tabbables, $First, $Last;
 
             // Tab pressed
@@ -194,7 +220,7 @@ Core.UI.Dialog = (function (TargetNS) {
     TargetNS.ShowDialog = function(Params) {
 
         var $Dialog, $Content, $ButtonFooter, HTMLBackup, DialogCopy, DialogCopySelector,
-            DialogHTML = '<div class="Dialog"><div class="Header"><a class="Close" title="' + Core.Config.Get('DialogCloseMsg') + '" href="#"><i class="fa fa-times"></i></a></div><div class="Content"></div><div class="Footer"></div></div>',
+            DialogHTML = '<div class="Dialog"><div class="Header"><a class="Close" title="' + Core.Language.Translate('Close') + '" href="#"><i class="fa fa-times"></i></a></div><div class="Content"></div><div class="Footer"></div></div>',
             FullsizeMode = false;
 
         /**
@@ -209,6 +235,9 @@ Core.UI.Dialog = (function (TargetNS) {
          */
         function HandleClosingAction() {
             var $CloseButton = $('.Dialog:visible button.Close');
+
+            // publish close event
+            Core.App.Publish('Event.UI.Dialog.CloseDialog.Close', [$Dialog]);
 
             // Hide any possibly existing tooltips.
             if (Core.Form && Core.Form.ErrorTooltips) {
@@ -267,6 +296,8 @@ Core.UI.Dialog = (function (TargetNS) {
             return (Position + 'px');
         }
 
+        Core.App.Publish('Event.UI.Dialog.ShowDialog.BeforeOpen');
+
         // Close all opened dialogs
         if ($('.Dialog:visible').length) {
             TargetNS.CloseDialog($('.Dialog:visible'));
@@ -316,11 +347,13 @@ Core.UI.Dialog = (function (TargetNS) {
                 // First get the data structure, ehich is (perhaps) already saved
                 // If the data does not exists Core.Data.Get returns an empty hash
                 DialogCopy = Core.Data.Get($('body'), 'DialogCopy');
+                DialogCopySelector = Core.Data.Get($('body'), 'DialogCopySelector');
                 HTMLBackup = (Params.HTML)[0].innerHTML;
-                DialogCopySelector = Params.HTML.selector;
                 // Add the new HTML data to the data structure and save it to the document
-                DialogCopy[DialogCopySelector] = HTMLBackup;
+                DialogCopy[DialogCounter] = HTMLBackup;
+                DialogCopySelector[DialogCounter] = Params.HTML;
                 Core.Data.Set($('body'), 'DialogCopy', DialogCopy);
+                Core.Data.Set($('body'), 'DialogSelector', DialogCopySelector);
                 // Additionally, we save the selector as data on the dialog itself for later restoring
                 // Remove the original dialog template content from the page
                 Params.HTML.empty();
@@ -334,7 +367,7 @@ Core.UI.Dialog = (function (TargetNS) {
             $Dialog.addClass('Alert');
             $Dialog.attr("role", "alertdialog");
             $Content = $Dialog.find('.Content').append('<div class="InnerContent"></div>').find('.InnerContent');
-            $Content.append('<span class="Icon"></span>');
+            $Content.append('<i class="fa fa-warning"></i>');
             if (Params.Headline) {
                 $Content.append('<h2>' + Params.Headline + '</h2>');
             }
@@ -346,7 +379,7 @@ Core.UI.Dialog = (function (TargetNS) {
                 Type: 'Close',
                 Function: Params.OnClose
             }];
-            $Content.append('<div class="Center Spacing"><button type="button" id="DialogButton1" class="CallForAction Close"><span>Ok</span></button></div>');
+            $Content.append('<div class="Center Spacing"><button type="button" id="DialogButton1" class="CallForAction Close"><span>OK</span></button></div>');
         }
         // Define different other types here...
         else if (Params.Type === 'Search') {
@@ -366,14 +399,14 @@ Core.UI.Dialog = (function (TargetNS) {
                 $Content.append('<div class="InnerContent"></div>').find('.InnerContent').append(Params.HTML);
                 $ButtonFooter = $('<div class="ContentFooter Center"></div>');
                 $.each(Params.Buttons, function (Index, Value) {
-                    var Classes = '';
+                    var Classes = 'CallForAction';
                     if (Value.Type === 'Close') {
-                        Classes = 'Close';
+                        Classes += ' Close';
                     }
                     if (Value.Class) {
                         Classes += ' ' + Value.Class;
                     }
-                    $ButtonFooter.append('<button id="DialogButton' + (Index - 0 + 1) + '" ' + (Classes.length ? ('class="' + Classes + ' CallForAction" ') : '') + 'type="button"><span>' + Value.Label + '</span></button> ');
+                    $ButtonFooter.append('<button id="DialogButton' + (Index - 0 + 1) + '" class="' + Classes + '" type="button"><span>' + Value.Label + '</span></button> ');
                 });
                 $ButtonFooter.appendTo($Content);
             }
@@ -386,7 +419,7 @@ Core.UI.Dialog = (function (TargetNS) {
 
         // If Title is defined, add dialog title
         if (Params.Title) {
-            $Dialog.find('div.Header').append('<h1>' + Params.Title + '</h1>');
+            $Dialog.children('div.Header').append('<h1>' + Params.Title + '</h1>');
         }
 
         // Add Dialog to page
@@ -398,10 +431,11 @@ Core.UI.Dialog = (function (TargetNS) {
             $Dialog.find('.Footer').addClass('ContentFooter');
         }
 
-        // Now add the selector for the original dialog template content to the dialog, if it exists
-        if (DialogCopySelector && DialogCopySelector.length) {
-            Core.Data.Set($Dialog, 'DialogCopySelector', DialogCopySelector);
-        }
+        // Now add the dialog number to the dialog data to restore the HTML later
+        Core.Data.Set($Dialog, 'DialogCounter', DialogCounter);
+        // Increase the dialog number for the next possible dialog
+        DialogCounter++;
+
 
         // Set position for Dialog
         if (Params.Type === 'Alert') {
@@ -443,11 +477,18 @@ Core.UI.Dialog = (function (TargetNS) {
                 containment: 'body',
                 handle: '.Header',
                 start: function() {
+                    // Fire PubSub event for dragstart
+                    // (to handle more dependencies in their own namespaces)
+                    Core.App.Publish('Event.UI.Dialog.ShowDialog.DragStart', $Dialog);
+
                     // Hide any possibly existing tooltips as they will not be moved
                     //  with this dialog.
                     if (Core.Form && Core.Form.ErrorTooltips) {
                         Core.Form.ErrorTooltips.HideTooltip();
                     }
+                },
+                stop: function() {
+                    Core.App.Publish('Event.UI.Dialog.ShowDialog.DragStop', $Dialog);
                 }
             });
         }
@@ -493,7 +534,7 @@ Core.UI.Dialog = (function (TargetNS) {
 
         // Add CloseOnClickOutside functionality
         if (Params.CloseOnClickOutside) {
-            $(document).unbind('click.Dialog').bind('click.Dialog', function (event) {
+            $(document).off('click.Dialog').on('click.Dialog', function (event) {
                 // If target element is removed before this event triggers, the enclosing div.Dialog can't be found anymore
                 // We check, if we can find a parent HTML element to be sure, that the element is not removed
                 if ($(event.target).parents('html').length && $(event.target).closest('div.Dialog').length === 0) {
@@ -503,7 +544,7 @@ Core.UI.Dialog = (function (TargetNS) {
         }
 
         // Add resize event handler for calculating the scroll height
-        $(window).unbind('resize.Dialog').bind('resize.Dialog', function () {
+        $(window).off('resize.Dialog').on('resize.Dialog', function () {
             AdjustScrollableHeight(Params.AllowAutoGrow);
         });
 
@@ -554,6 +595,33 @@ Core.UI.Dialog = (function (TargetNS) {
     };
 
     /**
+     * @name ShowWaitingDialog
+     * @memberof Core.UI.Dialog
+     * @function
+     * @param {String} Title - The title of the dialog.
+     * @param {String} Text - The text of the dialog.
+     * @description
+     *      Shows a waiting dialog (with spinner icon) and customizable title and text
+     */
+    TargetNS.ShowWaitingDialog = function (Title, Text) {
+
+        var DialogTemplate = Core.Template.Render('Dialog/Waiting', {
+            Text: Text
+        });
+
+        TargetNS.ShowDialog({
+            HTML: DialogTemplate,
+            Title: Title,
+            Modal: true,
+            CloseOnClickOutside: false,
+            CloseOnEscape: false,
+            PositionTop: '20%',
+            PositionLeft: 'Center',
+            AllowAutoGrow: true
+        });
+    };
+
+    /**
      * @name ShowAlert
      * @memberof Core.UI.Dialog
      * @function
@@ -583,11 +651,14 @@ Core.UI.Dialog = (function (TargetNS) {
      *      Closes all dialogs specified.
      */
     TargetNS.CloseDialog = function (Object) {
-        var $Dialog, DialogCopy, DialogCopySelector, BackupHTML;
+        var $Dialog, $DialogSelector, DialogCopy, DialogSelectorData, InternalDialogCounter, BackupHTML;
         $Dialog = $(Object).closest('.Dialog:visible');
 
-        // Get the original selector for the content template
-        DialogCopySelector = Core.Data.Get($Dialog, 'DialogCopySelector');
+        // Get the original dialog number for the content template
+        InternalDialogCounter = Core.Data.Get($Dialog, 'DialogCounter');
+
+        // publish close event
+        Core.App.Publish('Event.UI.Dialog.CloseDialog.Close', [$Dialog]);
 
         $Dialog.remove();
         $('#Overlay').remove();
@@ -599,27 +670,27 @@ Core.UI.Dialog = (function (TargetNS) {
         $('body').css('min-height', 'auto');
 
         // Revert orignal html
-        if (DialogCopySelector.length) {
+        if (InternalDialogCounter) {
             DialogCopy = Core.Data.Get($('body'), 'DialogCopy');
+            DialogSelectorData = Core.Data.Get($('body'), 'DialogSelector');
             // Get saved HTML
             if (typeof DialogCopy !== 'undefined') {
-                BackupHTML = DialogCopy[DialogCopySelector];
+                BackupHTML = DialogCopy[InternalDialogCounter];
+                $DialogSelector = DialogSelectorData[InternalDialogCounter];
 
                 // If HTML could be restored, write it back into the page
                 if (BackupHTML && BackupHTML.length) {
-                    $(DialogCopySelector).append(BackupHTML);
+                    $DialogSelector.append(BackupHTML);
                 }
 
                 // delete this variable from the object
-                delete DialogCopy[DialogCopySelector];
+                delete DialogCopy[InternalDialogCounter];
+                delete DialogSelectorData[InternalDialogCounter];
             }
 
             // write the new DialogCopy back
             Core.Data.Set($('body'), 'DialogCopy', DialogCopy);
         }
-
-        // publish close event
-        Core.App.Publish('Event.UI.Dialog.CloseDialog.Close', $Dialog);
     };
 
     return TargetNS;

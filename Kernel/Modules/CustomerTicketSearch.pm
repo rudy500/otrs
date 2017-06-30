@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -101,6 +102,9 @@ sub Run {
     my $SearchProfileObject = $Kernel::OM->Get('Kernel::System::SearchProfile');
     my $TakeLastSearch = $ParamObject->GetParam( Param => 'TakeLastSearch' ) || '';
 
+    # collect all searchable article field definitions and add the fields to the attributes array
+    my %ArticleSearchableFields = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleSearchableFieldsList();
+
     # load profiles string params (press load profile)
     if ( ( $Self->{Subaction} eq 'LoadProfile' && $Profile ) || $TakeLastSearch ) {
         %GetParam = $SearchProfileObject->SearchProfileGet(
@@ -113,14 +117,12 @@ sub Run {
     # get search string params (get submitted params)
     else {
         for my $Key (
-            qw(TicketNumber From To Cc Subject Body CustomerID ResultForm TimeSearchType StateType
-            SearchInArchive AttachmentName
-            TicketCreateTimePointFormat TicketCreateTimePoint
-            TicketCreateTimePointStart
+            sort keys %ArticleSearchableFields,
+            qw(TicketNumber ResultForm TimeSearchType StateType SearchInArchive
+            TicketCreateTimePointFormat TicketCreateTimePoint TicketCreateTimePointStart
             TicketCreateTimeStart TicketCreateTimeStartDay TicketCreateTimeStartMonth
-            TicketCreateTimeStartYear
-            TicketCreateTimeStop TicketCreateTimeStopDay TicketCreateTimeStopMonth
-            TicketCreateTimeStopYear
+            TicketCreateTimeStartYear TicketCreateTimeStop TicketCreateTimeStopDay
+            TicketCreateTimeStopMonth TicketCreateTimeStopYear
             )
             )
         {
@@ -137,7 +139,9 @@ sub Run {
 
         # get array params
         for my $Key (
-            qw(StateIDs StateTypeIDs PriorityIDs OwnerIDs ResponsibleIDs ServiceIDs TypeIDs)
+            qw(CustomerID StateIDs StateTypeIDs PriorityIDs OwnerIDs ResponsibleIDs ServiceIDs
+            TypeIDs
+            )
             )
         {
 
@@ -222,10 +226,10 @@ sub Run {
         );
     }
 
-    # get ticket object
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
 
-    # get profil search and template data
+    # Get profile search and template data.
     my $SaveProfile    = $ParamObject->GetParam( Param => 'SaveProfile' )    || '';
     my $SelectTemplate = $ParamObject->GetParam( Param => 'SelectTemplate' ) || '';
     my $EraseTemplate  = $ParamObject->GetParam( Param => 'EraseTemplate' )  || '';
@@ -253,9 +257,18 @@ sub Run {
     # show result page
     if ( !%ServerErrors && $Self->{Subaction} eq 'Search' && !$EraseTemplate ) {
 
+        my $ProfileName = '';
+        if ($Profile) {
+            $ProfileName = "($Profile)";
+        }
+
         # fill up profile name (e.g. with last-search)
         if ( !$Profile || !$SaveProfile ) {
             $Profile = 'last-search';
+        }
+
+        if ( !$ProfileName ) {
+            $ProfileName = "($Profile)";
         }
 
         # store search URL in LastScreenOverview to make sure the
@@ -320,10 +333,22 @@ sub Run {
                     && $GetParam{ $TimeType . 'TimeStartYear' }
                     )
                 {
-                    $GetParam{ $TimeType . 'TimeNewerDate' } = $GetParam{ $TimeType . 'TimeStartYear' } . '-'
-                        . $GetParam{ $TimeType . 'TimeStartMonth' } . '-'
-                        . $GetParam{ $TimeType . 'TimeStartDay' }
-                        . ' 00:00:00';
+                    my $DateTimeObject = $Kernel::OM->Create(
+                        'Kernel::System::DateTime',
+                        ObjectParams => {
+                            Year   => $GetParam{ $TimeType . 'TimeStartYear' },
+                            Month  => $GetParam{ $TimeType . 'TimeStartMonth' },
+                            Day    => $GetParam{ $TimeType . 'TimeStartDay' },
+                            Hour   => 0,                                           # midnight
+                            Minute => 0,
+                            Second => 0,
+                            TimeZone => $Self->{UserTimeZone} || Kernel::System::DateTime->UserDefaultTimeZoneGet(),
+                        },
+                    );
+
+                    # Convert start time to local system time zone.
+                    $DateTimeObject->ToOTRSTimeZone();
+                    $GetParam{ $TimeType . 'TimeNewerDate' } = $DateTimeObject->ToString();
                 }
                 if (
                     $GetParam{ $TimeType . 'TimeStopDay' }
@@ -331,10 +356,22 @@ sub Run {
                     && $GetParam{ $TimeType . 'TimeStopYear' }
                     )
                 {
-                    $GetParam{ $TimeType . 'TimeOlderDate' } = $GetParam{ $TimeType . 'TimeStopYear' } . '-'
-                        . $GetParam{ $TimeType . 'TimeStopMonth' } . '-'
-                        . $GetParam{ $TimeType . 'TimeStopDay' }
-                        . ' 23:59:59';
+                    my $DateTimeObject = $Kernel::OM->Create(
+                        'Kernel::System::DateTime',
+                        ObjectParams => {
+                            Year   => $GetParam{ $TimeType . 'TimeStopYear' },
+                            Month  => $GetParam{ $TimeType . 'TimeStopMonth' },
+                            Day    => $GetParam{ $TimeType . 'TimeStopDay' },
+                            Hour   => 23,                                         # just before midnight
+                            Minute => 59,
+                            Second => 59,
+                            TimeZone => $Self->{UserTimeZone} || Kernel::System::DateTime->UserDefaultTimeZoneGet(),
+                        },
+                    );
+
+                    # Convert stop time to local system time zone.
+                    $DateTimeObject->ToOTRSTimeZone();
+                    $GetParam{ $TimeType . 'TimeOlderDate' } = $DateTimeObject->ToString();
                 }
             }
             elsif ( $GetParam{ $TimeMap{$TimeType} . 'SearchType' } eq 'TimePoint' ) {
@@ -469,7 +506,7 @@ sub Run {
         my $DisableCompanyTickets = $ConfigObject->Get('Ticket::Frontend::CustomerDisableCompanyTicketAccess');
 
         if ($DisableCompanyTickets) {
-            $GetParam{CustomerUserLogin} = $Self->{UserID};
+            $GetParam{CustomerUserLoginRaw} = $Self->{UserID};
         }
 
         # perform ticket search
@@ -490,7 +527,6 @@ sub Run {
         # get needed objects
         my $UserObject         = $Kernel::OM->Get('Kernel::System::User');
         my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
-        my $TimeObject         = $Kernel::OM->Get('Kernel::System::Time');
 
         # CSV and Excel output
         if (
@@ -540,26 +576,40 @@ sub Run {
             my @CSVData;
             for my $TicketID (@ViewableTicketIDs) {
 
-                # get first article data
-                my %Data = $TicketObject->ArticleFirstArticle(
+                # Get ticket data.
+                my %Ticket = $TicketObject->TicketGet(
                     TicketID      => $TicketID,
+                    DynamicFields => 0,
                     Extended      => 1,
-                    DynamicFields => 1,
+                    UserID        => $Self->{UserID},
                 );
 
-                # if no article found, use ticket information
-                if ( !%Data ) {
-                    my %Ticket = $TicketObject->TicketGet(
+                # Get first article data.
+                my @Articles = $ArticleObject->ArticleList(
+                    TicketID  => $TicketID,
+                    OnlyFirst => 1,
+                );
+                my %Article;
+                for my $Article (@Articles) {
+                    %Article = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet(
                         TicketID      => $TicketID,
-                        DynamicFields => 0,
+                        ArticleID     => $Article->{ArticleID},
+                        DynamicFields => 1,
                         UserID        => $Self->{UserID},
                     );
+                }
+
+                my %Data;
+
+                # If no article was found, set some defaults.
+                if ( !%Article ) {
                     %Data = %Ticket;
-                    $Data{Subject} = $Ticket{Title} || 'Untitled';
-                    $Data{Body} = $LayoutObject->{LanguageObject}->Translate(
-                        'This item has no articles yet.'
-                    );
-                    $Data{From} = '--';
+                    $Data{Subject} = $Ticket{Title} || $LayoutObject->{LanguageObject}->Translate('Untitled');
+                    $Data{Body}    = $LayoutObject->{LanguageObject}->Translate('This item has no articles yet.');
+                    $Data{From}    = '--';
+                }
+                else {
+                    %Data = ( %Ticket, %Article );
                 }
 
                 for my $Key (qw(State Lock)) {
@@ -573,25 +623,32 @@ sub Run {
 
                 # get whole article (if configured!)
                 if ( $Config->{SearchArticleCSVTree} && $GetParam{ResultForm} eq 'CSV' ) {
-                    my @Article = $TicketObject->ArticleGet(
-                        TicketID      => $TicketID,
-                        DynamicFields => 0,
+                    my @Articles = $ArticleObject->ArticleList(
+                        TicketID => $TicketID,
                     );
-                    if ( $#Article == -1 ) {
-                        $Data{ArticleTree}
-                            .= 'This item has no articles yet.';
-                    }
-                    else
-                    {
-                        for my $Articles (@Article) {
-                            if ( $Articles->{Body} ) {
+                    if (@Articles) {
+                        for my $Article (@Articles) {
+                            my %Article = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet(
+                                TicketID      => $TicketID,
+                                ArticleID     => $Article->{ArticleID},
+                                DynamicFields => 0,
+                                UserID        => $Self->{UserID},
+                            );
+                            if ( $Article{Body} ) {
                                 $Data{ArticleTree}
-                                    .= "\n-->||$Articles->{ArticleType}||$Articles->{From}||"
-                                    . $Articles->{Created}
+                                    .= "\n-->"
+                                    . "||$Article{SenderType}"
+                                    . "||$Article{From}"
+                                    . "||$Article{CreateTime}"
                                     . "||<--------------\n"
-                                    . $Articles->{Body};
+                                    . $Article{Body};
                             }
                         }
+                    }
+                    else {
+                        $Data{ArticleTree} .= $LayoutObject->{LanguageObject}->Translate(
+                            'This item has no articles yet.'
+                        );
                     }
                 }
 
@@ -663,22 +720,21 @@ sub Run {
             }
 
             my %HeaderMap = (
-                TicketNumber => 'Ticket Number',
-                CustomerName => 'Customer Realname',
+                TicketNumber => Translatable('Ticket Number'),
+                CustomerName => Translatable('Customer Realname'),
             );
 
             my @CSVHeadTranslated = map { $LayoutObject->{LanguageObject}->Translate( $HeaderMap{$_} || $_ ); }
                 @CSVHead;
 
             # return csv to download
-            my $FileName = 'ticket_search';
-            my ( $s, $m, $h, $D, $M, $Y ) = $TimeObject->SystemTime2Date(
-                SystemTime => $TimeObject->SystemTime(),
+            my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+            my $FileName                = sprintf(
+                'ticket_search_%s',
+                $CurSystemDateTimeObject->Format(
+                    Format => '%Y-%m-%d_%H-%M'
+                    )
             );
-            $M = sprintf( "%02d", $M );
-            $D = sprintf( "%02d", $D );
-            $h = sprintf( "%02d", $h );
-            $m = sprintf( "%02d", $m );
 
             # get CSV object
             my $CSVObject = $Kernel::OM->Get('Kernel::System::CSV');
@@ -690,7 +746,7 @@ sub Run {
                     Data => \@CSVData,
                 );
                 return $LayoutObject->Attachment(
-                    Filename    => $FileName . "_" . "$Y-$M-$D" . "_" . "$h-$m.csv",
+                    Filename    => $FileName . '.csv',
                     ContentType => "text/csv; charset=" . $LayoutObject->{UserCharset},
                     Content     => $CSV,
                 );
@@ -706,7 +762,7 @@ sub Run {
                 );
 
                 return $LayoutObject->Attachment(
-                    Filename => $FileName . "_" . "$Y-$M-$D" . "_" . "$h-$m.xlsx",
+                    Filename => $FileName . '.xlsx',
                     ContentType =>
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     Content => $Excel,
@@ -722,25 +778,57 @@ sub Run {
             my @PDFData;
             for my $TicketID (@ViewableTicketIDs) {
 
-                # get first article data
-                my %Data = $TicketObject->ArticleLastCustomerArticle(
+                # Get ticket data.
+                my %Ticket = $TicketObject->TicketGet(
                     TicketID      => $TicketID,
+                    DynamicFields => 1,
                     Extended      => 1,
-                    DynamicFields => 0,
+                    UserID        => $Self->{UserID},
                 );
 
-                if ( !%Data ) {
+                # Get last customer article.
+                my @Articles = $ArticleObject->ArticleList(
+                    TicketID   => $TicketID,
+                    SenderType => 'customer',
+                    OnlyLast   => 1,
+                );
 
-                    # get ticket data instead
-                    %Data = $TicketObject->TicketGet(
-                        TicketID      => $TicketID,
-                        DynamicFields => 1,
+                # If the ticket has no customer article, get the last agent article.
+                if ( !@Articles ) {
+                    @Articles = $ArticleObject->ArticleList(
+                        TicketID   => $TicketID,
+                        SenderType => 'agent',
+                        OnlyLast   => 1,
+                    );
+                }
+
+                # Finally, if everything failed, get latest article.
+                if ( !@Articles ) {
+                    @Articles = $ArticleObject->ArticleList(
+                        TicketID => $TicketID,
+                        OnlyLast => 1,
+                    );
+                }
+
+                my %Article;
+                for my $Article (@Articles) {
+                    %Article = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet(
+                        %{$Article},
+                        DynamicFields => 0,
                         UserID        => $Self->{UserID},
                     );
+                }
 
-                    # set missing information
-                    $Data{Subject} = $Data{Title} || 'Untitled';
+                my %Data;
+
+                # If no article was found, set some defaults.
+                if ( !%Article ) {
+                    %Data = %Ticket;
+                    $Data{Subject} = $Ticket{Title} || $LayoutObject->{LanguageObject}->Translate('Untitled');
                     $Data{From} = '--';
+                }
+                else {
+                    %Data = ( %Ticket, %Article );
                 }
 
                 # customer info
@@ -774,7 +862,7 @@ sub Run {
 
                 my %Info = ( %Data, %UserInfo );
                 my $Created = $LayoutObject->{LanguageObject}->FormatTimeString(
-                    $Data{Created},
+                    $Data{CreateTime} // $Data{Created},
                     'DateFormat',
                 );
 
@@ -794,9 +882,13 @@ sub Run {
 
             my $Title = $LayoutObject->{LanguageObject}->Translate('Ticket') . ' '
                 . $LayoutObject->{LanguageObject}->Translate('Search');
-            my $PrintedBy = $LayoutObject->{LanguageObject}->Translate('printed by');
-            my $Page      = $LayoutObject->{LanguageObject}->Translate('Page');
-            my $Time      = $LayoutObject->{Time};
+            my $PrintedBy      = $LayoutObject->{LanguageObject}->Translate('printed by');
+            my $Page           = $LayoutObject->{LanguageObject}->Translate('Page');
+            my $DateTimeString = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
+            my $Time           = $LayoutObject->{LanguageObject}->FormatTimeString(
+                $DateTimeString,
+                'DateFormat',
+            );
 
             # get maximum number of pages
             my $MaxPages = $ConfigObject->Get('PDF::MaxPages');
@@ -894,8 +986,7 @@ sub Run {
             # output "printed by"
             $PDFObject->Text(
                 Text => $PrintedBy . ' '
-                    . $Self->{UserFirstname} . ' '
-                    . $Self->{UserLastname} . ' ('
+                    . $Self->{UserFullname} . ' ('
                     . $Self->{UserEmail} . ')'
                     . ', ' . $Time,
                 FontSize => 9,
@@ -925,17 +1016,15 @@ sub Run {
             }
 
             # return the pdf document
-            my $Filename = 'ticket_search';
-            my ( $s, $m, $h, $D, $M, $Y ) = $TimeObject->SystemTime2Date(
-                SystemTime => $TimeObject->SystemTime(),
+            my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+            my $Filename                = sprintf(
+                'ticket_search_%s.pdf',
+                $CurSystemDateTimeObject->Format( Format => '%Y-%m-%d_%H-%M' ),
             );
-            $M = sprintf( "%02d", $M );
-            $D = sprintf( "%02d", $D );
-            $h = sprintf( "%02d", $h );
-            $m = sprintf( "%02d", $m );
+
             my $PDFString = $PDFObject->DocumentOutput();
             return $LayoutObject->Attachment(
-                Filename    => $Filename . "_" . "$Y-$M-$D" . "_" . "$h-$m.pdf",
+                Filename    => $Filename,
                 ContentType => "application/pdf",
                 Content     => $PDFString,
                 Type        => 'inline',
@@ -1053,74 +1142,106 @@ sub Run {
                     )
                 {
 
-                    # get first article data
-                    my %Article = $TicketObject->ArticleLastCustomerArticle(
-                        TicketID      => $TicketID,
-                        Extended      => 1,
-                        DynamicFields => 1,
-                    );
-
+                    # Get ticket data.
                     my %Ticket = $TicketObject->TicketGet(
                         TicketID      => $TicketID,
                         DynamicFields => 0,
+                        Extended      => 1,
                         UserID        => $Self->{UserID},
                     );
 
-                    # if no article found, use ticket information
+                    # Get last customer article.
+                    my @Articles = $ArticleObject->ArticleList(
+                        TicketID   => $TicketID,
+                        SenderType => 'customer',
+                        OnlyLast   => 1,
+                    );
+
+                    # If the ticket has no customer article, get the last agent article.
+                    if ( !@Articles ) {
+                        @Articles = $ArticleObject->ArticleList(
+                            TicketID   => $TicketID,
+                            SenderType => 'agent',
+                            OnlyLast   => 1,
+                        );
+                    }
+
+                    # Finally, if everything failed, get latest article.
+                    if ( !@Articles ) {
+                        @Articles = $ArticleObject->ArticleList(
+                            TicketID => $TicketID,
+                            OnlyLast => 1,
+                        );
+                    }
+
+                    my %Article;
+                    for my $Article (@Articles) {
+                        %Article = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet(
+                            %{$Article},
+                            DynamicFields => 1,
+                            UserID        => $Self->{UserID},
+                        );
+                    }
+
+                    my %Data;
+
+                    # If no article was found, set some defaults.
                     if ( !%Article ) {
-                        %Article = %Ticket;
-                        $Article{Subject} = $Ticket{Title} || 'Untitled';
-                        $Article{Body} = $LayoutObject->{LanguageObject}->Translate(
+                        %Data = %Ticket;
+                        $Data{Subject} = $Ticket{Title} || $LayoutObject->{LanguageObject}->Translate('Untitled');
+                        $Data{Body} = $LayoutObject->{LanguageObject}->Translate(
                             'This item has no articles yet.'
                         );
+                    }
+                    else {
+                        %Data = ( %Ticket, %Article );
                     }
 
                     # customer info
                     my %CustomerData;
-                    if ( $Article{CustomerUserID} ) {
+                    if ( $Data{CustomerUserID} ) {
                         %CustomerData = $CustomerUserObject->CustomerUserDataGet(
-                            User => $Article{CustomerUserID},
+                            User => $Data{CustomerUserID},
                         );
                     }
-                    elsif ( $Article{CustomerID} ) {
+                    elsif ( $Data{CustomerID} ) {
                         %CustomerData = $CustomerUserObject->CustomerUserDataGet(
-                            User => $Article{CustomerID},
+                            User => $Data{CustomerID},
                         );
                     }
 
                     # customer info (customer name)
                     if ( $CustomerData{UserLogin} ) {
-                        $Article{CustomerName} = $CustomerUserObject->CustomerName(
+                        $Data{CustomerName} = $CustomerUserObject->CustomerName(
                             UserLogin => $CustomerData{UserLogin},
                         );
                     }
 
                     # user info
                     my %Owner = $UserObject->GetUserData(
-                        User => $Article{Owner},
+                        User => $Data{Owner},
                     );
 
                     # Condense down the subject
                     my $Subject = $TicketObject->TicketSubjectClean(
-                        TicketNumber => $Article{TicketNumber},
-                        Subject      => $Article{Subject} || '',
+                        TicketNumber => $Data{TicketNumber},
+                        Subject      => $Data{Subject} || '',
                     );
-                    $Article{CustomerAge} = $LayoutObject->CustomerAge(
-                        Age   => $Article{Age},
-                        Space => ' '
+                    $Data{CustomerAge} = $LayoutObject->CustomerAge(
+                        Age   => $Data{Age},
+                        Space => ' ',
                     );
 
                     # customer info string
-                    if ( $Article{CustomerName} ) {
-                        $Article{CustomerName} = '(' . $Article{CustomerName} . ')';
+                    if ( $Data{CustomerName} ) {
+                        $Data{CustomerName} = '(' . $Data{CustomerName} . ')';
                     }
 
                     # add blocks to template
                     $LayoutObject->Block(
                         Name => 'Record',
                         Data => {
-                            %Article,
-                            %Ticket,
+                            %Data,
                             Subject => $Subject,
                             %Owner,
                         },
@@ -1135,7 +1256,7 @@ sub Run {
                         # get field value
                         my $ValueStrg = $BackendObject->DisplayValueRender(
                             DynamicFieldConfig => $DynamicFieldConfig,
-                            Value              => $Article{ 'DynamicField_' . $DynamicFieldConfig->{Name} },
+                            Value              => $Data{ 'DynamicField_' . $DynamicFieldConfig->{Name} },
                             ValueMaxChars      => 20,
                             LayoutObject       => $LayoutObject,
                         );
@@ -1284,13 +1405,13 @@ sub Run {
                 else {
 
                     my $Mapping = {
-                        'Last'   => 'Created within the last',
-                        'Before' => 'Created more than ... ago',
+                        'Last'   => Translatable('Created within the last'),
+                        'Before' => Translatable('Created more than ... ago'),
                     };
 
                     $Attribute = $Mapping->{ $GetParam{TicketCreateTimePointStart} };
                     $Value     = $GetParam{TicketCreateTimePoint} . ' '
-                        . $LayoutObject->{LanguageObject}->Get( $GetParam{TicketCreateTimePointFormat} . '(s)' );
+                        . $LayoutObject->{LanguageObject}->Translate( $GetParam{TicketCreateTimePointFormat} . '(s)' );
                 }
             }
 
@@ -1384,11 +1505,12 @@ sub Run {
             Data         => {
                 %Param,
                 %PageNav,
-                Order      => $Order,
-                StateSort  => $StateSort,
-                TicketSort => $TicketSort,
-                AgeSort    => $AgeSort,
-                Profile    => $Profile,
+                Order       => $Order,
+                StateSort   => $StateSort,
+                TicketSort  => $TicketSort,
+                AgeSort     => $AgeSort,
+                Profile     => $Profile,
+                ProfileName => $ProfileName,
             },
         );
 
@@ -1556,6 +1678,19 @@ sub MaskForm {
         Class       => 'Modernize',
     );
 
+    my %Customers = $Kernel::OM->Get('Kernel::System::CustomerGroup')->GroupContextCustomers(
+        CustomerUserID => $Self->{UserID},
+    );
+
+    $Param{CustomerIDStrg} = $LayoutObject->BuildSelection(
+        Data       => \%Customers,
+        Name       => 'CustomerID',
+        Multiple   => 1,
+        Size       => 5,
+        SelectedID => $Param{CustomerID},
+        Class      => 'Modernize',
+    );
+
     # get service object
     my $ServiceObject = $Kernel::OM->Get('Kernel::System::Service');
 
@@ -1563,13 +1698,13 @@ sub MaskForm {
     if ( $ConfigObject->Get('Customer::TicketSearch::AllServices') ) {
         %ServiceList = $ServiceObject->ServiceList(
             UserID => $Self->{UserID},
-            ),
+        );
     }
     else {
         %ServiceList = $ServiceObject->CustomerUserServiceMemberList(
             CustomerUserLogin => $Self->{UserID},
             Result            => 'HASH',
-            ),
+        );
     }
 
     $Param{ServicesStrg} = $LayoutObject->BuildSelection(
@@ -1698,8 +1833,8 @@ sub MaskForm {
     );
     $Param{TicketCreateTimePointStart} = $LayoutObject->BuildSelection(
         Data => {
-            Last   => 'within the last ...',
-            Before => 'more than ... ago',
+            Last   => Translatable('within the last ...'),
+            Before => Translatable('more than ... ago'),
         },
         Translation => 1,
         Name        => 'TicketCreateTimePointStart',
@@ -1707,12 +1842,12 @@ sub MaskForm {
     );
     $Param{TicketCreateTimePointFormat} = $LayoutObject->BuildSelection(
         Data => {
-            minute => 'minute(s)',
-            hour   => 'hour(s)',
-            day    => 'day(s)',
-            week   => 'week(s)',
-            month  => 'month(s)',
-            year   => 'year(s)',
+            minute => Translatable('minute(s)'),
+            hour   => Translatable('hour(s)'),
+            day    => Translatable('day(s)'),
+            week   => Translatable('week(s)'),
+            month  => Translatable('month(s)'),
+            year   => Translatable('year(s)'),
         },
         Translation => 1,
         Name        => 'TicketCreateTimePointFormat',
@@ -1738,6 +1873,24 @@ sub MaskForm {
         Data => { %Param, },
     );
 
+    # create the fulltext field entries to be displayed
+    my %ArticleSearchableFields = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleSearchableFieldsList();
+
+    for my $ArticleFieldKey (
+        sort { $ArticleSearchableFields{$a}->{Label} cmp $ArticleSearchableFields{$b}->{Label} }
+        keys %ArticleSearchableFields
+        )
+    {
+        $LayoutObject->Block(
+            Name => 'SearchableArticleField',
+            Data => {
+                ArticleFieldLabel => $ArticleSearchableFields{$ArticleFieldKey}->{Label},
+                ArticleFieldKey   => $ArticleSearchableFields{$ArticleFieldKey}->{Key},
+                ArticleFieldValue => $Param{$ArticleFieldKey} // '',
+            },
+        );
+    }
+
     # enable archive search
     if (
         $ConfigObject->Get('Ticket::ArchiveSystem')
@@ -1748,9 +1901,9 @@ sub MaskForm {
 
         $Param{SearchInArchiveStrg} = $LayoutObject->BuildSelection(
             Data => {
-                ArchivedTickets    => 'Archived tickets',
-                NotArchivedTickets => 'Unarchived tickets',
-                AllTickets         => 'All tickets',
+                ArchivedTickets    => Translatable('Archived tickets'),
+                NotArchivedTickets => Translatable('Unarchived tickets'),
+                AllTickets         => Translatable('All tickets'),
             },
             Name       => 'SearchInArchive',
             SelectedID => $Param{SearchInArchive} || 'NotArchivedTickets',
@@ -1829,17 +1982,6 @@ sub MaskForm {
         }
     }
 
-    if (
-        $ConfigObject->Get('Ticket::StorageModule') eq
-        'Kernel::System::Ticket::ArticleStorageDB'
-        )
-    {
-        $LayoutObject->Block(
-            Name => 'Attachment',
-            Data => \%Param
-        );
-    }
-
     # html search mask output
     return $LayoutObject->Output(
         TemplateFile => 'CustomerTicketSearch',
@@ -1850,12 +1992,17 @@ sub MaskForm {
 sub _StopWordsServerErrorsGet {
     my ( $Self, %Param ) = @_;
 
+    my $LayoutObject  = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
     if ( !%Param ) {
-        $Kernel::OM->Get('Kernel::Output::HTML::Layout')->FatalError( Message => "Got no values to check." );
+        $LayoutObject->FatalError(
+            Message => Translatable('Got no values to check.'),
+        );
     }
 
     my %StopWordsServerErrors;
-    if ( !$Kernel::OM->Get('Kernel::System::Ticket')->SearchStringStopWordsUsageWarningActive() ) {
+    if ( !$ArticleObject->SearchStringStopWordsUsageWarningActive() ) {
         return %StopWordsServerErrors;
     }
 
@@ -1871,8 +2018,8 @@ sub _StopWordsServerErrorsGet {
 
     if (%SearchStrings) {
 
-        my $StopWords = $Kernel::OM->Get('Kernel::System::Ticket')->SearchStringStopWordsFind(
-            SearchStrings => \%SearchStrings
+        my $StopWords = $ArticleObject->SearchStringStopWordsFind(
+            SearchStrings => \%SearchStrings,
         );
 
         FIELD:
@@ -1882,7 +2029,7 @@ sub _StopWordsServerErrorsGet {
             next FIELD if !@{ $StopWords->{$Field} };
 
             $StopWordsServerErrors{ $Field . 'Invalid' }        = 'ServerError';
-            $StopWordsServerErrors{ $Field . 'InvalidTooltip' } = $Self->{LayoutObject}->{LanguageObject}
+            $StopWordsServerErrors{ $Field . 'InvalidTooltip' } = $LayoutObject->{LanguageObject}
                 ->Translate('Please remove the following words because they cannot be used for the search:')
                 . ' '
                 . join( ',', sort @{ $StopWords->{$Field} } );

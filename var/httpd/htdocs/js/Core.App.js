@@ -1,10 +1,11 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
 // did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 // --
+// nofilter(TidyAll::Plugin::OTRS::JavaScript::UnloadEvent)
 
 "use strict";
 
@@ -44,6 +45,49 @@ Core.App = (function (TargetNS) {
         });
         return QueryString;
     }
+
+    /**
+     * @name BindWindowUnloadEvent
+     * @memberof Core.App
+     * @function
+     * @param {String} Namespace - Namespace for which the event should be bound.
+     * @param {Function} CallbackFunction - Function which should be executed once the event is fired.
+     * @description
+     *      Binds a crossbrowser compatible unload event to the window object
+     */
+    TargetNS.BindWindowUnloadEvent = function (Namespace, CallbackFunction) {
+
+        if (!$.isFunction(CallbackFunction)) {
+            return;
+        }
+
+        // we need a special handling for all IE's before 11, because these
+        // don't know the pagehide event but support the non-standard
+        // unload event.
+        if ($.browser.msie && parseInt($.browser.version, 10) < 11) {
+            $(window).on('unload.' + Namespace, function () {
+                CallbackFunction();
+            });
+        }
+        else {
+            $(window).on('pagehide.' + Namespace, function () {
+                CallbackFunction();
+            });
+        }
+    };
+
+    /**
+     * @name UnbindWindowUnloadEvent
+     * @memberof Core.App
+     * @function
+     * @param {String} Namespace - Namespace for which the event should be removed.
+     * @description
+     *      Unbinds a crossbrowser compatible unload event to the window object
+     */
+    TargetNS.UnbindWindowUnloadEvent = function (Namespace) {
+        $(window).off('unload.' + Namespace);
+        $(window).off('pagehide.' + Namespace);
+    };
 
     /**
      * @name GetSessionInformation
@@ -86,7 +130,7 @@ Core.App = (function (TargetNS) {
             });
             return AppropriateBrowser;
         }
-        alert('Error: Browser Check failed!');
+        alert(Core.Language.Translate('Error: Browser Check failed!'));
     };
 
     /**
@@ -137,19 +181,148 @@ Core.App = (function (TargetNS) {
     TargetNS.Ready = function (Callback) {
         if ($.isFunction(Callback)) {
             $(document).ready(function () {
-                var Trace;
                 try {
                     Callback();
                 }
                 catch (Error) {
-                    Trace = printStackTrace({e: Error, guess: true}).join('\n');
-                    Core.Exception.HandleFinalError(Error, Trace);
+                    Core.Exception.HandleFinalError(Error);
                 }
             });
         }
         else {
             Core.Exception.ShowError('No function parameter given in Core.App.Ready', 'TypeError');
         }
+
+        TargetNS.Subscribe('Core.App.AjaxErrorResolved', function() {
+
+            var $DialogObj = $('#AjaxErrorDialog');
+
+            window.clearInterval(TargetNS.AjaxConnectionCheckInterval);
+            delete TargetNS.AjaxConnectionCheckInterval;
+
+            $('body').removeClass('ConnectionErrorDialogClosed');
+
+            if (!$('body').hasClass('ConnectionErrorDetected')) {
+                return false;
+            }
+
+            $('body').removeClass('ConnectionErrorDetected');
+
+            // if there is already a dialog, we just exchange the content
+            if ($('#AjaxErrorDialogInner').is(':visible')) {
+
+                $('#AjaxErrorDialogInner').find('.NoConnection').hide();
+                $('#AjaxErrorDialogInner').find('.ConnectionReEstablished').show().delay(1000).find('.Icon').addClass('Green');
+            }
+            else {
+
+                $DialogObj.find('.NoConnection').hide();
+                $DialogObj.find('.ConnectionReEstablished').show().find('.Icon').addClass('Green');
+
+                Core.UI.Dialog.ShowDialog({
+                    HTML : $DialogObj,
+                    Title : Core.Language.Translate("Connection error"),
+                    Modal : true,
+                    CloseOnClickOutside : false,
+                    CloseOnEscape : false,
+                    PositionTop: '100px',
+                    PositionLeft: 'Center',
+                    Buttons: [
+                        {
+                            Label: Core.Language.Translate("Reload page"),
+                            Class: 'Primary',
+                            Function: function () {
+                                location.reload();
+                            }
+                        },
+                        {
+                            Label: Core.Language.Translate("Close this dialog"),
+                            Function: function () {
+                                if ($('#AjaxErrorDialogInner').find('.NoConnection').is(':visible')) {
+                                    $('body').addClass('ConnectionErrorDialogClosed');
+                                }
+                                Core.UI.Dialog.CloseDialog($('#AjaxErrorDialogInner'));
+                            }
+                        }
+                    ],
+                    AllowAutoGrow: true
+                });
+
+                // the only possibility to close the dialog should be the button
+                $('#AjaxErrorDialogInner').closest('.Dialog').find('.Close').remove();
+            }
+        });
+
+        // check for ajax errors and show overlay in case there is one
+        TargetNS.Subscribe('Core.App.AjaxError', function() {
+
+            var $DialogObj = $('#AjaxErrorDialog');
+
+            // set a body class to remember that we detected the error
+            $('body').addClass('ConnectionErrorDetected');
+
+            // if the dialog has been closed manually, don't show it again
+            if ($('body').hasClass('ConnectionErrorDialogClosed')) {
+                return false;
+            }
+
+            // only show one dialog at a time
+            if ($('#AjaxErrorDialogInner').find('.NoConnection').is(':visible')) {
+                return false;
+            }
+
+            // do ajax calls on a regular basis to see whether the connection has been re-established
+            if (!TargetNS.AjaxConnectionCheckInterval) {
+                TargetNS.AjaxConnectionCheckInterval = window.setInterval(function(){
+                    Core.AJAX.FunctionCall(Core.Config.Get('CGIHandle'), null, function () {
+                        TargetNS.Publish('Core.App.AjaxErrorResolved');
+                    }, 'html');
+                }, 5000);
+            }
+
+            // if a connection warning dialog is open but shows the "connection re-established"
+            // notice, show the warning again. This could happen if the connection had been lost
+            // but also re-established and the dialog informing about it is still there
+            if ($('#AjaxErrorDialogInner').find('.ConnectionReEstablished').is(':visible')) {
+                $('#AjaxErrorDialogInner').find('.ConnectionReEstablished').hide().prev('.NoConnection').show();
+                return false;
+            }
+
+            // Show 'No Connection' dialog content.
+            $DialogObj.find('.NoConnection').show();
+
+            Core.UI.Dialog.ShowDialog({
+                HTML : $DialogObj,
+                Title : Core.Language.Translate("Connection error"),
+                Modal : true,
+                CloseOnClickOutside : false,
+                CloseOnEscape : false,
+                PositionTop: '100px',
+                PositionLeft: 'Center',
+                Buttons: [
+                    {
+                        Label: Core.Language.Translate("Reload page"),
+                        Class: 'Primary',
+                        Function: function () {
+                            location.reload();
+                        }
+                    },
+                    {
+                        Label: Core.Language.Translate("Close this dialog"),
+                        Function: function () {
+                            if ($('#AjaxErrorDialogInner').find('.NoConnection').is(':visible')) {
+                                $('body').addClass('ConnectionErrorDialogClosed');
+                            }
+                            Core.UI.Dialog.CloseDialog($('#AjaxErrorDialogInner'));
+                        }
+                    }
+                ],
+                AllowAutoGrow: true
+            });
+
+            // the only possibility to close the dialog should be the button
+            $('#AjaxErrorDialogInner').closest('.Dialog').find('.Close').remove();
+        });
     };
 
     /**
@@ -177,9 +350,14 @@ Core.App = (function (TargetNS) {
      * @description
      *      Escapes the special characters (. :) in the given jQuery Selector
      *      jQ does not allow the usage of dot or colon in ID or class names
+     *      An overview of special characters that should be quoted can be found here:
+     *      https://api.jquery.com/category/selectors/
      */
     TargetNS.EscapeSelector = function (Selector) {
-        return Selector.replace(/(#|:|\.|\[|\])/g, '\\$1');
+        if (Selector && Selector.length) {
+            return Selector.replace(/( |#|:|\.|\[|\]|@|!|"|\$|%|&|<|=|>|'|\(|\)|\*|\+|,|\?|\/|;|\\|\^|{|}|`|\||~)/g, '\\$1');
+        }
+        return '';
     };
 
     /**
@@ -189,16 +367,22 @@ Core.App = (function (TargetNS) {
      * @returns {String} The escaped string.
      * @param {String} StringToEscape - The string which is supposed to be escaped.
      * @description
-     *      Escapes the special HTML characters ( < > & ) in supplied string to their
+     *      Escapes the special HTML characters ( < > & ") in supplied string to their
      *      corresponding entities.
      */
     TargetNS.EscapeHTML = function (StringToEscape) {
         var HTMLEntities = {
             '&': '&amp;',
             '<': '&lt;',
-            '>': '&gt;'
+            '>': '&gt;',
+            '"': '&quot;'
         };
-        return StringToEscape.replace(/[&<>]/g, function(Entity) {
+
+        if (!StringToEscape) {
+            return '';
+        }
+
+        return StringToEscape.replace(/[&<>"]/g, function(Entity) {
             return HTMLEntities[Entity] || Entity;
         });
     };
@@ -241,6 +425,67 @@ Core.App = (function (TargetNS) {
     TargetNS.Unsubscribe = function (Handle) {
         $.unsubscribe(Handle);
     };
+
+    /**
+     * @name Init
+     * @memberof Core.App
+     * @function
+     * @description
+     *      This function initializes the special functions.
+     */
+    TargetNS.Init = function () {
+        var RefreshSeconds = parseInt(Core.Config.Get('Refresh'), 10) || 0;
+
+        if (RefreshSeconds !== 0) {
+            window.setInterval(function() {
+
+                // If there are any open overlay dialogs, don't refresh
+                if ($('.Dialog:visible').length) {
+                    return;
+                }
+
+                // If there are open child popup windows, don't refresh
+                if (Core && Core.UI && Core.UI.Popup && Core.UI.Popup.HasOpenPopups()) {
+                    return;
+                }
+                // Now we can reload
+                window.location.reload();
+            }, RefreshSeconds * 1000);
+        }
+
+        // Initialize return to previous page function.
+        TargetNS.ReturnToPreviousPage();
+    };
+
+    /**
+     * @name ReturnToPreviousPage
+     * @memberof Core.App
+     * @function
+     * @description
+     *      This function bind on click event to return on previous page.
+     */
+    TargetNS.ReturnToPreviousPage = function () {
+
+        $('.ReturnToPreviousPage').on('click', function () {
+
+            // Check if an older history entry is available
+            if (history.length > 1) {
+            history.back();
+            return false;
+            }
+
+            // If we're in a popup window, close it
+            if (Core.UI.Popup.CurrentIsPopupWindow()) {
+                Core.UI.Popup.ClosePopup();
+                return false;
+            }
+
+            // Normal window, no history: no action possible
+            return false;
+        });
+    };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.App || {}));

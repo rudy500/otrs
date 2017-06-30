@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -54,13 +54,48 @@ $Selenium->RunTest(
             ValidID                => 1,
             UserID                 => $TestUserID,
         );
+        $Self->True(
+            $CustomerCompanyID,
+            "CustomerCompany is created - ID $CustomerCompanyID",
+        );
 
-        # go to customer information center screen
+        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentCustomerInformationCenter;CustomerID=$TestCustomerID");
+
+        # navigate to AgentCustomerInformationCenter screen
+        $Selenium->VerifiedGet(
+            "${ScriptAlias}index.pl?Action=AgentCustomerInformationCenter;CustomerID=$TestCustomerID"
+        );
 
         # test customer information widget
         for my $Test (@CustomerCompany) {
+            $Self->True(
+                index( $Selenium->get_page_source(), $Test ) > -1,
+                "$Test - found on screen"
+            );
+        }
+
+        # change attribute setting
+        $Helper->ConfigSettingChange(
+            Key   => 'AgentCustomerInformationCenter::Backend###0600-CIC-CustomerCompanyInformation',
+            Value => {
+                'Attributes'  => 'CustomerCompanyStreet;CustomerCompanyCity',
+                'Block'       => 'ContentSmall',
+                'Default'     => '1',
+                'Description' => 'Customer Information',
+                'Group'       => '',
+                'Module'      => 'Kernel::Output::HTML::Dashboard::CustomerCompanyInformation',
+                'Title'       => "Customer Information",
+            },
+        );
+
+        # navigate again to AgentCustomerInformationCenter screen
+        $Selenium->VerifiedGet(
+            "${ScriptAlias}index.pl?Action=AgentCustomerInformationCenter;CustomerID=$TestCustomerID"
+        );
+
+        # test customer information widget
+        for my $Test (qw(Selenium Street Selenium City)) {
             $Self->True(
                 index( $Selenium->get_page_source(), $Test ) > -1,
                 "$Test - found on screen"
@@ -74,7 +109,7 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Deleted CustomerCompany - $CustomerCompanyID",
+            "CustomerCompany is deleted - ID $CustomerCompanyID",
         );
 
         # make sure the cache is correct

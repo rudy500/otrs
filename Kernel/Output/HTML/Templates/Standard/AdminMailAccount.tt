@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,6 +9,26 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Mail Account Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Mail Account Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% SWITCH Data.Action %]
+        [% CASE 'AddNew' %]
+            [% BreadcrumbPath.push({ Name => Translate('Add Mail Account'),}) %]
+        [% CASE 'Update' %]
+            [% USE EditTitlePartOne = String(Translate("Edit Mail Account for host")) %]
+            [% USE EditTitlePartTwo = String(Translate("and user account")) %]
+            [% BreadcrumbPath.push({ Name => EditTitlePartOne.append( ' "', Data.Host, '" ', EditTitlePartTwo, ' "', Data.Login, '"' ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
 
 [% RenderBlockStart("ActionList") %]
@@ -25,13 +45,23 @@
 [% RenderBlockEnd("ActionOverview") %]
 [% RenderBlockStart("ActionAdd") %]
                     <li>
-                        <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=AddNew" class="CallForAction Fullsize Center"><span><i class="fa fa-plus-square"></i>[% Translate("Add mail account") | html %]</span></a>
+                        <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=AddNew" class="CallForAction Fullsize Center"><span><i class="fa fa-plus-square"></i>[% Translate("Add Mail Account") | html %]</span></a>
                     </li>
 [% RenderBlockEnd("ActionAdd") %]
                 </ul>
             </div>
         </div>
 [% RenderBlockEnd("ActionList") %]
+[% RenderBlockStart("Filter") %]
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterMailAccounts">[% Translate("Filter for Mail Accounts") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterMailAccounts" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterMailAccounts" value="" title="[% Translate("Filter for mail accounts") | html %]">
+            </div>
+        </div>
+[% RenderBlockEnd("Filter") %]
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>[% Translate("Hint") | html %]</h2>
@@ -54,7 +84,7 @@
                 <h2>[% Translate("List") | html %]</h2>
             </div>
             <div class="Content">
-                <table class="DataTable">
+                <table class="DataTable" id="MailAccounts">
                     <thead>
                         <tr>
                             <th>[% Translate("Host") | html %]/[% Translate("Username") | html %]</th>
@@ -86,15 +116,26 @@
                             <td>[% Data.ChangeTime | Localize("TimeShort") %]</td>
                             <td>[% Data.CreateTime | Localize("TimeShort") %]</td>
                             <td class="Center">
-                                <a class="TrashCan" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Delete;ID=[% Data.ID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Delete account") | html %]">[% Translate("Delete account") | html %]<i class="fa fa-trash-o"></i></a>
+                                <a class="TrashCan MailAccountDelete" href="#" data-query-string="Action=AdminMailAccount;Subaction=Delete;ID=[% Data.ID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Delete account") | html %]">[% Translate("Delete account") | html %]
+                                    <i class="fa fa-trash-o"></i>
+                                </a>
                             </td>
                             <td>
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Run;ID=[% Data.ID | uri %];[% Env("ChallengeTokenParam") | html %]">[% Translate("Fetch mail") | html %]</a>
                             </td>
                         </tr>
 [% RenderBlockEnd("OverviewResultRow") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="8">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="Hidden" id="DeleteMailAccountDialogContainer">
+                <div id ="DeleteMailAccountDialog" class="InnerContent GenericInterfaceDialog">
+                    <p class="Center Spacing">[% Translate("Do you really want to delete this mail account?") | html %]</p>
+                    <div class="SpacingTop"></div>
+                </div>
             </div>
 [% RenderBlockEnd("OverviewResult") %]
 
@@ -204,7 +245,7 @@
                         <div class="Clear"></div>
 
                         <div class="Field SpacingTop">
-                            <button class="Primary CallForAction" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                            <button class="Primary CallForAction" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                         </div>
@@ -223,6 +264,9 @@
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="UpdateAction"/>
                     <input type="hidden" name="ID" value="[% Data.ID | html %]"/>
+                    [% IF Data.Action == 'Update' %]
+                        <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
+                    [% END %]
                     <fieldset class="TableLike">
                         <label class="Mandatory" for="Type"><span class="Marker">*</span> [% Translate("Type") | html %]:</label>
                         <div class="Field">
@@ -250,7 +294,7 @@
 
                         <label class="Mandatory" for="PasswordEdit"><span class="Marker">*</span> [% Translate("Password") | html %]:</label>
                         <div class="Field">
-                            <input type="password" class="W50pc Validate_Required [% Data.PasswordEditInvalid | html %]" name="Password" id="PasswordEdit" value="[% Data.Password | html %]" maxlength="200" autocomplete="off" />
+                            <input type="password" class="W50pc Validate_Required [% Data.PasswordEditInvalid | html %]" name="Password" id="PasswordEdit" value="[% IF Data.Password %]otrs-dummy-password-placeholder[% END %]" maxlength="200" autocomplete="off" />
                             <div id="PasswordEditError" class="TooltipErrorMessage">
                                 <p>[% Translate("This field is required.") | html %]</p>
                             </div>
@@ -339,7 +383,13 @@
                         <div class="Clear"></div>
 
                         <div class="Field SpacingTop">
-                            <button class="Primary CallForAction" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                            [% IF Data.Action == 'Update' %]
+                                <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                                [% Translate("or") | html %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            [% ELSE %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% END %]
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                         </div>
@@ -354,28 +404,3 @@
     <div class="Clear"></div>
 </div>
 [% RenderBlockEnd("Overview") %]
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-// Show IMAPFolder selection only for IMAP backends
-$('select#TypeAdd, select#Type').bind('change', function(){
-    if (/IMAP/.test($(this).val())) {
-        $('.Row_IMAPFolder').show();
-    }
-    else {
-        $('.Row_IMAPFolder').hide();
-    }
-}).trigger('change');
-// Show only Queue field if Dispatch By Queue is selected
-$('select#DispatchingBy').bind('change', function(){
-    if (/Queue/.test($(this).val())) {
-        $('.Row_Queue').show();
-        Core.UI.InputFields.Activate();
-    }
-    else {
-        $('.Row_Queue').hide();
-    }
-}).trigger('change');
-//]]></script>
-
-[% END %]

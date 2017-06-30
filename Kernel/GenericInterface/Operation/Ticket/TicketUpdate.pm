@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,9 +11,9 @@ package Kernel::GenericInterface::Operation::Ticket::TicketUpdate;
 use strict;
 use warnings;
 
-use Kernel::System::VariableCheck qw(IsArrayRefWithData IsHashRefWithData IsStringWithData);
+use Kernel::System::VariableCheck qw( :all );
 
-use base qw(
+use parent qw(
     Kernel::GenericInterface::Operation::Common
     Kernel::GenericInterface::Operation::Ticket::Common
 );
@@ -22,17 +22,11 @@ our $ObjectManagerDisabled = 1;
 
 =head1 NAME
 
-Kernel::GenericInterface::Operation::Ticket::TicketCreate - GenericInterface Ticket TicketCreate Operation backend
-
-=head1 SYNOPSIS
+Kernel::GenericInterface::Operation::Ticket::TicketUpdate - GenericInterface Ticket TicketUpdate Operation backend
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 usually, you want to create an instance of this
 by using Kernel::GenericInterface::Operation->new();
@@ -50,21 +44,23 @@ sub new {
         if ( !$Param{$Needed} ) {
             return {
                 Success      => 0,
-                ErrorMessage => "Got no $Needed!"
+                ErrorMessage => "Got no $Needed!",
             };
         }
 
         $Self->{$Needed} = $Param{$Needed};
     }
 
-    $Self->{Config} = $Kernel::OM->Get('Kernel::Config')->Get('GenericInterface::Operation::TicketUpdate');
+    $Self->{Config}    = $Kernel::OM->Get('Kernel::Config')->Get('GenericInterface::Operation::TicketUpdate');
+    $Self->{Operation} = $Param{Operation};
 
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
-perform TicketCreate Operation. This will return the created ticket number.
+perform TicketUpdate Operation. This will return the updated TicketID and
+if applicable the created ArticleID.
 
     my $Result = $OperationObject->Run(
         Data => {
@@ -114,15 +110,16 @@ perform TicketCreate Operation. This will return the created ticket number.
                 #     Diff => 10080, # Pending time in minutes
                 #},
             },
-            Article {                                                          # optional
-                ArticleTypeID                   => 123,                        # optional
-                ArticleType                     => 'some article type name',   # optional
+            Article => {                                                          # optional
+                CommunicationChannel            => 'Email',                    # CommunicationChannel or CommunicationChannelID must be provided.
+                CommunicationChannelID          => 1,
+                IsVisibleForCustomer            => 1,                          # optional
                 SenderTypeID                    => 123,                        # optional
                 SenderType                      => 'some sender type name',    # optional
                 AutoResponseType                => 'some auto response type',  # optional
                 From                            => 'some from string',         # optional
                 Subject                         => 'some subject',
-                Body                            => 'some body'
+                Body                            => 'some body',
 
                 ContentType                     => 'some content type',        # ContentType or MimeType and Charset is required
                 MimeType                        => 'some mime type',
@@ -172,12 +169,131 @@ perform TicketCreate Operation. This will return the created ticket number.
         ErrorMessage    => '',                      # in case of error
         Data            => {                        # result data payload after Operation
             TicketID    => 123,                     # Ticket  ID number in OTRS (help desk system)
-            TicketNumber => 2324454323322           # Ticket Number in OTRS (Help desk system)
             ArticleID   => 43,                      # Article ID number in OTRS (help desk system)
             Error => {                              # should not return errors
-                    ErrorCode    => 'Ticket.Create.ErrorCode'
+                    ErrorCode    => 'TicketUpdate.ErrorCode'
                     ErrorMessage => 'Error Description'
             },
+
+            # If IncludeTicketData is enabled
+            Ticket => [
+                {
+                    TicketNumber       => '20101027000001',
+                    Title              => 'some title',
+                    TicketID           => 123,
+                    State              => 'some state',
+                    StateID            => 123,
+                    StateType          => 'some state type',
+                    Priority           => 'some priority',
+                    PriorityID         => 123,
+                    Lock               => 'lock',
+                    LockID             => 123,
+                    Queue              => 'some queue',
+                    QueueID            => 123,
+                    CustomerID         => 'customer_id_123',
+                    CustomerUserID     => 'customer_user_id_123',
+                    Owner              => 'some_owner_login',
+                    OwnerID            => 123,
+                    Type               => 'some ticket type',
+                    TypeID             => 123,
+                    SLA                => 'some sla',
+                    SLAID              => 123,
+                    Service            => 'some service',
+                    ServiceID          => 123,
+                    Responsible        => 'some_responsible_login',
+                    ResponsibleID      => 123,
+                    Age                => 3456,
+                    Created            => '2010-10-27 20:15:00'
+                    CreateTimeUnix     => '1231414141',
+                    CreateBy           => 123,
+                    Changed            => '2010-10-27 20:15:15',
+                    ChangeBy           => 123,
+                    ArchiveFlag        => 'y',
+
+                    DynamicField => [
+                        {
+                            Name  => 'some name',
+                            Value => 'some value',
+                        },
+                    ],
+
+                    # (time stamps of expected escalations)
+                    EscalationResponseTime           (unix time stamp of response time escalation)
+                    EscalationUpdateTime             (unix time stamp of update time escalation)
+                    EscalationSolutionTime           (unix time stamp of solution time escalation)
+
+                    # (general escalation info of nearest escalation type)
+                    EscalationDestinationIn          (escalation in e. g. 1h 4m)
+                    EscalationDestinationTime        (date of escalation in unix time, e. g. 72193292)
+                    EscalationDestinationDate        (date of escalation, e. g. "2009-02-14 18:00:00")
+                    EscalationTimeWorkingTime        (seconds of working/service time till escalation, e. g. "1800")
+                    EscalationTime                   (seconds total till escalation of nearest escalation time type - response, update or solution time, e. g. "3600")
+
+                    # (detailed escalation info about first response, update and solution time)
+                    FirstResponseTimeEscalation      (if true, ticket is escalated)
+                    FirstResponseTimeNotification    (if true, notify - x% of escalation has reached)
+                    FirstResponseTimeDestinationTime (date of escalation in unix time, e. g. 72193292)
+                    FirstResponseTimeDestinationDate (date of escalation, e. g. "2009-02-14 18:00:00")
+                    FirstResponseTimeWorkingTime     (seconds of working/service time till escalation, e. g. "1800")
+                    FirstResponseTime                (seconds total till escalation, e. g. "3600")
+
+                    UpdateTimeEscalation             (if true, ticket is escalated)
+                    UpdateTimeNotification           (if true, notify - x% of escalation has reached)
+                    UpdateTimeDestinationTime        (date of escalation in unix time, e. g. 72193292)
+                    UpdateTimeDestinationDate        (date of escalation, e. g. "2009-02-14 18:00:00")
+                    UpdateTimeWorkingTime            (seconds of working/service time till escalation, e. g. "1800")
+                    UpdateTime                       (seconds total till escalation, e. g. "3600")
+
+                    SolutionTimeEscalation           (if true, ticket is escalated)
+                    SolutionTimeNotification         (if true, notify - x% of escalation has reached)
+                    SolutionTimeDestinationTime      (date of escalation in unix time, e. g. 72193292)
+                    SolutionTimeDestinationDate      (date of escalation, e. g. "2009-02-14 18:00:00")
+                    SolutionTimeWorkingTime          (seconds of working/service time till escalation, e. g. "1800")
+                    SolutionTime                     (seconds total till escalation, e. g. "3600")
+
+                    Article => [
+                        {
+                            ArticleID
+                            From
+                            To
+                            Cc
+                            Subject
+                            Body
+                            ReplyTo
+                            MessageID
+                            InReplyTo
+                            References
+                            SenderType
+                            SenderTypeID
+                            CommunicationChannelID
+                            IsVisibleForCustomer
+                            ContentType
+                            Charset
+                            MimeType
+                            IncomingTime
+
+                            DynamicField => [
+                                {
+                                    Name  => 'some name',
+                                    Value => 'some value',
+                                },
+                            ],
+
+                            Attachment => [
+                                {
+                                    Content            => "xxxx",     # actual attachment contents, base64 enconded
+                                    ContentAlternative => "",
+                                    ContentID          => "",
+                                    ContentType        => "application/pdf",
+                                    Filename           => "StdAttachment-Test1.pdf",
+                                    Filesize           => "4.6 KBytes",
+                                    FilesizeRaw        => 4722,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         },
     };
 
@@ -376,10 +492,7 @@ sub Run {
     my $Article;
     if ( defined $Param{Data}->{Article} ) {
 
-        # isolate Article parameter
         $Article = $Param{Data}->{Article};
-
-        # add UserType to Validate ArticleType
         $Article->{UserType} = $UserType;
 
         # remove leading and trailing spaces
@@ -406,12 +519,17 @@ sub Run {
             }
         }
 
-        # check attributes that can be gather by sysconfig
+        # Check attributes that can be set by sysconfig.
         if ( !$Article->{AutoResponseType} ) {
             $Article->{AutoResponseType} = $Self->{Config}->{AutoResponseType} || '';
         }
-        if ( !$Article->{ArticleTypeID} && !$Article->{ArticleType} ) {
-            $Article->{ArticleType} = $Self->{Config}->{ArticleType} || '';
+
+        # TODO: GenericInterface::Operation::TicketUpdate###CommunicationChannel
+        if ( !$Article->{CommunicationChannelID} && !$Article->{CommunicationChannel} ) {
+            $Article->{CommunicationChannel} = 'Internal';
+        }
+        if ( !defined $Article->{IsVisibleForCustomer} ) {
+            $Article->{IsVisibleForCustomer} = $Self->{Config}->{IsVisibleForCustomer} // 1;
         }
         if ( !$Article->{SenderTypeID} && !$Article->{SenderType} ) {
             $Article->{SenderType} = $UserType eq 'User' ? 'agent' : 'customer';
@@ -505,9 +623,9 @@ sub Run {
         for my $AttachmentItem (@AttachmentList) {
             if ( !IsHashRefWithData($AttachmentItem) ) {
                 return {
-                    ErrorCode => 'TicketCreate.InvalidParameter',
+                    ErrorCode => 'TicketUpdate.InvalidParameter',
                     ErrorMessage =>
-                        "TicketCreate: Ticket->Attachment parameter is invalid!",
+                        "TicketUpdate: Ticket->Attachment parameter is invalid!",
                 };
             }
 
@@ -548,7 +666,7 @@ sub Run {
 
 =begin Internal:
 
-=item _CheckTicket()
+=head2 _CheckTicket()
 
 checks if the given ticket parameters are valid.
 
@@ -730,7 +848,7 @@ sub _CheckTicket {
     };
 }
 
-=item _CheckArticle()
+=head2 _CheckArticle()
 
 checks if the given article parameter is valid.
 
@@ -771,8 +889,7 @@ sub _CheckArticle {
 
         # return internal server error
         return {
-            ErrorMessage => "TicketUpdate: Article->AutoResponseType parameter is required and"
-                . " Sysconfig ArticleTypeID setting could not be read!"
+            ErrorMessage => "TicketUpdate: Article->AutoResponseType parameter is required and",
         };
     }
 
@@ -783,20 +900,20 @@ sub _CheckArticle {
         };
     }
 
-    # check Article->ArticleType
-    if ( !$Article->{ArticleTypeID} && !$Article->{ArticleType} ) {
+    # check Article->CommunicationChannel
+    if ( !$Article->{CommunicationChannel} && !$Article->{CommunicationChannelID} ) {
 
         # return internal server error
         return {
-            ErrorMessage => "TicketUpdate: Article->ArticleTypeID or Article->ArticleType parameter"
-                . " is required and Sysconfig ArticleTypeID setting could not be read!"
+            ErrorMessage => "TicketUpdate: Article->CommunicationChannelID or Article->CommunicationChannel parameter"
+                . " is required and Sysconfig CommunicationChannelID setting could not be read!"
         };
     }
-    if ( !$Self->ValidateArticleType( %{$Article} ) ) {
+    if ( !$Self->ValidateArticleCommunicationChannel( %{$Article} ) ) {
         return {
             ErrorCode    => 'TicketUpdate.InvalidParameter',
-            ErrorMessage => "TicketUpdate: Article->ArticleTypeID or Article->ArticleType parameter"
-                . " is invalid!",
+            ErrorMessage => "TicketUpdate: Article->CommunicationChannel or Article->CommunicationChannelID parameter"
+                . " is invalid or not supported!",
         };
     }
 
@@ -1008,7 +1125,7 @@ sub _CheckArticle {
     };
 }
 
-=item _CheckDynamicField()
+=head2 _CheckDynamicField()
 
 checks if the given dynamic field parameter is valid.
 
@@ -1042,10 +1159,14 @@ sub _CheckDynamicField {
 
     # check DynamicField item internally
     for my $Needed (qw(Name Value)) {
-        if ( !defined $DynamicField->{$Needed} || !IsStringWithData( $DynamicField->{$Needed} ) ) {
+        if (
+            !defined $DynamicField->{$Needed}
+            || ( !IsString( $DynamicField->{$Needed} ) && ref $DynamicField->{$Needed} ne 'ARRAY' )
+            )
+        {
             return {
                 ErrorCode    => 'TicketUpdate.MissingParameter',
-                ErrorMessage => "TicketUpdate: DynamicField->$Needed  parameter is missing!",
+                ErrorMessage => "TicketUpdate: DynamicField->$Needed parameter is missing!",
             };
         }
     }
@@ -1087,7 +1208,7 @@ sub _CheckDynamicField {
     };
 }
 
-=item _CheckAttachment()
+=head2 _CheckAttachment()
 
 checks if the given attachment parameter is valid.
 
@@ -1127,7 +1248,7 @@ sub _CheckAttachment {
         if ( !$Attachment->{$Needed} ) {
             return {
                 ErrorCode    => 'TicketUpdate.MissingParameter',
-                ErrorMessage => "TicketUpdate: Attachment->$Needed  parameter is missing!",
+                ErrorMessage => "TicketUpdate: Attachment->$Needed parameter is missing!",
             };
         }
     }
@@ -1174,7 +1295,7 @@ sub _CheckAttachment {
     };
 }
 
-=item _CheckUpdatePermissions()
+=head2 _CheckUpdatePermissions()
 
 check if user has permissions to update ticket attributes.
 
@@ -1357,7 +1478,7 @@ sub _CheckUpdatePermissions {
         }
 }
 
-=item _TicketUpdate()
+=head2 _TicketUpdate()
 
 updates a ticket and creates an article and sets dynamic fields and attachments if specified.
 
@@ -1822,6 +1943,8 @@ sub _TicketUpdate {
         }
     }
 
+    my $UnlockOnAway = 1;
+
     # update Ticket->Owner
     if ( $Ticket->{Owner} || $Ticket->{OwnerID} ) {
         my $Success;
@@ -1831,6 +1954,7 @@ sub _TicketUpdate {
                 TicketID => $TicketID,
                 UserID   => $Param{UserID},
             );
+            $UnlockOnAway = 0;
         }
         elsif ( defined $Ticket->{OwnerID} && $Ticket->{OwnerID} ne $TicketData{OwnerID} )
         {
@@ -1839,6 +1963,7 @@ sub _TicketUpdate {
                 TicketID  => $TicketID,
                 UserID    => $Param{UserID},
             );
+            $UnlockOnAway = 0;
         }
         else {
 
@@ -1908,8 +2033,7 @@ sub _TicketUpdate {
             # use data from customer user (if customer user is in database)
             if ( IsHashRefWithData( \%CustomerUserData ) ) {
                 $From = '"'
-                    . $CustomerUserData{UserFirstname} . ' '
-                    . $CustomerUserData{UserLastname} . '"'
+                    . $CustomerUserData{UserFullname} . '"'
                     . ' <' . $CustomerUserData{UserEmail} . '>';
             }
 
@@ -1922,32 +2046,44 @@ sub _TicketUpdate {
             my %UserData = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
                 UserID => $Param{UserID},
             );
-            $From = $UserData{UserFirstname} . ' ' . $UserData{UserLastname};
+            $From = $UserData{UserFullname};
         }
 
         # set Article To
         my $To = '';
 
-        # create article
-        $ArticleID = $TicketObject->ArticleCreate(
-            NoAgentNotify  => $Article->{NoAgentNotify}  || 0,
-            TicketID       => $TicketID,
-            ArticleTypeID  => $Article->{ArticleTypeID}  || '',
-            ArticleType    => $Article->{ArticleType}    || '',
-            SenderTypeID   => $Article->{SenderTypeID}   || '',
-            SenderType     => $Article->{SenderType}     || '',
-            From           => $From,
-            To             => $To,
-            Subject        => $Article->{Subject},
-            Body           => $Article->{Body},
-            MimeType       => $Article->{MimeType}       || '',
-            Charset        => $Article->{Charset}        || '',
-            ContentType    => $Article->{ContentType}    || '',
-            UserID         => $Param{UserID},
-            HistoryType    => $Article->{HistoryType},
-            HistoryComment => $Article->{HistoryComment} || '%%',
-            AutoResponseType => $Article->{AutoResponseType},
-            OrigHeader       => {
+        if ( !$Article->{CommunicationChannel} ) {
+
+            my %CommunicationChannel = $Kernel::OM->Get('Kernel::System::CommunicationChannel')->ChannelGet(
+                ChannelID => $Article->{CommunicationChannelID},
+            );
+            $Article->{CommunicationChannel} = $CommunicationChannel{ChannelName};
+        }
+
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => $Article->{CommunicationChannel},
+        );
+
+        # Create article.
+        $ArticleID = $ArticleBackendObject->ArticleCreate(
+            NoAgentNotify => $Article->{NoAgentNotify} || 0,
+            TicketID      => $TicketID,
+            SenderTypeID  => $Article->{SenderTypeID}  || '',
+            SenderType    => $Article->{SenderType}    || '',
+            IsVisibleForCustomer => $Article->{IsVisibleForCustomer},
+            From                 => $From,
+            To                   => $To,
+            Subject              => $Article->{Subject},
+            Body                 => $Article->{Body},
+            MimeType             => $Article->{MimeType} || '',
+            Charset              => $Article->{Charset} || '',
+            ContentType          => $Article->{ContentType} || '',
+            UserID               => $Param{UserID},
+            HistoryType          => $Article->{HistoryType},
+            HistoryComment       => $Article->{HistoryComment} || '%%',
+            AutoResponseType     => $Article->{AutoResponseType},
+            UnlockOnAway         => $UnlockOnAway,
+            OrigHeader           => {
                 From    => $From,
                 To      => $To,
                 Subject => $Article->{Subject},
@@ -2017,21 +2153,163 @@ sub _TicketUpdate {
         }
     }
 
-    if ($ArticleID) {
+    # get webservice configuration
+    my $Webservice = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice')->WebserviceGet(
+        ID => $Self->{WebserviceID},
+    );
+
+    my $IncludeTicketData;
+
+    # Get operation config, if operation name was supplied.
+    if ( $Self->{Operation} ) {
+        my $OperationConfig = $Webservice->{Config}->{Provider}->{Operation}->{ $Self->{Operation} };
+        $IncludeTicketData = $OperationConfig->{IncludeTicketData};
+    }
+
+    if ( !$IncludeTicketData ) {
+        if ($ArticleID) {
+            return {
+                Success => 1,
+                Data    => {
+                    TicketID     => $TicketID,
+                    TicketNumber => $TicketData{TicketNumber},
+                    ArticleID    => $ArticleID,
+                },
+            };
+        }
         return {
             Success => 1,
             Data    => {
                 TicketID     => $TicketID,
                 TicketNumber => $TicketData{TicketNumber},
-                ArticleID    => $ArticleID,
             },
         };
     }
+
+    # get updated TicketData
+    %TicketData = ();
+    %TicketData = $TicketObject->TicketGet(
+        TicketID      => $TicketID,
+        DynamicFields => 1,
+        UserID        => $Param{UserID},
+    );
+
+    # extract all dynamic fields from main ticket hash.
+    my %TicketDynamicFields;
+    TICKETATTRIBUTE:
+    for my $TicketAttribute ( sort keys %TicketData ) {
+        if ( $TicketAttribute =~ m{\A DynamicField_(.*) \z}msx ) {
+            $TicketDynamicFields{$1} = {
+                Name  => $1,
+                Value => $TicketData{$TicketAttribute},
+            };
+            delete $TicketData{$TicketAttribute};
+        }
+    }
+
+    # add dynamic fields as array into 'DynamicField' hash key if any
+    if (%TicketDynamicFields) {
+        $TicketData{DynamicField} = [ sort { $a->{Name} cmp $b->{Name} } values %TicketDynamicFields ];
+    }
+
+    # get last ArticleID
+    my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $ArticleBackendObject = $ArticleObject->BackendForArticle(
+        ArticleID => $ArticleID,
+        TicketID  => $TicketID
+    );
+
+    my @Articles = $ArticleObject->ArticleList(
+        TicketID => $TicketID,
+        OnlyLast => 1,
+    );
+
+    my $LastArticleID = $Articles[0]->{ArticleID};
+
+    # return ticket data if we have no article data
+    if ( !$ArticleID && !$LastArticleID ) {
+        return {
+            Success => 1,
+            Data    => {
+                TicketID     => $TicketID,
+                TicketNumber => $TicketData{TicketNumber},
+                Ticket       => \%TicketData,
+            },
+        };
+    }
+
+    # get Article and ArticleAttachement
+    my %ArticleData = $ArticleBackendObject->ArticleGet(
+        ArticleID => $ArticleID || $LastArticleID,
+        DynamicFields => 1,
+        TicketID      => $TicketID,
+        UserID        => $Param{UserID},
+    );
+
+    # prepare Article DynamicFields
+    my @ArticleDynamicFields;
+
+    # remove all dynamic fields from main ticket hash and set them into an array.
+    ARTICLEATTRIBUTE:
+    for my $ArticleAttribute ( sort keys %ArticleData ) {
+        if ( $ArticleAttribute =~ m{\A DynamicField_(.*) \z}msx ) {
+            if ( !exists $TicketDynamicFields{$1} ) {
+                push @ArticleDynamicFields, {
+                    Name  => $1,
+                    Value => $ArticleData{$ArticleAttribute},
+                };
+            }
+
+            delete $ArticleData{$ArticleAttribute};
+        }
+    }
+
+    # add dynamic fields array into 'DynamicField' hash key if any
+    if (@ArticleDynamicFields) {
+        $ArticleData{DynamicField} = \@ArticleDynamicFields;
+    }
+
+    # add attachment if the request includes attachments
+    if ( IsArrayRefWithData($AttachmentList) ) {
+        my %AttachmentIndex = $TicketObject->ArticleAttachmentIndex(
+            ArticleID => $ArticleData{ArticleID},
+            UserID    => $Param{UserID},
+        );
+
+        my @Attachments;
+        $Kernel::OM->Get('Kernel::System::Main')->Require('MIME::Base64');
+        ATTACHMENT:
+        for my $FileID ( sort keys %AttachmentIndex ) {
+            next ATTACHMENT if !$FileID;
+            my %Attachment = $TicketObject->ArticleAttachment(
+                ArticleID => $ArticleData{ArticleID},
+                FileID    => $FileID,
+                UserID    => $Param{UserID},
+            );
+
+            next ATTACHMENT if !IsHashRefWithData( \%Attachment );
+
+            # convert content to base64
+            $Attachment{Content} = MIME::Base64::encode_base64( $Attachment{Content} );
+            push @Attachments, {%Attachment};
+        }
+
+        # set Attachments data
+        if (@Attachments) {
+            $ArticleData{Attachment} = \@Attachments;
+        }
+    }
+
+    $TicketData{Article} = \%ArticleData;
+
+    # return ticket data and article data
     return {
         Success => 1,
         Data    => {
             TicketID     => $TicketID,
             TicketNumber => $TicketData{TicketNumber},
+            ArticleID    => $ArticleData{ArticleID},
+            Ticket       => \%TicketData,
         },
     };
 }
@@ -2039,8 +2317,6 @@ sub _TicketUpdate {
 1;
 
 =end Internal:
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

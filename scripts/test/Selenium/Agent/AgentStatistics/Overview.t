@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,13 +18,21 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        # get helper object
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        # get needed objects
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
         # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users', 'stats' ],
         ) || die "Did not get test user";
+
+        # update the number of max stats shown on one page
+        my $Success = $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Stats::SearchPageShown',
+            Value => 1000,
+        );
 
         $Selenium->Login(
             Type     => 'Agent',
@@ -32,13 +40,19 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Overview");
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Overview");
 
         # check layout screen
         $Selenium->find_element( "table",             'css' );
         $Selenium->find_element( "table thead tr th", 'css' );
         $Selenium->find_element( "table tbody tr td", 'css' );
+
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
 
         # check add button
         $Self->True(
@@ -61,6 +75,8 @@ $Selenium->RunTest(
         );
 
         # open the default stats
+        my $Counter = 0;
+        STATS:
         for my $StatID ( @{$StatsIDs} ) {
 
             # check edit link
@@ -97,7 +113,7 @@ $Selenium->RunTest(
 
             # go to view screen of statistics
             $Selenium->find_element("//a[contains(\@href, \'Action=AgentStatistics;Subaction=View;StatID=$StatID\' )]")
-                ->click();
+                ->VerifiedClick();
 
             # check 'Go to overview' link on the view screen
             $Self->True(
@@ -120,9 +136,41 @@ $Selenium->RunTest(
             );
 
             # go to overview screen
-            $Selenium->find_element( "Cancel", 'link_text' )->click();
+            $Selenium->find_element( "Cancel", 'link_text' )->VerifiedClick();
 
+            last STATS if $Counter > 5;
+
+            $Counter++;
         }
+
+        # define the first statsID
+        my $StatsIDFirst = $StatsIDs->[0];
+
+        # go to Edit screen of the first statistics
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentStatistics;Subaction=Edit;StatID=$StatsIDFirst");
+
+        # get data for the first statistics
+        my $StatsData = $StatsObject->StatsGet(
+            StatID => $StatsIDFirst,
+            UserID => 1,
+        );
+
+        # check breadcrumb on Edit screen
+        my $Count = 1;
+        for my $BreadcrumbText (
+            'Statistics Overview',
+            'Edit ' . $ConfigObject->Get('Stats::StatsHook') . $StatsData->{StatNumber}
+            )
+        {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
     }
 );
 

@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -19,13 +20,9 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestCustomerUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -39,7 +36,7 @@ $Selenium->RunTest(
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         # go to customer preferences
-        $Selenium->get("${ScriptAlias}customer.pl?Action=CustomerPreferences");
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerPreferences");
 
         # create test params
         my @Tests = (
@@ -61,8 +58,9 @@ $Selenium->RunTest(
         for my $Test (@Tests) {
 
             $Selenium->execute_script(
-                "\$('#$Test->{ID}').val('$Test->{Value}').trigger('redraw.InputField').trigger('change');");
-            $Selenium->find_element( "#$Test->{ID} option[value='$Test->{Value}']", 'css' )->submit();
+                "\$('#$Test->{ID}').val('$Test->{Value}').trigger('redraw.InputField').trigger('change');"
+            );
+            $Selenium->find_element( "#$Test->{ID} option[value='$Test->{Value}']", 'css' )->VerifiedSubmit();
 
             $Self->True(
                 index( $Selenium->get_page_source(), $UpdateMessage ) > -1,

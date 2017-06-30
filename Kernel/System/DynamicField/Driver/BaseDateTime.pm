@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,14 +12,15 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
-use base qw(Kernel::System::DynamicField::Driver::Base);
+use parent qw(Kernel::System::DynamicField::Driver::Base);
 
 our @ObjectDependencies = (
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::DynamicFieldValue',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
@@ -28,13 +29,11 @@ Kernel::System::DynamicField::Driver::BaseDateTime - sub module of
 Kernel::System::DynamicField::Driver::Date and
 Kernel::System::DynamicField::Driver::DateTime
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Date common functions.
 
 =head1 PUBLIC INTERFACE
-
-=over 4
 
 =cut
 
@@ -86,18 +85,20 @@ sub ValueValidate {
     if ($DateRestriction) {
 
         # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-        my $ValueSystemTime = $TimeObject->TimeStamp2SystemTime(
+        my $SystemTime = $DateTimeObject->ToEpoch();
+
+        my $ValueSystemTime = $DateTimeObject->Set(
             String => $Param{Value},
         );
-        my $SystemTime = $TimeObject->SystemTime();
+        $ValueSystemTime = $ValueSystemTime ? $DateTimeObject->ToEpoch() : undef;
 
         if ( $DateRestriction eq 'DisableFutureDates' && $ValueSystemTime > $SystemTime ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
                 Message =>
-                    "The value for the field Date is in the future! The date needs to be in the past!",
+                    "The value for the Data field ($Param{DynamicFieldConfig}->{Name}) is in the future! The date needs to be in the past!",
             );
             return;
         }
@@ -105,7 +106,7 @@ sub ValueValidate {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
                 Message =>
-                    "The value for the field Date is in the past! The date needs to be in the future!",
+                    "The value for the Date field ($Param{DynamicFieldConfig}->{Name}) is in the past! The date needs to be in the future!",
             );
             return;
         }
@@ -125,18 +126,25 @@ sub SearchSQLGet {
         SmallerThanEquals => '<=',
     );
 
-    if ( $Operators{ $Param{Operator} } ) {
-        my $SQL = " $Param{TableAlias}.value_date $Operators{$Param{Operator}} '";
-        $SQL .= $Kernel::OM->Get('Kernel::System::DB')->Quote( $Param{SearchTerm} ) . "' ";
-        return $SQL;
+    if ( $Param{Operator} eq 'Empty' ) {
+        if ( $Param{SearchTerm} ) {
+            return " $Param{TableAlias}.value_date IS NULL ";
+        }
+        else {
+            return " $Param{TableAlias}.value_date IS NOT NULL ";
+        }
+    }
+    elsif ( !$Operators{ $Param{Operator} } ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            'Priority' => 'error',
+            'Message'  => "Unsupported Operator $Param{Operator}",
+        );
+        return;
     }
 
-    $Kernel::OM->Get('Kernel::System::Log')->Log(
-        'Priority' => 'error',
-        'Message'  => "Unsupported Operator $Param{Operator}",
-    );
-
-    return;
+    my $SQL = " $Param{TableAlias}.value_date $Operators{ $Param{Operator} } '";
+    $SQL .= $Kernel::OM->Get('Kernel::System::DB')->Quote( $Param{SearchTerm} ) . "' ";
+    return $SQL;
 }
 
 sub SearchSQLOrderFieldGet {
@@ -160,29 +168,26 @@ sub EditFieldRender {
         $Value = $FieldConfig->{DefaultValue} || '';
     }
 
-    my %SplitedFieldValues;
     if ( defined $Param{Value} ) {
         $Value = $Param{Value};
     }
+
     if ($Value) {
         my ( $Year, $Month, $Day, $Hour, $Minute, $Second ) = $Value =~
             m{ \A ( \d{4} ) - ( \d{2} ) - ( \d{2} ) \s ( \d{2} ) : ( \d{2} ) : ( \d{2} ) \z }xms;
 
-        %SplitedFieldValues = (
-
-            # if a value is sent this value must be active, then the Used part needs to be set to 1
-            # otherwise user can easily forget to mark the checkbox and this could lead into data
-            # lost Bug#8258
-            $FieldName . 'Used'   => 1,
-            $FieldName . 'Year'   => $Year,
-            $FieldName . 'Month'  => $Month,
-            $FieldName . 'Day'    => $Day,
-            $FieldName . 'Hour'   => $Hour,
-            $FieldName . 'Minute' => $Minute,
-        );
+        # If a value is sent this value must be active, then the Used part needs to be set to 1
+        #   otherwise user can easily forget to mark the checkbox and this could lead into data
+        #   lost (Bug#8258).
+        $FieldConfig->{ $FieldName . 'Used' }   = 1;
+        $FieldConfig->{ $FieldName . 'Year' }   = $Year;
+        $FieldConfig->{ $FieldName . 'Month' }  = $Month;
+        $FieldConfig->{ $FieldName . 'Day' }    = $Day;
+        $FieldConfig->{ $FieldName . 'Hour' }   = $Hour;
+        $FieldConfig->{ $FieldName . 'Minute' } = $Minute;
     }
 
-    # extract the dynamic field value form the web request
+    # extract the dynamic field value from the web request
     # TransformDates is always needed from EditFieldRender Bug#8452
     my $FieldValues = $Self->EditFieldValueGet(
         TransformDates       => 1,
@@ -249,7 +254,6 @@ sub EditFieldRender {
         $FieldName . Optional => 1,
         Validate              => 1,
         %{$FieldConfig},
-        %SplitedFieldValues,
         %YearsPeriodRange,
     );
 
@@ -310,7 +314,7 @@ sub EditFieldValueGet {
     my %DynamicFieldValues;
 
     # check if there is a Template and retrieve the dynamic field value from there
-    if ( IsHashRefWithData( $Param{Template} ) ) {
+    if ( IsHashRefWithData( $Param{Template} ) && defined $Param{Template}->{ $Prefix . 'Used' } ) {
         for my $Type (qw(Used Year Month Day Hour Minute)) {
             $DynamicFieldValues{ $Prefix . $Type } = $Param{Template}->{ $Prefix . $Type } || 0;
         }
@@ -434,12 +438,14 @@ sub EditFieldValueValidate {
             . $Hour . ':' . $Minute . ':' . $Second;
 
         # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-        my $ValueSystemTime = $TimeObject->TimeStamp2SystemTime(
+        my $SystemTime = $DateTimeObject->ToEpoch();
+
+        my $ValueSystemTime = $DateTimeObject->Set(
             String => $ManualTimeStamp,
         );
-        my $SystemTime = $TimeObject->SystemTime();
+        $ValueSystemTime = $ValueSystemTime ? $DateTimeObject->ToEpoch() : undef;
 
         if ( $DateRestriction eq 'DisableFutureDates' && $ValueSystemTime > $SystemTime ) {
             $ServerError  = 1;
@@ -479,12 +485,14 @@ sub DisplayValueRender {
     my $Title = $Value;
 
     # set field link form config
-    my $Link = $Param{DynamicFieldConfig}->{Config}->{Link} || '';
+    my $Link        = $Param{DynamicFieldConfig}->{Config}->{Link}        || '';
+    my $LinkPreview = $Param{DynamicFieldConfig}->{Config}->{LinkPreview} || '';
 
     my $Data = {
-        Value => $Value,
-        Title => $Title,
-        Link  => $Link,
+        Value       => $Value,
+        Title       => $Title,
+        Link        => $Link,
+        LinkPreview => $LinkPreview,
     };
 
     return $Data;
@@ -608,10 +616,10 @@ EOF
 
         $HTMLString .= $Param{LayoutObject}->BuildSelection(
             Data => {
-                'Before' => 'more than ... ago',
-                'Last'   => 'within the last ...',
-                'Next'   => 'within the next ...',
-                'After'  => 'in more than ...',
+                'Before' => Translatable('more than ... ago'),
+                'Last'   => Translatable('within the last ...'),
+                'Next'   => Translatable('within the next ...'),
+                'After'  => Translatable('in more than ...'),
             },
             Sort           => 'IndividualKey',
             SortIndividual => [ 'Before', 'Last', 'Next', 'After' ],
@@ -625,12 +633,12 @@ EOF
         );
         $HTMLString .= ' ' . $Param{LayoutObject}->BuildSelection(
             Data => {
-                minute => 'minute(s)',
-                hour   => 'hour(s)',
-                day    => 'day(s)',
-                week   => 'week(s)',
-                month  => 'month(s)',
-                year   => 'year(s)',
+                minute => Translatable('minute(s)'),
+                hour   => Translatable('hour(s)'),
+                day    => Translatable('day(s)'),
+                week   => Translatable('week(s)'),
+                month  => Translatable('month(s)'),
+                year   => Translatable('year(s)'),
             },
             Name       => $FieldName . 'Format',
             SelectedID => $Value->{Format}->{ $FieldName . 'Format' } || 'day',
@@ -638,7 +646,7 @@ EOF
 
         my $AdditionalText;
         if ( $Param{UseLabelHints} ) {
-            $AdditionalText = 'before/after';
+            $AdditionalText = Translatable('before/after');
         }
 
         # call EditLabelRender on the common backend
@@ -656,6 +664,15 @@ EOF
         return $Data;
     }
 
+    # to set the years range
+    my %YearsPeriodRange;
+    if ( defined $FieldConfig->{YearsPeriod} && $FieldConfig->{YearsPeriod} eq '1' ) {
+        %YearsPeriodRange = (
+            YearPeriodPast   => $FieldConfig->{YearsInPast}   || 0,
+            YearPeriodFuture => $FieldConfig->{YearsInFuture} || 0,
+        );
+    }
+
     # build HTML for start value set
     $HTMLString .= $Param{LayoutObject}->BuildDateSelection(
         %Param,
@@ -665,6 +682,8 @@ EOF
         DiffTime             => -( ( 60 * 60 * 24 ) * 30 ),
         Validate             => 1,
         %{ $Value->{ValueStart} },
+        %YearsPeriodRange,
+        OverrideTimeZone => 1,
     );
 
     # to put a line break between the two search dates
@@ -687,11 +706,13 @@ EOF
         DiffTime             => +( ( 60 * 60 * 24 ) * 30 ),
         Validate             => 1,
         %{ $Value->{ValueStop} },
+        %YearsPeriodRange,
+        OverrideTimeZone => 1,
     );
 
     my $AdditionalText;
     if ( $Param{UseLabelHints} ) {
-        $AdditionalText = 'between';
+        $AdditionalText = Translatable('between');
     }
 
     # call EditLabelRender on the common Driver
@@ -946,13 +967,11 @@ sub SearchFieldParameterBuild {
             }
 
             # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+            my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
             # get the current time in epoch seconds and as time-stamp
-            my $Now          = $TimeObject->SystemTime();
-            my $NowTimeStamp = $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $Now,
-            );
+            my $Now          = $DateTimeObject->ToEpoch();
+            my $NowTimeStamp = $DateTimeObject->ToString();
 
             # calculate difference time seconds
             my $DiffTimeSeconds = $DiffTimeMinutes * 60;
@@ -963,56 +982,68 @@ sub SearchFieldParameterBuild {
             if ( $Start eq 'Before' ) {
 
                 # we must subtract the difference because it is in the past
-                my $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $Now - $DiffTimeSeconds,
+                my $DateTimeObjectBefore = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        Epoch => $Now - $DiffTimeSeconds,
+                        }
                 );
 
                 # only search dates in the past (before the time stamp)
-                $Parameter{SmallerThanEquals} = $TimeStamp;
+                $Parameter{SmallerThanEquals} = $DateTimeObjectBefore->ToString();
 
                 # set the display value
-                $DisplayValue = '<= ' . $TimeStamp;
+                $DisplayValue = '<= ' . $DateTimeObjectBefore->ToString();
             }
             elsif ( $Start eq 'Last' ) {
 
                 # we must subtract the differences because it is in the past
-                my $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $Now - $DiffTimeSeconds,
+                my $DateTimeObjectLast = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        Epoch => $Now - $DiffTimeSeconds,
+                        }
                 );
 
                 # search dates in the past (after the time stamp and up to now)
-                $Parameter{GreaterThanEquals} = $TimeStamp;
+                $Parameter{GreaterThanEquals} = $DateTimeObjectLast->ToString();
                 $Parameter{SmallerThanEquals} = $NowTimeStamp;
 
                 # set the display value
-                $DisplayValue = $TimeStamp . ' - ' . $NowTimeStamp;
+                $DisplayValue = $DateTimeObjectLast->ToString() . ' - ' . $NowTimeStamp;
             }
             elsif ( $Start eq 'Next' ) {
 
                 # we must add the difference because it is in the future
-                my $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $Now + $DiffTimeSeconds,
+                my $DateTimeObjectNext = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        Epoch => $Now + $DiffTimeSeconds,
+                        }
                 );
 
                 # search dates in the future (after now and up to the time stamp)
                 $Parameter{GreaterThanEquals} = $NowTimeStamp;
-                $Parameter{SmallerThanEquals} = $TimeStamp;
+                $Parameter{SmallerThanEquals} = $DateTimeObjectNext->ToString();
 
                 # set the display value
-                $DisplayValue = $NowTimeStamp . ' - ' . $TimeStamp;
+                $DisplayValue = $NowTimeStamp . ' - ' . $DateTimeObjectNext->ToString();
             }
             elsif ( $Start eq 'After' ) {
 
                 # we must add the difference because it is in the future
-                my $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $Now + $DiffTimeSeconds,
+                my $DateTimeObjectAfter = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        Epoch => $Now + $DiffTimeSeconds,
+                        }
                 );
 
                 # only search dates in the future (after the time stamp)
-                $Parameter{GreaterThanEquals} = $TimeStamp;
+                $Parameter{GreaterThanEquals} = $DateTimeObjectAfter->ToString();
 
                 # set the display value
-                $DisplayValue = '>= ' . $TimeStamp;
+                $DisplayValue = '>= ' . $DateTimeObjectAfter->ToString();
             }
 
             # return search parameter structure
@@ -1177,12 +1208,21 @@ sub ValueLookup {
 
     my $Value = defined $Param{Key} ? $Param{Key} : '';
 
+    # check if a translation is possible
+    if ( defined $Param{LanguageObject} ) {
+
+        # translate value
+        $Value = $Param{LanguageObject}->FormatTimeString(
+            $Value,
+            'DateFormat',
+            'NoSeconds',
+        );
+    }
+
     return $Value;
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

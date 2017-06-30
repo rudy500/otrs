@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,6 +13,7 @@ use warnings;
 
 use Mail::Address;
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -22,6 +23,14 @@ sub new {
     # allocate new hash for object
     my $Self = {%Param};
     bless( $Self, $Type );
+
+    # get form id
+    $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
+
+    # create form id
+    if ( !$Self->{FormID} ) {
+        $Self->{FormID} = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
+    }
 
     return $Self;
 }
@@ -37,8 +46,8 @@ sub Run {
     # check needed stuff
     if ( !$Self->{TicketID} ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Got no TicketID!',
-            Comment => 'System Error!',
+            Message => Translatable('Got no TicketID!'),
+            Comment => Translatable('System Error!'),
         );
     }
 
@@ -105,19 +114,21 @@ sub Run {
                 Lock     => 'lock',
                 UserID   => $Self->{UserID},
             );
-            if (
-                $TicketObject->TicketOwnerSet(
-                    TicketID  => $Self->{TicketID},
-                    UserID    => $Self->{UserID},
-                    NewUserID => $Self->{UserID},
-                )
-                )
-            {
 
-                # show lock state
-                $OutputNotify = $LayoutObject->Notify(
-                    Data => "$Ticket{TicketNumber}: "
-                        . $LayoutObject->{LanguageObject}->Translate("Ticket locked."),
+            my $Success = $TicketObject->TicketOwnerSet(
+                TicketID  => $Self->{TicketID},
+                UserID    => $Self->{UserID},
+                NewUserID => $Self->{UserID},
+            );
+
+            # show lock state
+            if ($Success) {
+                $LayoutObject->Block(
+                    Name => 'PropertiesLock',
+                    Data => {
+                        %Param,
+                        TicketID => $Self->{TicketID},
+                    },
                 );
             }
         }
@@ -133,9 +144,8 @@ sub Run {
                     BodyClass => 'Popup',
                 );
                 $Output .= $LayoutObject->Warning(
-                    Message => $LayoutObject->{LanguageObject}
-                        ->Get('Sorry, you need to be the ticket owner to perform this action.'),
-                    Comment => $LayoutObject->{LanguageObject}->Get('Please change the owner first.'),
+                    Message => Translatable('Sorry, you need to be the ticket owner to perform this action.'),
+                    Comment => Translatable('Please change the owner first.'),
                 );
                 $Output .= $LayoutObject->Footer(
                     Type => 'Small',
@@ -190,7 +200,7 @@ sub Run {
     for my $DynamicFieldConfig ( @{$DynamicField} ) {
         next DYNAMICFIELD if !IsHashRefWithData($DynamicFieldConfig);
 
-        # extract the dynamic field value form the web request
+        # extract the dynamic field value from the web request
         $DynamicFieldValues{ $DynamicFieldConfig->{Name} } =
             $DynamicFieldBackendObject->EditFieldValueGet(
             DynamicFieldConfig => $DynamicFieldConfig,
@@ -201,12 +211,12 @@ sub Run {
 
     # convert dynamic field values into a structure for ACLs
     my %DynamicFieldACLParameters;
-    DYNAMICFIELD:
-    for my $DynamicFieldItem ( sort keys %DynamicFieldValues ) {
-        next DYNAMICFIELD if !$DynamicFieldItem;
-        next DYNAMICFIELD if !$DynamicFieldValues{$DynamicField};
+    DYNAMICFIELDNAME:
+    for my $DynamicFieldName ( sort keys %DynamicFieldValues ) {
+        next DYNAMICFIELDNAME if !$DynamicFieldName;
+        next DYNAMICFIELDNAME if !$DynamicFieldValues{$DynamicFieldName};
 
-        $DynamicFieldACLParameters{ 'DynamicField_' . $DynamicFieldItem } = $DynamicFieldValues{$DynamicFieldItem};
+        $DynamicFieldACLParameters{ 'DynamicField_' . $DynamicFieldName } = $DynamicFieldValues{$DynamicFieldName};
     }
     $GetParam{DynamicField} = \%DynamicFieldACLParameters;
 
@@ -227,14 +237,6 @@ sub Run {
     # get needed objects
     my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
     my $UploadCacheObject  = $Kernel::OM->Get('Kernel::System::Web::UploadCache');
-
-    # get form id
-    my $FormID = $ParamObject->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $UploadCacheObject->FormIDCreate();
-    }
 
     if ( !$Self->{Subaction} ) {
 
@@ -398,7 +400,7 @@ sub Run {
             next COUNT if !$Delete;
             $Error{AttachmentDelete} = 1;
             $UploadCacheObject->FormIDRemoveFile(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
                 FileID => $Count,
             );
             $IsUpload = 1;
@@ -413,7 +415,7 @@ sub Run {
                 Param => 'FileUpload',
             );
             $UploadCacheObject->FormIDAddFile(
-                FormID      => $FormID,
+                FormID      => $Self->{FormID},
                 Disposition => 'attachment',
                 %UploadStuff,
             );
@@ -437,28 +439,36 @@ sub Run {
 
         # get all attachments meta data
         my @Attachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-            FormID => $FormID,
+            FormID => $Self->{FormID},
         );
 
-        # get needed objects
-        my $StateObject = $Kernel::OM->Get('Kernel::System::State');
-        my $TimeObject  = $Kernel::OM->Get('Kernel::System::Time');
-
         # check if date is valid
-        my %StateData = $StateObject->StateGet( ID => $GetParam{NextStateID} );
-        if ( $StateData{TypeName} =~ /^pending/i ) {
-            if ( !$TimeObject->Date2SystemTime( %GetParam, Second => 0 ) ) {
-                if ( $IsUpload == 0 ) {
-                    $Error{'DateInvalid'} = ' ServerError';
-                }
-            }
-            if (
-                $TimeObject->Date2SystemTime( %GetParam, Second => 0 )
-                < $TimeObject->SystemTime()
-                )
-            {
-                if ( $IsUpload == 0 ) {
-                    $Error{'DateInvalid'} = ' ServerError';
+        my %StateData;
+        $GetParam{NextStateID} ||= '';
+        if ( $GetParam{NextStateID} ) {
+            my $StateObject = $Kernel::OM->Get('Kernel::System::State');
+            %StateData = $StateObject->StateGet( ID => $GetParam{NextStateID} );
+
+            if ( $StateData{TypeName} =~ /^pending/i ) {
+
+                # create a datetime object based on pending date
+                my $PendingDateTimeObject = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        %GetParam,
+                        Second => 0,
+                    },
+                );
+
+                # get current system epoch
+                my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+                if (
+                    ( !$PendingDateTimeObject || $PendingDateTimeObject < $CurSystemDateTimeObject )
+                    && !$IsUpload
+                    )
+                {
+                    $Error{'DateInvalid'} = 'ServerError';
                 }
             }
         }
@@ -528,8 +538,9 @@ sub Run {
                 if ( !IsHashRefWithData($ValidationResult) ) {
                     return $LayoutObject->ErrorScreen(
                         Message =>
-                            "Could not perform validation on field $DynamicFieldConfig->{Label}!",
-                        Comment => 'Please contact the admin.',
+                            $LayoutObject->{LanguageObject}
+                            ->Translate( 'Could not perform validation on field %s!', $DynamicFieldConfig->{Label} ),
+                        Comment => Translatable('Please contact the administrator.'),
                     );
                 }
 
@@ -621,7 +632,7 @@ sub Run {
 
             # get pre loaded attachment
             my @AttachmentData = $UploadCacheObject->FormIDGetAllFilesData(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
             );
 
             # get submit attachment
@@ -673,6 +684,9 @@ sub Run {
 
             my $From;
 
+            my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+            my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Phone' );
+
             if ( lc $Config->{SenderType} eq 'customer' ) {
 
                 # get customer email address
@@ -683,19 +697,24 @@ sub Run {
 
                     # use data from customer user (if customer user is in database)
                     if ( IsHashRefWithData( \%CustomerUserData ) ) {
-                        $From = '"'
-                            . $CustomerUserData{UserFirstname} . ' '
-                            . $CustomerUserData{UserLastname} . '"'
-                            . ' <' . $CustomerUserData{UserEmail} . '>';
+                        $From = '"' . $CustomerUserData{UserFullname} . '"' . '<' . $CustomerUserData{UserEmail} . '>';
                     }
                 }
                 else {
-                    # Use customer data as From, if possible
-                    my %LastCustomerArticle = $TicketObject->ArticleLastCustomerArticle(
-                        TicketID      => $Self->{TicketID},
-                        DynamicFields => 0,
+                    # Use customer data as From, if possible.
+                    my @MetaArticles = $ArticleObject->ArticleList(
+                        SenderType => 'customer',
+                        OnlyLast   => 1,
                     );
-                    $From = $LastCustomerArticle{From};
+                    if (@MetaArticles) {
+                        my %LastCustomerArticle
+                            = $ArticleObject->BackendForArticle( %{ $MetaArticles[0] } )->ArticleGet(
+                            %{ $MetaArticles[0] },
+                            DynamicFields => 0,
+                            UserID        => $Self->{UserID},
+                            );
+                        $From = $LastCustomerArticle{From};
+                    }
                 }
             }
 
@@ -708,19 +727,19 @@ sub Run {
                 );
             }
 
-            my $ArticleID = $TicketObject->ArticleCreate(
-                TicketID       => $Self->{TicketID},
-                ArticleType    => $Config->{ArticleType},
-                SenderType     => $Config->{SenderType},
-                From           => $From,
-                Subject        => $GetParam{Subject},
-                Body           => $GetParam{Body},
-                MimeType       => $MimeType,
-                Charset        => $LayoutObject->{UserCharset},
-                UserID         => $Self->{UserID},
-                HistoryType    => $Config->{HistoryType},
-                HistoryComment => $Config->{HistoryComment} || '%%',
-                UnlockOnAway   => 1,
+            my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                TicketID             => $Self->{TicketID},
+                IsVisibleForCustomer => 1,
+                SenderType           => $Config->{SenderType},
+                From                 => $From,
+                Subject              => $GetParam{Subject},
+                Body                 => $GetParam{Body},
+                MimeType             => $MimeType,
+                Charset              => $LayoutObject->{UserCharset},
+                UserID               => $Self->{UserID},
+                HistoryType          => $Config->{HistoryType},
+                HistoryComment       => $Config->{HistoryComment} || '%%',
+                UnlockOnAway         => 1,
             );
 
             # show error of creating article
@@ -740,15 +759,16 @@ sub Run {
 
             # write attachments
             for my $Attachment (@AttachmentData) {
-                $TicketObject->ArticleWriteAttachment(
+                $ArticleBackendObject->ArticleWriteAttachment(
                     %{$Attachment},
+                    TicketID  => $Self->{TicketID},
                     ArticleID => $ArticleID,
                     UserID    => $Self->{UserID},
                 );
             }
 
             # remove pre submitted attachments
-            $UploadCacheObject->FormIDRemove( FormID => $FormID );
+            $UploadCacheObject->FormIDRemove( FormID => $Self->{FormID} );
 
             # set dynamic fields
             # cycle through the activated Dynamic Fields for this screen
@@ -771,15 +791,16 @@ sub Run {
             }
 
             # set state
-            $TicketObject->TicketStateSet(
-                TicketID  => $Self->{TicketID},
-                ArticleID => $ArticleID,
-                StateID   => $GetParam{NextStateID},
-                UserID    => $Self->{UserID},
-            );
+            if ( $StateData{ID} ) {
+                $TicketObject->TicketStateSet(
+                    TicketID  => $Self->{TicketID},
+                    ArticleID => $ArticleID,
+                    StateID   => $StateData{ID},
+                    UserID    => $Self->{UserID},
+                );
+            }
 
             # should i set an unlock? yes if the ticket is closed
-            my %StateData = $StateObject->StateGet( ID => $GetParam{NextStateID} );
             if ( $StateData{TypeName} =~ /^close/i ) {
 
                 # set lock
@@ -888,7 +909,7 @@ sub Run {
 
             # remove all attachments from the Upload cache
             my $RemoveSuccess = $UploadCacheObject->FormIDRemove(
-                FormID => $FormID,
+                FormID => $Self->{FormID},
             );
             if ( !$RemoveSuccess ) {
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -918,7 +939,7 @@ sub Run {
                 for ( sort keys %AllStdAttachments ) {
                     my %AttachmentsData = $StdAttachmentObject->StdAttachmentGet( ID => $_ );
                     $UploadCacheObject->FormIDAddFile(
-                        FormID      => $FormID,
+                        FormID      => $Self->{FormID},
                         Disposition => 'attachment',
                         %AttachmentsData,
                     );
@@ -927,7 +948,7 @@ sub Run {
                 # send a list of attachments in the upload cache back to the clientside JavaScript
                 # which renders then the list of currently uploaded attachments
                 @TicketAttachments = $UploadCacheObject->FormIDGetAllFilesMeta(
-                    FormID => $FormID,
+                    FormID => $Self->{FormID},
                 );
             }
 
@@ -947,11 +968,12 @@ sub Run {
         my $JSON = $LayoutObject->BuildSelectionJSON(
             [
                 {
-                    Name        => 'NextStateID',
-                    Data        => $NextStates,
-                    SelectedID  => $GetParam{NextStateID},
-                    Translation => 1,
-                    Max         => 100,
+                    Name         => 'NextStateID',
+                    Data         => $NextStates,
+                    SelectedID   => $GetParam{NextStateID},
+                    Translation  => 1,
+                    PossibleNone => 1,
+                    Max          => 100,
                 },
                 @DynamicFieldAJAX,
                 @TemplateAJAX,
@@ -965,8 +987,8 @@ sub Run {
         );
     }
     return $LayoutObject->ErrorScreen(
-        Message => 'No Subaction!!',
-        Comment => 'Please contact your administrator',
+        Message => Translatable('No Subaction!'),
+        Comment => Translatable('Please contact the administrator.'),
     );
 }
 
@@ -1064,26 +1086,11 @@ sub _GetStandardTemplates {
 sub _MaskPhone {
     my ( $Self, %Param ) = @_;
 
-    # get form id
-    my $FormID = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'FormID' );
-
-    # create form id
-    if ( !$FormID ) {
-        $FormID = $Kernel::OM->Get('Kernel::System::Web::UploadCache')->FormIDCreate();
-    }
-
-    $Param{FormID} = $FormID;
+    $Param{FormID} = $Self->{FormID};
 
     my $DynamicFieldNames = $Self->_GetFieldsToUpdate(
         OnlyDynamicFields => 1
     );
-
-    # create a string with the quoted dynamic field names separated by commas
-    if ( IsArrayRefWithData($DynamicFieldNames) ) {
-        for my $Field ( @{$DynamicFieldNames} ) {
-            $Param{DynamicFieldNamesStrg} .= ", '" . $Field . "'";
-        }
-    }
 
     # get needed objects
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
@@ -1091,6 +1098,12 @@ sub _MaskPhone {
 
     # get config of frontend module
     my $Config = $ConfigObject->Get("Ticket::Frontend::$Self->{Action}");
+
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'DynamicFieldNames',
+        Value => $DynamicFieldNames,
+    );
 
     # build next states string
     my %Selected;
@@ -1100,21 +1113,23 @@ sub _MaskPhone {
     elsif ( $Config->{State} ) {
         $Selected{SelectedValue} = $Config->{State};
     }
-    else {
-        $Param{NextStates}->{''} = '-';
-    }
     $Param{NextStatesStrg} = $LayoutObject->BuildSelection(
-        Data => $Param{NextStates},
-        Name => 'NextStateID',
+        Data         => $Param{NextStates},
+        Name         => 'NextStateID',
+        Class        => 'Modernize',
+        Translation  => 1,
+        PossibleNone => 1,
         %Selected,
-        Class => 'Modernize',
     );
 
     # customer info string
     if ( $ConfigObject->Get('Ticket::Frontend::CustomerInfoCompose') ) {
         $Param{CustomerTable} = $LayoutObject->AgentCustomerViewTable(
-            Data => $Param{CustomerData},
-            Max  => $ConfigObject->Get('Ticket::Frontend::CustomerInfoComposeMaxSize'),
+            Data => {
+                %{ $Param{CustomerData} },
+                TicketID => $Self->{TicketID},
+            },
+            Max => $ConfigObject->Get('Ticket::Frontend::CustomerInfoComposeMaxSize'),
         );
         $LayoutObject->Block(
             Name => 'CustomerTable',
@@ -1240,18 +1255,6 @@ sub _MaskPhone {
         );
     }
 
-    # show spell check
-    if ( $LayoutObject->{BrowserSpellChecker} ) {
-        $LayoutObject->Block(
-            Name => 'TicketOptions',
-            Data => {},
-        );
-        $LayoutObject->Block(
-            Name => 'SpellCheck',
-            Data => {},
-        );
-    }
-
     # show attachments
     ATTACHMENT:
     for my $Attachment ( @{ $Param{Attachments} } ) {
@@ -1277,8 +1280,8 @@ sub _MaskPhone {
         $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
         $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-        $LayoutObject->Block(
-            Name => 'RichText',
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
             Data => \%Param,
         );
     }

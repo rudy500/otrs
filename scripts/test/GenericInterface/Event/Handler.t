@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -26,7 +26,7 @@ $ConfigObject->Set(
 
 # register the generic interface test handler only
 $ConfigObject->Set(
-    Key   => 'Ticket::EventModulePost###1000-GenericInterface',
+    Key   => 'Ticket::EventModulePost###9900-GenericInterface',
     Value => {
         Module      => 'Kernel::GenericInterface::Event::Handler',
         Event       => '.*',
@@ -35,19 +35,12 @@ $ConfigObject->Set(
 );
 
 $Self->Is(
-    $ConfigObject->Get('Ticket::EventModulePost')->{'1000-GenericInterface'}->{Module},
+    $ConfigObject->Get('Ticket::EventModulePost')->{'9900-GenericInterface'}->{Module},
     'Kernel::GenericInterface::Event::Handler',
     "Event handler added to config",
 );
 
-my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
 # helper object
-$Kernel::OM->ObjectParamAdd(
-    'Kernel::System::UnitTest::Helper' => {
-        RestoreSystemConfiguration => 1,
-    },
-);
 
 my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
@@ -56,7 +49,7 @@ my $Home = $ConfigObject->Get('Home');
 my $Daemon = $Home . '/bin/otrs.Daemon.pl';
 
 # get daemon status (stop if necessary to reload configuration with planner daemon disabled)
-my $PreviousDaemonStatus = `$Daemon status`;
+my $PreviousDaemonStatus = `perl $Daemon status`;
 
 if ( !$PreviousDaemonStatus ) {
     $Self->False(
@@ -68,7 +61,7 @@ if ( !$PreviousDaemonStatus ) {
 
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
 
-    my $ResultMessage = system("$Daemon stop");
+    my $ResultMessage = system("perl $Daemon stop");
 }
 else {
     $Self->True(
@@ -82,7 +75,7 @@ my $SleepTime = 120;
 print "Waiting at most $SleepTime s until daemon stops\n";
 ACTIVESLEEP:
 for my $Seconds ( 1 .. $SleepTime ) {
-    my $DaemonStatus = `$Daemon status`;
+    my $DaemonStatus = `perl $Daemon status`;
     if ( $DaemonStatus =~ m{Daemon not running}i ) {
         last ACTIVESLEEP;
     }
@@ -90,7 +83,7 @@ for my $Seconds ( 1 .. $SleepTime ) {
     sleep 1;
 }
 
-my $CurrentDaemonStatus = `$Daemon status`;
+my $CurrentDaemonStatus = `perl $Daemon status`;
 
 $Self->True(
     int $CurrentDaemonStatus =~ m{Daemon not running}i,
@@ -330,8 +323,8 @@ for my $Test (@Tests) {
             Lock         => 'unlock',
             Priority     => '3 normal',
             State        => 'closed successful',
-            CustomerNo   => '123465',
-            CustomerUser => 'customer@example.com',
+            CustomerID   => '123465',
+            CustomerUser => 'unittest@otrs.com',
             OwnerID      => 1,
             UserID       => 1,
         );
@@ -348,6 +341,8 @@ for my $Test (@Tests) {
     # If this is asynchronous, wait for the daemon to handle the task
     if ( $Test->{Asynchronous} ) {
 
+        local $SIG{CHLD} = "IGNORE";
+
         # Wait for slow systems
         my $SleepTime = 5;
         print "Waiting at most $SleepTime s until tasks are registered\n";
@@ -361,20 +356,19 @@ for my $Test (@Tests) {
             sleep 1;
         }
 
-        # run worker tasks
-        my $Success = $TaskWorkerObject->Run();
-        $Self->True(
-            $Success,
-            'TaskWorker Run() - To execute current tasks, with true',
-        );
-
         my $TotalWaitToExecute = 120;
 
         # wait for daemon children to actually execute tasks
         WAITEXECUTE:
         for my $Wait ( 1 .. $TotalWaitToExecute ) {
             print "Waiting for Daemon to execute tasks, $Wait seconds\n";
-            sleep 1;
+
+            my $Success = $TaskWorkerObject->Run();
+            $TaskWorkerObject->_WorkerPIDsCheck();
+            $Self->True(
+                $Success,
+                'TaskWorker Run() - To execute current tasks, with true',
+            );
 
             my @List = $SchedulerDBObject->TaskList(
                 Type => 'GenericInterface',
@@ -387,6 +381,8 @@ for my $Test (@Tests) {
                 );
                 last WAITEXECUTE;
             }
+
+            sleep 1;
 
             next WAITEXECUTE if $Wait < $TotalWaitToExecute;
 
@@ -451,9 +447,24 @@ for my $Test (@Tests) {
     );
 }
 
+my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+
+# cleanup ticket database
+my @DeleteTicketList = $TicketObject->TicketSearch(
+    Result            => 'ARRAY',
+    CustomerUserLogin => 'unittest@otrs.com',
+    UserID            => 1,
+);
+for my $TicketID (@DeleteTicketList) {
+    $TicketObject->TicketDelete(
+        TicketID => $TicketID,
+        UserID   => 1,
+    );
+}
+
 # start daemon if it was already running before this test
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    my $Result = system("$Daemon start");
+    my $Result = system("perl $Daemon start");
     $Self->Is(
         $Result,
         0,
@@ -465,7 +476,7 @@ if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     print "Waiting at most $SleepTime s until daemon start\n";
     ACTIVESLEEP:
     for my $Seconds ( 1 .. $SleepTime ) {
-        my $DaemonStatus = `$Daemon status`;
+        my $DaemonStatus = `perl $Daemon status`;
         if ( $DaemonStatus =~ m{Daemon running}i ) {
             last ACTIVESLEEP;
         }
@@ -474,7 +485,7 @@ if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     }
 }
 
-$CurrentDaemonStatus = `$Daemon status`;
+$CurrentDaemonStatus = `perl $Daemon status`;
 
 $Self->Is(
     $CurrentDaemonStatus,

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,15 +19,10 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # enable ticket responsible feature
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Responsible',
             Value => 1
@@ -60,17 +55,22 @@ $Selenium->RunTest(
             Priority      => '3 normal',
             State         => 'open',
             CustomerID    => 'SeleniumCustomerID',
-            CustomerUser  => "test\@localhost.com",
+            CustomerUser  => 'test@localhost.com',
             OwnerID       => 1,
             UserID        => 1,
             ResponsibleID => $TestUserID,
         );
 
+        $Self->True(
+            $TicketID,
+            "Ticket is created - ID $TicketID"
+        );
+
         # refresh dashboard page
-        $Selenium->refresh();
+        $Selenium->VerifiedRefresh();
 
         # click on tool bar AgentTicketResponsibleView
-        $Selenium->find_element("//a[contains(\@title, \'Responsible Tickets Total:\' )]")->click();
+        $Selenium->find_element("//a[contains(\@title, \'Responsible Tickets Total:\' )]")->VerifiedClick();
 
         # verify that test is on the correct screen
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
@@ -88,7 +88,7 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Delete ticket - $TicketID"
+            "Ticket is deleted - ID $TicketID"
         );
     }
 );

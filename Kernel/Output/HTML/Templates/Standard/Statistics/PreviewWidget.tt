@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -36,7 +36,7 @@
             [% PROCESS ErrorText %]
             [% FOR Error IN Data.StatsConfigurationErrors.GeneralSpecificationFieldErrors.pairs %]
                 <p class="Error">
-                    [% Error.key | html %]: [% Error.value %]
+                    [% Error.key | html %]: [% Translate(Error.value) | html %]
                 </p>
             [% END %]
 
@@ -50,7 +50,7 @@
                 [% PROCESS ErrorText %]
                 [% FOR Error IN Data.StatsConfigurationErrors.XAxisGeneralErrors %]
                     <p class="Error">
-                        [% Error | html %]
+                        [% Translate(Error) | html %]
                     </p>
                 [% END %]
             [% ELSE %]
@@ -69,7 +69,7 @@
             [% FOR Error IN Data.StatsConfigurationErrors.XAxisFieldErrors.pairs %]
                 <p class="Error">
                     <i class="fa fa-times"></i>
-                    [% Error.key | html%]: [% Error.value %]
+                    [% Error.key | html%]: [% Translate(Error.value) | html %]
                 </p>
             [% END %]
 
@@ -81,7 +81,7 @@
             [% PROCESS ErrorText %]
             [% FOR Error IN Data.StatsConfigurationErrors.YAxisGeneralErrors %]
                 <p class="Error">
-                    [% Error | html %]
+                    [% Translate(Error) | html %]
                 </p>
             [% END %]
 
@@ -94,7 +94,7 @@
             [% PROCESS ErrorText %]
             [% FOR Error IN Data.StatsConfigurationErrors.YAxisFieldErrors.pairs %]
                 <p class="Error">
-                    [% Error.key | html%]: [% Error.value %]
+                    [% Error.key | html%]: [% Translate(Error.value) | html %]
                 </p>
             [% END %]
 
@@ -105,7 +105,7 @@
             [% PROCESS ErrorText %]
             [% FOR Error IN Data.StatsConfigurationErrors.RestrictionsFieldErrors.pairs %]
                 <p class="Error">
-                    [% Error.key | html%]: [% Error.value %]
+                    [% Error.key | html%]: [% Translate(Error.value) | html %]
                 </p>
             [% END %]
 
@@ -130,39 +130,14 @@
     [% IF Data.PreviewResult && PreviewFormats.size %]
 
         <div class="PreviewSettings">
-            [% Translate('Preview format:') | html %]
+            [% Translate('Preview format') | html %]:
             [% FOREACH Format IN PreviewFormats.sort %]
-            <button class="CallForAction SwitchPreviewFormat" data-format="[% Format %]"><span>[% FormatConfig.item(Format) %]</span></button>
+            <button class="CallForAction SwitchPreviewFormat" data-format="[% Format %]"><span>[% Translate(FormatConfig.item(Format)) | html %]</span></button>
             [% END %]
             <span class="Warning">
-                [% Translate('Please note that the preview uses random data and does not consider data restrictions.') | html %]
+                [% Translate('Please note that the preview uses random data and does not consider data filters.') | html %]
             </span>
         </div>
-        [% WRAPPER JSOnDocumentComplete %]
-        <script type="text/javascript">
-        $('.SwitchPreviewFormat').on('click', function() {
-            var Format = $(this).data('format'),
-                FormatCleaned = Format.replace('::', '');
-            $('.SwitchPreviewFormat').removeClass('Active');
-            $(this).addClass('Active');
-            $('.PreviewContent:visible').hide();
-            $('svg.PreviewContent').empty();
-            $('#PreviewContent' + FormatCleaned).show();
-            if (Format.match(/D3/)) {
-                Core.UI.AdvancedChart.Init(
-                    Format,
-                    [% JSON(Data.PreviewResult) %],
-                    'svg#PreviewContent' + FormatCleaned,
-                    {
-                        HideLegend: true
-                    }
-                );
-            }
-            return false;
-        });
-        $('.SwitchPreviewFormat').first().trigger('click');
-        </script>
-        [% END %]
     [% END %]
 
     <div class="Preview">

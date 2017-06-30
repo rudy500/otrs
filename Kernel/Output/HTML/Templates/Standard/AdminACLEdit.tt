@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,6 +8,19 @@
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Edit ACL %s", Data.Name) | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('ACL Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% USE EditTitle = String(Translate("Edit ACL")) %]
+    [% BreadcrumbPath.push({ Name => EditTitle.append( ': ', Data.Name ) }) %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
         <div class="WidgetSimple">
@@ -40,7 +53,7 @@
                     <strong>[% Translate("Change settings") | html %]</strong>: [% Translate("Set up what you want to change if the criteria match. Keep in mind that 'Possible' is a white list, 'PossibleNot' a black list.") | html %]
                 </p>
                 <p class="FieldExplanation">
-                    [% Translate("Check the official") | html %] <a href="http://doc.otrs.org/3.3/en/html/customization.html#acl" target="_blank">[% Translate("documentation") | html %]</a>.
+                    [% Translate("Check the official") | html %] <a href="https://otrs.github.io/doc/manual/admin/stable/en/html/customization.html#acl" target="_blank">[% Translate("documentation") | html %]</a>.
                 </p>
             </div>
         </div>
@@ -53,7 +66,7 @@
                     <div class="WidgetAction Toggle">
                         <a href="#" title="[% Translate("Show or hide the content") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
                     </div>
-                    <h2>[% Translate("Edit ACL information") | html %]</h2>
+                    <h2>[% Translate("Edit ACL Information") | html %]</h2>
                 </div>
                 <div class="Content">
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
@@ -113,7 +126,7 @@
                     <div class="WidgetAction Toggle">
                         <a href="#" title="[% Translate("Show or hide the content") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
                     </div>
-                    <h2>[% Translate("Edit ACL structure") | html %]</h2>
+                    <h2>[% Translate("Edit ACL Structure") | html %]</h2>
                 </div>
                 <div class="Content">
                     <fieldset class="TableLike ACLStructure">
@@ -218,7 +231,17 @@
                     <div class="Hidden">
                         [% Data.ACLKeysLevel3Actions %]
                     </div>
+                </div>
+            </div>
 
+            <div class="WidgetSimple ScreenXL">
+                <div class="Header Expanded">
+                    <div class="WidgetAction Toggle">
+                        <a href="#" title="[% Translate("Save settings") | html %]"></a>
+                    </div>
+                    <h2>[% Translate("Save ACL") | html %]</h2>
+                </div>
+                <div class="Content">
                     <fieldset class="TableLike">
                         <div class="Field SpacingTop SaveButtons">
                             <button class="Primary CallForAction" id="SubmitAndContinue" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
@@ -242,32 +265,3 @@
         <p class="SpacingTop"><strong>[% Data.Name | html %]</strong></p>
     </div>
 </div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-
-// Autocompletions
-Core.Agent.Admin.ACL.Autocomplete = {
-    Action: [
-    [% FOREACH Action IN Data.PossibleActionsList %]
-        {
-            label: [% Action | JSON %],
-            value: [% Action | JSON %]
-        }[%- ',' IF !loop.last %]
-    [% END %]
-    ]
-};
-
-// Localizations
-Core.Agent.Admin.ACL.Localization = {
-    CancelMsg:      "[% Translate("Cancel") | html %]",
-    DeleteMsg:      "[% Translate("Delete") | html %]",
-    ConfirmRemoval: "[% Translate("This item still contains sub items. Are you sure you want to remove this item including its sub items?") | html %]",
-    AlreadyAdded:   "[% Translate("An item with this name is already present.") | html %]",
-    AddAll:         "[% Translate("Add all") | html %]",
-    JSONError:      "[% Translate("There was an error reading the ACL data.") | html %]"
-};
-
-Core.Agent.Admin.ACL.InitACLEdit();
-//]]></script>
-[% END %]

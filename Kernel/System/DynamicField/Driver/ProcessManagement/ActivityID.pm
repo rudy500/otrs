@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::DynamicField::Driver::BaseText);
+use parent qw(Kernel::System::DynamicField::Driver::BaseText);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -27,7 +27,7 @@ our @ObjectDependencies = (
 
 Kernel::System::DynamicField::Driver::Text
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 DynamicFields Text Driver delegate
 
@@ -36,9 +36,7 @@ DynamicFields Text Driver delegate
 This module implements the public interface of L<Kernel::System::DynamicField::Backend>.
 Please look there for a detailed reference of the functions.
 
-=over 4
-
-=item new()
+=head2 new()
 
 usually, you want to create an instance of this
 by using Kernel::System::DynamicField::Backend->new();
@@ -104,24 +102,24 @@ sub new {
 sub DisplayValueRender {
     my ( $Self, %Param ) = @_;
 
-    # set HTMLOuput as default if not specified
+    # set HTMLOutput as default if not specified
     if ( !defined $Param{HTMLOutput} ) {
         $Param{HTMLOutput} = 1;
     }
 
     # get raw Title and Value strings from field value
-    my $Value = defined $Param{Value} ? $Param{Value} : '';
-
     # convert the ActivityEntityID to the Activity name
-    my $Activity = $Kernel::OM->Get('Kernel::System::ProcessManagement::Activity')->ActivityGet(
-        ActivityEntityID => $Value,
-        Interface        => 'all',
-    );
-    $Value = $Activity->{Name} // $Value;
-
+    my $Activity;
+    if ( $Param{Value} ) {
+        $Activity = $Kernel::OM->Get('Kernel::System::ProcessManagement::Activity')->ActivityGet(
+            ActivityEntityID => $Param{Value},
+            Interface        => 'all',
+        );
+    }
+    my $Value = $Activity->{Name} // '';
     my $Title = $Value;
 
-    # HTMLOuput transformations
+    # HTMLOutput transformations
     if ( $Param{HTMLOutput} ) {
         $Value = $Param{LayoutObject}->Ascii2Html(
             Text => $Value,
@@ -182,8 +180,6 @@ sub ColumnFilterValuesGet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

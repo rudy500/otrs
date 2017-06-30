@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,9 +11,10 @@ package Kernel::System::Console::Command::Maint::Stats::Dashboard::Generate;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
+    'Kernel::Config',
     'Kernel::System::PID',
     'Kernel::System::User',
     'Kernel::System::JSON',
@@ -55,7 +56,7 @@ sub PreRun {
     my $PIDCreated = $Kernel::OM->Get('Kernel::System::PID')->PIDCreate(
         Name  => $Self->Name(),
         Force => $Self->GetOption('force-pid'),
-        TTL   => 60 * 60 * 24 * 3,
+        TTL   => 60 * 60 * 6,
     );
     if ( !$PIDCreated ) {
         my $Error = "Unable to register the process in the database. Is another instance still running?\n";
@@ -77,6 +78,8 @@ sub Run {
     my $Stats = $Kernel::OM->Get('Kernel::System::Stats')->StatsListGet(
         UserID => 1,
     );
+
+    my $DefaultLanguage = $Kernel::OM->Get('Kernel::Config')->Get('DefaultLanguage') || 'en';
 
     STATID:
     for my $StatID ( sort keys %{ $Stats || {} } ) {
@@ -125,11 +128,25 @@ sub Run {
                 print STDERR $Kernel::OM->Get('Kernel::System::Main')->Dump($UserGetParam);
             }
 
-            # now run the stat to fill the cache with the current parameters
+            $Kernel::OM->ObjectsDiscard(
+                Objects => ['Kernel::Language'],
+            );
+
+            $Kernel::OM->ObjectParamAdd(
+                'Kernel::Language' => {
+                    UserLanguage => $UserData{UserLanguage} || $DefaultLanguage,
+                },
+            );
+
+            # Now run the stat to fill the cache with the current parameters (passing the
+            #   user language for the correct caching).
             my $Result = $Kernel::OM->Get('Kernel::System::Stats')->StatsResultCacheCompute(
                 StatID       => $StatID,
-                UserGetParam => $UserGetParam,
-                UserID       => $UserID
+                UserGetParam => {
+                    %{$UserGetParam},
+                    UserLanguage => $UserData{UserLanguage} || $DefaultLanguage,
+                },
+                UserID => $UserID
             );
 
             if ( !$Result ) {
@@ -149,15 +166,3 @@ sub PostRun {
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

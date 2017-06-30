@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,18 +19,10 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-                }
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
         # make sure Ticket::Frontend::CustomerTicketMessage###Queue sysconfig is set to 'Yes'
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Frontend::CustomerTicketMessage###Queue',
             Value => 1
@@ -70,7 +62,7 @@ $Selenium->RunTest(
             UserID   => 1,
         );
 
-        # create and login test customer
+        # create test user and login
         my $TestUserLogin = $Helper->TestCustomerUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -83,7 +75,7 @@ $Selenium->RunTest(
 
         # navigate to create new ticket
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}customer.pl?Action=CustomerTicketMessage");
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketMessage");
 
         # check for test queue destination on customer new ticket
         my $ToQueueCheck
@@ -94,12 +86,13 @@ $Selenium->RunTest(
         );
 
         # switch to system address as new destination for customer new ticket
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'CustomerPanelSelectionType',
             Value => 'SystemAddress'
         );
-        $Selenium->refresh();
+
+        $Selenium->VerifiedRefresh();
 
         # check for system address queue destination
         my $ToSystemAddressCheck

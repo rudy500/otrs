@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,11 +12,6 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::ObjectManager;
-
-my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-
-# ToAscii tests
 my @Tests = (
     {
         Input  => 'Some Text',
@@ -206,10 +201,64 @@ Fifth Line',
         Result => 'abce',
         Name   => 'ToAscii - <style/> (no whitespaces) removal'
     },
+    {
+        Input  => '&#55357;&#56833;',
+        Result => '&#55357;&#56833;',
+        Name   => 'Incorrectly encoded GRINNING FACE WITH SMILING EYES (decimal)'
+    },
+    {
+        Input  => '&#xD83D;&#xDE01;',
+        Result => '&#xD83D;&#xDE01;',
+        Name   => 'Incorrectly encoded GRINNING FACE WITH SMILING EYES (hex)'
+    },
+    {
+        Input  => '&#128512;',
+        Result => '😀',
+        Name   => 'Correctly encoded GRINNING FACE WITH SMILING EYES (decimal)',
+    },
+    {
+        Input  => '&#x1F600;',
+        Result => '😀',
+        Name   => 'Correctly encoded GRINNING FACE WITH SMILING EYES (hex)',
+    },
+    {
+        Input  => '&#252;',
+        Result => 'ü',
+        Name   => 'Correctly encoded LATIN SMALL LETTER U WITH DIAERESIS (decimal)',
+    },
+    {
+        Input  => '&#xfc;',
+        Result => 'ü',
+        Name   => 'Correctly encoded LATIN SMALL LETTER U WITH DIAERESIS (hex)',
+    },
+    {
+        Input  => '&uuml;',
+        Result => 'ü',
+        Name   => 'Correctly encoded LATIN SMALL LETTER U WITH DIAERESIS (named)',
+    },
+    {
+        Input  => 'just a simple string',
+        Result => "just\na simple\nstring\n",
+        Name   => 'Consider Ticket::Frontend::TextAreaNote',
+        Config => {
+            'Ticket::Frontend::TextAreaNote' => 5,
+        },
+
+    },
 );
 
 for my $Test (@Tests) {
-    my $Ascii = $HTMLUtilsObject->ToAscii(
+
+    $Kernel::OM->ObjectsDiscard();
+
+    for my $ConfigSetting ( sort keys %{ $Test->{Config} // {} } ) {
+        $Kernel::OM->Get('Kernel::Config')->Set(
+            Key   => $ConfigSetting,
+            Value => $Test->{Config}->{$ConfigSetting},
+        );
+    }
+
+    my $Ascii = $Kernel::OM->Get('Kernel::System::HTMLUtils')->ToAscii(
         String => $Test->{Input},
     );
 

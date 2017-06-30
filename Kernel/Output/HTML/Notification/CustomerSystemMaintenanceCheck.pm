@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,28 +8,17 @@
 
 package Kernel::Output::HTML::Notification::CustomerSystemMaintenanceCheck;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
 our @ObjectDependencies = (
+    'Kernel::System::DateTime',
     'Kernel::System::SystemMaintenance',
     'Kernel::Output::HTML::Layout',
     'Kernel::Config',
-    'Kernel::System::Time',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -62,12 +51,15 @@ sub Run {
         );
     }
 
-    my $SystemMaintenanceIsComming = $SystemMaintenanceObject->SystemMaintenanceIsComming();
+    my $SystemMaintenanceIsComing = $SystemMaintenanceObject->SystemMaintenanceIsComing();
 
-    if ($SystemMaintenanceIsComming) {
+    if ($SystemMaintenanceIsComing) {
 
-        my $MaintenanceTime = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-            SystemTime => $SystemMaintenanceIsComming,
+        my $MaintenanceDateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                Epoch => $SystemMaintenanceIsComing,
+            },
         );
         return $LayoutObject->Notify(
             Priority => 'Notice',
@@ -75,7 +67,7 @@ sub Run {
                 $LayoutObject->{LanguageObject}->Translate(
                 "A system maintenance period will start at: "
                 )
-                . $MaintenanceTime,
+                . $MaintenanceDateTimeObject ? $MaintenanceDateTimeObject->ToString() : '',
         );
 
     }

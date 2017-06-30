@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,8 @@ use strict;
 use warnings;
 
 our $ObjectManagerDisabled = 1;
+
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -33,13 +35,14 @@ sub Run {
 
     if ( !$AccessControlRexExp ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Need config Package::RepositoryAccessRegExp',
+            Message => Translatable('Need config Package::RepositoryAccessRegExp'),
         );
     }
     else {
         if ( $ENV{REMOTE_ADDR} !~ /^$AccessControlRexExp$/ ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Authentication failed from $ENV{REMOTE_ADDR}!",
+                Message =>
+                    $LayoutObject->{LanguageObject}->Translate( 'Authentication failed from %s!', $ENV{REMOTE_ADDR} ),
             );
         }
     }

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -65,6 +65,16 @@ Core.Form.ErrorTooltips = (function (TargetNS) {
      *      Class name of the tooltip for the tongue position. Defines if the tongue is top or bottom.
      */
         TonguePosition = 'TongueBottom',
+
+    /**
+     * @private
+     * @name TongueHeight
+     * @memberof Core.Form.ErrorTooltips
+     * @member {Number}
+     * @description
+     *      Height of the tongue (css-based) which will be considered when the tooltip position is being calculated
+     */
+        TongueHeight = 10,
     /**
      * @private
      * @name $TooltipContent
@@ -133,19 +143,21 @@ Core.Form.ErrorTooltips = (function (TargetNS) {
 
         Offset = $Element.offset();
 
+        $TooltipContainer
+            .empty()
+            .append($Tooltip)
+            .show();
+
         if (TooltipPosition === 'TongueBottom') {
             TopOffset = Offset.top + TooltipOffsetTop;
         }
         else if (TooltipPosition === 'TongueTop') {
-            TopOffset = Offset.top - $Element.height() - TooltipOffsetTop;
+            TopOffset = Offset.top + $Element.height() - $TooltipContainer.height() - TooltipOffsetTop + TongueHeight;
         }
 
         $TooltipContainer
-            .empty()
-            .append($Tooltip)
             .css('left', Offset.left + TooltipOffsetLeft)
-            .css('top', TopOffset)
-            .show();
+            .css('top', TopOffset);
     };
 
     /**
@@ -169,13 +181,13 @@ Core.Form.ErrorTooltips = (function (TargetNS) {
      *      This function initializes the tooltips on an input field.
      */
     TargetNS.InitTooltip = function ($Element, TooltipContent) {
-        $Element.unbind('focus.Tooltip');
-        $Element.bind('focus.Tooltip', function () {
+        $Element
+        .off('focus.Tooltip')
+        .on('focus.Tooltip', function () {
             TargetNS.ShowTooltip($Element, TooltipContent);
         });
 
-        $Element.unbind('blur.Tooltip');
-        $Element.bind('blur.Tooltip', TargetNS.HideTooltip);
+        $Element.off('blur.Tooltip').on('blur.Tooltip', TargetNS.HideTooltip);
     };
 
     /**
@@ -188,8 +200,8 @@ Core.Form.ErrorTooltips = (function (TargetNS) {
      */
     TargetNS.RemoveTooltip = function ($Element) {
         TargetNS.HideTooltip();
-        $Element.unbind('focus.Tooltip');
-        $Element.unbind('blur.Tooltip');
+        $Element.off('focus.Tooltip');
+        $Element.off('blur.Tooltip');
     };
 
     /**

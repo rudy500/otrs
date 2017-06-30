@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AdminTemplate;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -31,6 +33,8 @@ sub Run {
     my $StandardTemplateObject = $Kernel::OM->Get('Kernel::System::StandardTemplate');
     my $StdAttachmentObject    = $Kernel::OM->Get('Kernel::System::StdAttachment');
 
+    my $Notification = $ParamObject->GetParam( Param => 'Notification' ) || '';
+
     # ------------------------------------------------------------ #
     # change
     # ------------------------------------------------------------ #
@@ -50,6 +54,9 @@ sub Run {
 
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Template updated!') )
+            if ( $Notification && $Notification eq 'Update' );
+
         $Self->_Edit(
             Action => 'Change',
             %Data,
@@ -135,16 +142,22 @@ sub Run {
                     );
                 }
 
-                $Self->_Overview();
-                my $Output = $LayoutObject->Header();
-                $Output .= $LayoutObject->NavigationBar();
-                $Output .= $LayoutObject->Notify( Info => 'Template updated!' );
-                $Output .= $LayoutObject->Output(
-                    TemplateFile => 'AdminTemplate',
-                    Data         => \%Param,
-                );
-                $Output .= $LayoutObject->Footer();
-                return $Output;
+                # if the user would like to continue editing the template, just redirect to the edit screen
+                if (
+                    defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+                    && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+                    )
+                {
+                    my $ID = $ParamObject->GetParam( Param => 'ID' ) || '';
+                    return $LayoutObject->Redirect(
+                        OP => "Action=$Self->{Action};Subaction=Change;ID=$ID;Notification=Update"
+                    );
+                }
+                else {
+
+                    # otherwise return to overview
+                    return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+                }
             }
         }
 
@@ -257,7 +270,9 @@ sub Run {
                 $Self->_Overview();
                 my $Output = $LayoutObject->Header();
                 $Output .= $LayoutObject->NavigationBar();
-                $Output .= $LayoutObject->Notify( Info => 'Template added!' );
+                $Output .= $LayoutObject->Notify(
+                    Info => Translatable('Template added!'),
+                );
                 $Output .= $LayoutObject->Output(
                     TemplateFile => 'AdminTemplate',
                     Data         => \%Param,
@@ -302,7 +317,12 @@ sub Run {
             return $LayoutObject->ErrorScreen();
         }
 
-        return $LayoutObject->Redirect( OP => "Action=$Self->{Action}" );
+        return $LayoutObject->Attachment(
+            ContentType => 'text/html',
+            Content     => $Delete,
+            Type        => 'inline',
+            NoCache     => 1,
+        );
     }
 
     # ------------------------------------------------------------
@@ -312,6 +332,9 @@ sub Run {
         $Self->_Overview();
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Template updated!') )
+            if ( $Notification && $Notification eq 'Update' );
+
         $Output .= $LayoutObject->Output(
             TemplateFile => 'AdminTemplate',
             Data         => \%Param,
@@ -366,38 +389,9 @@ sub _Edit {
         Class        => 'Modernize',
     );
 
-    $LayoutObject->Block(
-        Name => 'OverviewUpdate',
-        Data => {
-            %Param,
-            %{ $Param{Errors} },
-        },
-    );
-
-    # shows header
-    if ( $Param{Action} eq 'Change' ) {
-        $LayoutObject->Block( Name => 'HeaderEdit' );
-    }
-    else {
-        $LayoutObject->Block( Name => 'HeaderAdd' );
-    }
-
-    # show appropriate messages for ServerError
-    if ( defined $Param{Errors}->{NameExists} && $Param{Errors}->{NameExists} == 1 ) {
-        $LayoutObject->Block( Name => 'ExistNameServerError' );
-    }
-    else {
-        $LayoutObject->Block( Name => 'NameServerError' );
-    }
-
     my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
 
-    # add rich text editor
     if ( $LayoutObject->{BrowserRichText} ) {
-        $LayoutObject->Block(
-            Name => 'RichText',
-            Data => \%Param,
-        );
 
         # reformat from plain to html
         if ( $Param{ContentType} && $Param{ContentType} =~ /text\/plain/i ) {
@@ -414,6 +408,31 @@ sub _Edit {
                 String => $Param{Template},
             );
         }
+    }
+
+    $LayoutObject->Block(
+        Name => 'OverviewUpdate',
+        Data => {
+            %Param,
+            %{ $Param{Errors} },
+        },
+    );
+
+    # show appropriate messages for ServerError
+    if ( defined $Param{Errors}->{NameExists} && $Param{Errors}->{NameExists} == 1 ) {
+        $LayoutObject->Block( Name => 'ExistNameServerError' );
+    }
+    else {
+        $LayoutObject->Block( Name => 'NameServerError' );
+    }
+
+    # add rich text editor
+    if ( $LayoutObject->{BrowserRichText} ) {
+
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
+            Data => \%Param,
+        );
     }
     return 1;
 }

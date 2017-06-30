@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,13 +12,19 @@ use strict;
 use warnings;
 
 use Net::LDAP;
+use Net::LDAP::Util qw(escape_filter_value);
+
+use Kernel::System::VariableCheck qw(:all);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Cache',
+    'Kernel::System::DB',
+    'Kernel::System::DynamicField',
+    'Kernel::System::DynamicField::Backend',
     'Kernel::System::Encode',
     'Kernel::System::Log',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
 );
 
 sub new {
@@ -157,6 +163,10 @@ sub new {
         return if !$Self->_Connect();
     }
 
+    # fetch names of configured dynamic fields
+    my @DynamicFieldMapEntries = grep { $_->[5] eq 'dynamic_field' } @{ $Self->{CustomerUserMap}->{Map} };
+    $Self->{ConfiguredDynamicFieldNames} = { map { $_->[2] => 1 } @DynamicFieldMapEntries };
+
     return $Self;
 }
 
@@ -218,7 +228,7 @@ sub CustomerName {
     }
 
     # build filter
-    my $Filter = "($Self->{CustomerKey}=$Param{UserLogin})";
+    my $Filter = "($Self->{CustomerKey}=" . escape_filter_value( $Param{UserLogin} ) . ')';
 
     # prepare filter
     if ( $Self->{AlwaysFilter} ) {
@@ -226,7 +236,6 @@ sub CustomerName {
     }
 
     # check cache
-    my $Name = '';
     if ( $Self->{CacheObject} ) {
         my $Name = $Self->{CacheObject}->Get(
             Type => $Self->{CacheType},
@@ -248,28 +257,93 @@ sub CustomerName {
     );
 
     if ( $Result->code() ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'Search failed! ' . $Result->error(),
-        );
+        if ( $Result->code() == 4 ) {
+
+            # Result code 4 (LDAP_SIZELIMIT_EXCEEDED) is normal if there
+            # are more items in LDAP than search limit defined in OTRS or
+            # in LDAP server. Avoid spamming logs with such errors.
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'debug',
+                Message  => 'LDAP size limit exceeded (' . $Result->error() . ').',
+            );
+        }
+        else {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => 'Search failed! ' . $Result->error(),
+            );
+        }
         return;
     }
+
+    my %NameParts;
 
     for my $Entry ( $Result->all_entries() ) {
 
         for my $Field ( @{ $Self->{CustomerUserMap}->{CustomerUserNameFields} } ) {
 
             if ( defined $Entry->get_value($Field) ) {
-
-                if ( !$Name ) {
-                    $Name = $Self->_ConvertFrom( $Entry->get_value($Field) );
-                }
-                else {
-                    $Name .= ' ' . $Self->_ConvertFrom( $Entry->get_value($Field) );
-                }
+                $NameParts{$Field} = $Self->_ConvertFrom( $Entry->get_value($Field) );
             }
         }
     }
+
+    # fetch dynamic field values, if configured
+    my @DynamicFieldCustomerUserNameFields = grep { exists $Self->{ConfiguredDynamicFieldNames}->{$_} }
+        @{ $Self->{CustomerUserMap}->{CustomerUserNameFields} };
+    if (@DynamicFieldCustomerUserNameFields) {
+        my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+
+        DYNAMICFIELDNAME:
+        for my $DynamicFieldName (@DynamicFieldCustomerUserNameFields) {
+            my $DynamicFieldConfig = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldGet(
+                Name => $DynamicFieldName,
+            );
+            next DYNAMICFIELDNAME if !IsHashRefWithData($DynamicFieldConfig);
+
+            my $Value = $DynamicFieldBackendObject->ValueGet(
+                DynamicFieldConfig => $DynamicFieldConfig,
+                ObjectName         => $Param{UserLogin},
+            );
+
+            next DYNAMICFIELDNAME if !defined $Value;
+
+            if ( !IsArrayRefWithData($Value) ) {
+                $Value = [$Value];
+            }
+
+            my @RenderedValues;
+
+            VALUE:
+            for my $CurrentValue ( @{$Value} ) {
+                next VALUE if !defined $CurrentValue || !length $CurrentValue;
+
+                my $RenderedValue = $DynamicFieldBackendObject->ReadableValueRender(
+                    DynamicFieldConfig => $DynamicFieldConfig,
+                    Value              => $CurrentValue,
+                );
+
+                next VALUE if !IsHashRefWithData($RenderedValue) || !defined $RenderedValue->{Value};
+
+                push @RenderedValues, $RenderedValue->{Value};
+            }
+
+            $NameParts{$DynamicFieldName} = join ' ', @RenderedValues;
+        }
+    }
+
+    # assemble name
+    my @NameParts;
+    CUSTOMERUSERNAMEFIELD:
+    for my $CustomerUserNameField ( @{ $Self->{CustomerUserMap}->{CustomerUserNameFields} } ) {
+        next CUSTOMERUSERNAMEFIELD
+            if !exists $NameParts{$CustomerUserNameField}
+            || !defined $NameParts{$CustomerUserNameField}
+            || !length $NameParts{$CustomerUserNameField};
+        push @NameParts, $NameParts{$CustomerUserNameField};
+    }
+
+    my $Name = join ' ', @NameParts;
 
     # cache request
     if ( $Self->{CacheObject} ) {
@@ -314,15 +388,32 @@ sub CustomerSearch {
             $Part =~ s/(\*+)\*/*/g;
             $Count++;
 
-            if ( $Self->{CustomerUserMap}->{CustomerUserSearchFields} ) {
+            # remove dynamic field names that are configured in CustomerUserSearchFields
+            # as they cannot be retrieved here
+            my @CustomerUserSearchFields = grep { !exists $Self->{ConfiguredDynamicFieldNames}->{$_} }
+                @{ $Self->{CustomerUserMap}->{CustomerUserSearchFields} };
+
+            if (@CustomerUserSearchFields) {
+
+                # quote LDAP filter value but keep asterisks unescaped (wildcard)
+                $Part =~ s/\*/encodedasterisk20160930/g;
+                $Part = escape_filter_value( $Self->_ConvertTo($Part) );
+                $Part =~ s/encodedasterisk20160930/*/g;
+
                 $Filter .= '(|';
-                for my $Field ( @{ $Self->{CustomerUserMap}->{CustomerUserSearchFields} } ) {
-                    $Filter .= "($Field=" . $Self->_ConvertTo($Part) . ")";
+                for my $Field (@CustomerUserSearchFields) {
+                    $Filter .= "($Field=" . $Part . ')';
                 }
                 $Filter .= ')';
             }
             else {
-                $Filter .= "($Self->{CustomerKey}=$Part)";
+
+                # quote LDAP filter value but keep asterisks unescaped (wildcard)
+                $Part =~ s/\*/encodedasterisk20160930/g;
+                $Part = escape_filter_value($Part);
+                $Part =~ s/encodedasterisk20160930/*/g;
+
+                $Filter .= "($Self->{CustomerKey}=" . $Part . ')';
             }
         }
 
@@ -332,19 +423,30 @@ sub CustomerSearch {
     }
     elsif ( $Param{PostMasterSearch} ) {
 
-        if ( $Self->{CustomerUserMap}->{CustomerUserPostMasterSearchFields} ) {
+        # remove dynamic field names that are configured in CustomerUserPostMasterSearchFields
+        # as they cannot be retrieved here
+        my @CustomerUserPostMasterSearchFields = grep { !exists $Self->{ConfiguredDynamicFieldNames}->{$_} }
+            @{ $Self->{CustomerUserMap}->{CustomerUserPostMasterSearchFields} };
+
+        if (@CustomerUserPostMasterSearchFields) {
+
+            # quote LDAP filter value but keep asterisks unescaped (wildcard)
+            $Param{PostMasterSearch} =~ s/\*/encodedasterisk20160930/g;
+            $Param{PostMasterSearch} = escape_filter_value( $Param{PostMasterSearch} );
+            $Param{PostMasterSearch} =~ s/encodedasterisk20160930/*/g;
+
             $Filter = '(|';
-            for my $Field ( @{ $Self->{CustomerUserMap}->{CustomerUserPostMasterSearchFields} } ) {
+            for my $Field (@CustomerUserPostMasterSearchFields) {
                 $Filter .= "($Field=$Param{PostMasterSearch})";
             }
             $Filter .= ')';
         }
     }
     elsif ( $Param{UserLogin} ) {
-        $Filter = "($Self->{CustomerKey}=$Param{UserLogin})";
+        $Filter = "($Self->{CustomerKey}=" . escape_filter_value( $Param{UserLogin} ) . ')';
     }
     elsif ( $Param{CustomerID} ) {
-        $Filter = "($Self->{CustomerID}=$Param{CustomerID})";
+        $Filter = "($Self->{CustomerID}=" . escape_filter_value( $Param{CustomerID} ) . ')';
     }
 
     # prepare filter
@@ -358,10 +460,12 @@ sub CustomerSearch {
     }
 
     # check cache
+    my $CacheKey = join '::', map { $_ . '=' . $Param{$_} } sort keys %Param;
+
     if ( $Self->{CacheObject} ) {
         my $Users = $Self->{CacheObject}->Get(
-            Type => $Self->{CacheType},
-            Key  => 'CustomerSearch::' . $Filter,
+            Type => $Self->{CacheType} . '_CustomerSearch',
+            Key  => $CacheKey,
         );
         return %{$Users} if ref $Users eq 'HASH';
     }
@@ -369,32 +473,125 @@ sub CustomerSearch {
     # create ldap connect
     return if !$Self->_Connect();
 
+    my $CustomerUserListFields = $Self->{CustomerUserMap}->{CustomerUserListFields};
+
+    # remove dynamic field names that are configured in CustomerUserListFields
+    # as they cannot be handled here
+    my @CustomerUserListFieldsWithoutDynamicFields
+        = grep { !exists $Self->{ConfiguredDynamicFieldNames}->{$_} } @{$CustomerUserListFields};
+
     # combine needed attrs
-    my @Attributes = ( @{ $Self->{CustomerUserMap}->{CustomerUserListFields} }, $Self->{CustomerKey} );
+    my @Attributes = ( @CustomerUserListFieldsWithoutDynamicFields, $Self->{CustomerKey} );
 
     # perform user search
     my $Result = $Self->{LDAP}->search(
         base      => $Self->{BaseDN},
         scope     => $Self->{SScope},
         filter    => $Filter,
-        sizelimit => $Self->{UserSearchListLimit},
+        sizelimit => $Param{Limit} || $Self->{UserSearchListLimit},
         attrs     => \@Attributes,
     );
 
     # log ldap errors
     if ( $Result->code() ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => $Result->error(),
-        );
+        if ( $Result->code() == 4 ) {
+
+            # Result code 4 (LDAP_SIZELIMIT_EXCEEDED) is normal if there
+            # are more items in LDAP than search limit defined in OTRS or
+            # in LDAP server. Avoid spamming logs with such errors.
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'debug',
+                Message  => 'LDAP size limit exceeded (' . $Result->error() . ').',
+            );
+        }
+        else {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => 'Search failed! ' . $Result->error(),
+            );
+        }
     }
+
+    # dynamic field handling
+    my @CustomerUserListFieldsDynamicFields
+        = grep { exists $Self->{ConfiguredDynamicFieldNames}->{$_} } @{$CustomerUserListFields};
+    my %CustomerUserListFieldsDynamicFields = map { $_ => 1 } @CustomerUserListFieldsDynamicFields;
+
+    my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+
+    my $DynamicFieldConfigs = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldListGet(
+        ObjectType => 'CustomerUser',
+        Valid      => 1,
+    );
+    my %DynamicFieldConfigsByName = map { $_->{Name} => $_ } @{$DynamicFieldConfigs};
 
     my %Users;
     for my $Entry ( $Result->all_entries() ) {
 
         my $CustomerString = '';
 
-        for my $Field ( @{ $Self->{CustomerUserMap}->{CustomerUserListFields} } ) {
+        my $CustomerKey;
+        if ( defined $Entry->get_value( $Self->{CustomerKey} ) ) {
+            $CustomerKey = $Self->_ConvertFrom( $Entry->get_value( $Self->{CustomerKey} ) );
+        }
+
+        FIELD:
+        for my $Field ( @{$CustomerUserListFields} ) {
+
+            # dynamic field value
+            if ( $CustomerUserListFieldsDynamicFields{$Field} ) {
+                next FIELD if !defined $CustomerKey;
+                next FIELD if !exists $DynamicFieldConfigsByName{$Field};
+
+                my $Value = $DynamicFieldBackendObject->ValueGet(
+                    DynamicFieldConfig => $DynamicFieldConfigsByName{$Field},
+                    ObjectName         => $CustomerKey,
+                );
+
+                next FIELD if !defined $Value;
+
+                if ( !IsArrayRefWithData($Value) ) {
+                    $Value = [$Value];
+                }
+
+                my @Values;
+
+                VALUE:
+                for my $CurrentValue ( @{$Value} ) {
+                    next VALUE if !defined $CurrentValue || !length $CurrentValue;
+
+                    my $ReadableValue = $DynamicFieldBackendObject->ReadableValueRender(
+                        DynamicFieldConfig => $DynamicFieldConfigsByName{$Field},
+                        Value              => $CurrentValue,
+                    );
+
+                    next VALUE if !IsHashRefWithData($ReadableValue) || !defined $ReadableValue->{Value};
+
+                    my $IsACLReducible = $DynamicFieldBackendObject->HasBehavior(
+                        DynamicFieldConfig => $DynamicFieldConfigsByName{$Field},
+                        Behavior           => 'IsACLReducible',
+                    );
+                    if ($IsACLReducible) {
+                        my $PossibleValues = $DynamicFieldBackendObject->PossibleValuesGet(
+                            DynamicFieldConfig => $DynamicFieldConfigsByName{$Field},
+                        );
+
+                        if (
+                            IsHashRefWithData($PossibleValues)
+                            && defined $PossibleValues->{ $ReadableValue->{Value} }
+                            )
+                        {
+                            $ReadableValue->{Value} = $PossibleValues->{ $ReadableValue->{Value} };
+                        }
+                    }
+
+                    push @Values, $ReadableValue->{Value};
+                }
+
+                $CustomerString .= ( join ' ', @Values ) . ' ';
+
+                next FIELD;
+            }
 
             my $Value = $Self->_ConvertFrom( $Entry->get_value($Field) );
 
@@ -408,8 +605,8 @@ sub CustomerSearch {
 
         $CustomerString =~ s/^(.*)\s(.+?\@.+?\..+?)(\s|)$/"$1" <$2>/;
 
-        if ( defined $Entry->get_value( $Self->{CustomerKey} ) ) {
-            $Users{ $Self->_ConvertFrom( $Entry->get_value( $Self->{CustomerKey} ) ) } = $CustomerString;
+        if ( defined $CustomerKey ) {
+            $Users{$CustomerKey} = $CustomerString;
         }
     }
 
@@ -421,8 +618,8 @@ sub CustomerSearch {
             my $Result2 = $Self->{LDAP}->search(
                 base      => $Self->{GroupDN},
                 scope     => $Self->{SScope},
-                filter    => 'memberUid=' . $Filter2,
-                sizelimit => $Self->{UserSearchListLimit},
+                filter    => 'memberUid=' . escape_filter_value($Filter2),
+                sizelimit => $Param{Limit} || $Self->{UserSearchListLimit},
                 attrs     => ['1.1'],
             );
 
@@ -435,8 +632,8 @@ sub CustomerSearch {
     # cache request
     if ( $Self->{CacheObject} ) {
         $Self->{CacheObject}->Set(
-            Type  => $Self->{CacheType},
-            Key   => 'CustomerSearch::' . $Filter,
+            Type  => $Self->{CacheType} . '_CustomerSearch',
+            Key   => $CacheKey,
             Value => \%Users,
             TTL   => $Self->{CustomerUserMap}->{CacheTTL},
         );
@@ -445,39 +642,420 @@ sub CustomerSearch {
     return %Users;
 }
 
-sub CustomerUserList {
+sub CustomerSearchDetail {
     my ( $Self, %Param ) = @_;
+
+    if ( ref $Param{SearchFields} ne 'ARRAY' ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "SearchFields must be an array reference!",
+        );
+        return;
+    }
 
     my $Valid = defined $Param{Valid} ? $Param{Valid} : 1;
 
-    # prepare filter
-    my $Filter = "($Self->{CustomerKey}=*)";
+    $Param{Limit} //= '';
+
+    # Split the search fields in scalar and array fields, before the diffrent handling.
+    my @ScalarSearchFields = grep { 'Input' eq $_->{Type} } @{ $Param{SearchFields} };
+    my @ArraySearchFields  = grep { 'Selection' eq $_->{Type} } @{ $Param{SearchFields} };
+
+    # Verify that all passed array parameters contain an arrayref.
+    ARGUMENT:
+    for my $Argument (@ArraySearchFields) {
+        if ( !defined $Param{ $Argument->{Name} } ) {
+            $Param{ $Argument->{Name} } ||= [];
+
+            next ARGUMENT;
+        }
+
+        if ( ref $Param{ $Argument->{Name} } ne 'ARRAY' ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "$Argument->{Name} must be an array reference!",
+            );
+            return;
+        }
+    }
+
+    # Set the default behaviour for the return type.
+    my $Result = $Param{Result} || 'ARRAY';
+
+    # Special handling if the result type is 'COUNT'.
+    if ( $Result eq 'COUNT' ) {
+
+        # Ignore the parameter 'Limit' when result type is 'COUNT'.
+        $Param{Limit} = '';
+
+        # Delete the OrderBy parameter when the result type is 'COUNT'.
+        $Param{OrderBy} = [];
+    }
+
+    # Define order table from the search fields.
+    my %OrderByTable = map { $_->{Name} => $_->{DatabaseField} } @{ $Param{SearchFields} };
+
+    for my $Field (@ArraySearchFields) {
+
+        my $SelectionsData = $Field->{SelectionsData};
+
+        for my $SelectedValue ( @{ $Param{ $Field->{Name} } } ) {
+
+            # Check if the selected value for the current field is valid.
+            if ( !$SelectionsData->{$SelectedValue} ) {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "The selected value $Field->{Name} is not valid!",
+                );
+                return;
+            }
+        }
+    }
+
+    # Build the ldap filter for the diffrent search params.
+    my $Filter = '';
+
+    for my $Field (@ScalarSearchFields) {
+
+        # Search for scalar fields (wildcards are allowed).
+        if ( $Param{ $Field->{Name} } ) {
+
+            $Param{ $Field->{Name} } =~ s/(\%+)/\%/g;
+            $Param{ $Field->{Name} } =~ s/(\*+)\*/*/g;
+
+            $Filter .= "($Field->{DatabaseField}=" . $Self->_ConvertTo( $Param{ $Field->{Name} } ) . ")";
+        }
+    }
+
+    if ($Filter) {
+        $Filter = "(&$Filter)";
+    }
+
+    my $ArrayFilter = '';
+
+    # Special parameter for CustomerIDs from a customer company search result.
+    if ( IsArrayRefWithData( $Param{CustomerCompanySearchCustomerIDs} ) ) {
+        $ArrayFilter .= '(|';
+        for my $OneParam ( @{ $Param{CustomerCompanySearchCustomerIDs} } ) {
+            $ArrayFilter .= "($Self->{CustomerID}=" . $Self->_ConvertTo($OneParam) . ")";
+        }
+        $ArrayFilter .= ')';
+    }
+
+    FIELD:
+    for my $Field (@ArraySearchFields) {
+
+        # Ignore empty lists.
+        next FIELD if !@{ $Param{ $Field->{Name} } };
+
+        $ArrayFilter .= '(|';
+        for my $OneParam ( @{ $Param{ $Field->{Name} } } ) {
+            $ArrayFilter .= "($Field->{DatabaseField}=" . $Self->_ConvertTo($OneParam) . ")";
+        }
+        $ArrayFilter .= ')';
+    }
+
+    # Add the array filter fields to the ldap filter.
+    if ($ArrayFilter) {
+        $Filter = "(&$Filter$ArrayFilter)";
+    }
+
+    my $DBObject                  = $Kernel::OM->Get('Kernel::System::DB');
+    my $DynamicFieldObject        = $Kernel::OM->Get('Kernel::System::DynamicField');
+    my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+
+    # Check all configured change dynamic fields, build lookup hash by name.
+    my %CustomerUserDynamicFieldName2Config;
+    my $CustomerUserDynamicFields = $DynamicFieldObject->DynamicFieldListGet(
+        ObjectType => 'CustomerUser',
+    );
+    for my $DynamicField ( @{$CustomerUserDynamicFields} ) {
+        $CustomerUserDynamicFieldName2Config{ $DynamicField->{Name} } = $DynamicField;
+    }
+
+    my $SQLDynamicFieldFrom     = '';
+    my $SQLDynamicFieldWhere    = '';
+    my $DynamicFieldJoinCounter = 1;
+
+    DYNAMICFIELD:
+    for my $DynamicField ( @{$CustomerUserDynamicFields} ) {
+
+        my $SearchParam = $Param{ "DynamicField_" . $DynamicField->{Name} };
+
+        next DYNAMICFIELD if ( !$SearchParam );
+        next DYNAMICFIELD if ( ref $SearchParam ne 'HASH' );
+
+        my $NeedJoin;
+
+        for my $Operator ( sort keys %{$SearchParam} ) {
+
+            my @SearchParams = ( ref $SearchParam->{$Operator} eq 'ARRAY' )
+                ? @{ $SearchParam->{$Operator} }
+                : ( $SearchParam->{$Operator} );
+
+            my $SQLDynamicFieldWhereSub = '';
+            if ($SQLDynamicFieldWhere) {
+                $SQLDynamicFieldWhereSub = ' AND (';
+            }
+            else {
+                $SQLDynamicFieldWhereSub = ' (';
+            }
+
+            my $Counter = 0;
+            TEXT:
+            for my $Text (@SearchParams) {
+                next TEXT if ( !defined $Text || $Text eq '' );
+
+                $Text =~ s/\*/%/gi;
+
+                # Check search attribute, we do not need to search for '*'.
+                next TEXT if $Text =~ /^\%{1,3}$/;
+
+                my $ValidateSuccess = $DynamicFieldBackendObject->ValueValidate(
+                    DynamicFieldConfig => $DynamicField,
+                    Value              => $Text,
+                    UserID             => $Param{UserID} || 1,
+                );
+                if ( !$ValidateSuccess ) {
+                    $Kernel::OM->Get('Kernel::System::Log')->Log(
+                        Priority => 'error',
+                        Message  => "Search not executed due to invalid value '"
+                            . $Text
+                            . "' on field '"
+                            . $DynamicField->{Name} . "'!",
+                    );
+                    return;
+                }
+
+                if ($Counter) {
+                    $SQLDynamicFieldWhereSub .= ' OR ';
+                }
+                $SQLDynamicFieldWhereSub .= $DynamicFieldBackendObject->SearchSQLGet(
+                    DynamicFieldConfig => $DynamicField,
+                    TableAlias         => "dfv$DynamicFieldJoinCounter",
+                    Operator           => $Operator,
+                    SearchTerm         => $Text,
+                );
+
+                $Counter++;
+            }
+            $SQLDynamicFieldWhereSub .= ') ';
+
+            if ($Counter) {
+                $SQLDynamicFieldWhere .= $SQLDynamicFieldWhereSub;
+                $NeedJoin = 1;
+            }
+        }
+
+        if ($NeedJoin) {
+            $SQLDynamicFieldFrom .= "
+                INNER JOIN dynamic_field_value dfv$DynamicFieldJoinCounter
+                    ON (df_obj_id_name.object_id = dfv$DynamicFieldJoinCounter.object_id
+                        AND dfv$DynamicFieldJoinCounter.field_id = "
+                . $DBObject->Quote( $DynamicField->{ID}, 'Integer' ) . ")
+            ";
+
+            $DynamicFieldJoinCounter++;
+        }
+    }
+
+    # Execute a dynamic field search, if a dynamic field where statement exists.
+    if ($SQLDynamicFieldWhere) {
+
+        my @DynamicFieldUserLogins;
+
+        # sql uery for the dynamic fields
+        my $SQLDynamicField
+            = "SELECT DISTINCT(df_obj_id_name.object_name) FROM dynamic_field_obj_id_name df_obj_id_name "
+            . $SQLDynamicFieldFrom
+            . " WHERE "
+            . $SQLDynamicFieldWhere;
+
+        my $UsedCache;
+
+        if ( $Self->{CacheObject} ) {
+
+            my $DynamicFieldSearchCacheData = $Self->{CacheObject}->Get(
+                Type => $Self->{CacheType} . '_CustomerSearchDetailDynamicFields',
+                Key  => $SQLDynamicField,
+            );
+
+            if ( defined $DynamicFieldSearchCacheData ) {
+                if ( ref $DynamicFieldSearchCacheData eq 'ARRAY' ) {
+                    @DynamicFieldUserLogins = @{$DynamicFieldSearchCacheData};
+
+                    # set the used cache flag
+                    $UsedCache = 1;
+                }
+                else {
+                    $Kernel::OM->Get('Kernel::System::Log')->Log(
+                        Priority => 'error',
+                        Message  => 'Invalid ref ' . ref($DynamicFieldSearchCacheData) . '!'
+                    );
+                    return;
+                }
+            }
+        }
+
+        # Get the data only from database, if no cache entry exists.
+        if ( !$UsedCache ) {
+
+            return if !$DBObject->Prepare(
+                SQL => $SQLDynamicField,
+            );
+
+            while ( my @Row = $DBObject->FetchrowArray() ) {
+                push @DynamicFieldUserLogins, $Row[0];
+            }
+
+            if ( $Self->{CacheObject} ) {
+                $Self->{CacheObject}->Set(
+                    Type  => $Self->{CacheType} . '_CustomerSearchDetailDynamicFields',
+                    Key   => $SQLDynamicField,
+                    Value => \@DynamicFieldUserLogins,
+                    TTL   => $Self->{CustomerUserMap}->{CacheTTL},
+                );
+            }
+        }
+
+        # Add the user logins from the dynamic fields, if a search result exists from the dynamic field search
+        #   or skip the search and return a emptry array ref, if no user logins exists from the dynamic field search.
+        if (@DynamicFieldUserLogins) {
+
+            my $DynamicFieldUserLoginsFilter .= '(|';
+            for my $OneParam (@DynamicFieldUserLogins) {
+                $DynamicFieldUserLoginsFilter .= "($Self->{CustomerKey}=" . $Self->_ConvertTo($OneParam) . ")";
+            }
+            $DynamicFieldUserLoginsFilter .= ')';
+
+            # Add the dynamic field user logins filter to the ldap filter.
+            $Filter = "(&$Filter$DynamicFieldUserLoginsFilter)";
+        }
+        else {
+            return $Result eq 'COUNT' ? 0 : [];
+        }
+    }
+
+    # Special parameter to exclude some user logins from the search result.
+    if ( IsArrayRefWithData( $Param{ExcludeUserLogins} ) ) {
+        my $ExcludeUserLoginsFilter .= '(&';
+        for my $OneParam ( @{ $Param{ExcludeUserLogins} } ) {
+            $ExcludeUserLoginsFilter .= "(!($Self->{CustomerKey}=" . $Self->_ConvertTo($OneParam) . "))";
+        }
+        $ExcludeUserLoginsFilter .= ')';
+
+        # Add the exclude user logins filter to the ldap filter.
+        $Filter = "(&$Filter$ExcludeUserLoginsFilter)";
+    }
+
     if ( $Self->{AlwaysFilter} ) {
         $Filter = "(&$Filter$Self->{AlwaysFilter})";
     }
 
-    # add valid filter
     if ( $Self->{ValidFilter} && $Valid ) {
         $Filter = "(&$Filter$Self->{ValidFilter})";
     }
 
-    # check cache
-    if ( $Self->{CacheObject} ) {
-        my $Users = $Self->{CacheObject}->Get(
-            Type => $Self->{CacheType},
-            Key  => "CustomerUserList::$Filter",
-        );
-        return %{$Users} if ref $Users eq 'HASH';
+    # Default filter for the search, if no filter exists.
+    if ( !$Filter ) {
+        $Filter = "($Self->{CustomerKey}=*)";
     }
 
-    # create ldap connect
+    # Check if OrderBy contains only unique valid values.
+    my %OrderBySeen;
+    for my $OrderBy ( @{ $Param{OrderBy} } ) {
+
+        if ( !$OrderBy || $OrderBySeen{$OrderBy} ) {
+
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "OrderBy contains invalid value '$OrderBy' or the value is used more than once!",
+            );
+            return;
+        }
+
+        # Remember the value to check if it appears more than once.
+        $OrderBySeen{$OrderBy} = 1;
+    }
+
+    # Check if OrderByDirection array contains only 'Up' or 'Down'.
+    DIRECTION:
+    for my $Direction ( @{ $Param{OrderByDirection} } ) {
+
+        # Only 'Up' or 'Down' allowed.
+        next DIRECTION if $Direction eq 'Up';
+        next DIRECTION if $Direction eq 'Down';
+
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "OrderByDirection can only contain 'Up' or 'Down'!",
+        );
+        return;
+    }
+
+    # Assemble the ORDER BY clause.
+    my @OrderByFields;
+    my $OrderByString = '';
+    my $Count         = 0;
+
+    ORDERBY:
+    for my $OrderBy ( @{ $Param{OrderBy} } ) {
+        next ORDERBY if !$OrderByTable{$OrderBy};
+
+        my $Direction = $Param{OrderByDirection}->[$Count] || 'Down';
+
+        $OrderByString .= $OrderByTable{$OrderBy} . $Direction;
+
+        push @OrderByFields, {
+            Name          => $OrderBy,
+            DatabaseField => $OrderByTable{$OrderBy},
+            Direction     => $Direction,
+        };
+    }
+    continue {
+        $Count++;
+    }
+
+    # If there is a possibility that the ordering is not determined
+    #   we add an descending ordering by id.
+    if ( !grep { $_ eq 'UserLogin' } ( @{ $Param{OrderBy} } ) ) {
+        push @OrderByFields, {
+            Name          => 'UserLogin',
+            DatabaseField => "$Self->{CustomerKey}",
+            Direction     => 'Down',
+        };
+    }
+
+    my $CacheKey = 'CustomerSearchDetail::' . $Result . $Filter . $Param{Limit} . $OrderByString;
+
+    if ( $Self->{CacheObject} ) {
+        my $CacheData = $Self->{CacheObject}->Get(
+            Type => $Self->{CacheType},
+            Key  => $CacheKey,
+        );
+
+        if ( defined $CacheData ) {
+            if ( ref $CacheData eq 'ARRAY' ) {
+                return $CacheData;
+            }
+            elsif ( ref $CacheData eq '' ) {
+                return $CacheData;
+            }
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => 'Invalid ref ' . ref($CacheData) . '!'
+            );
+            return;
+        }
+    }
+
     return if !$Self->_Connect();
 
-    # combine needed attrs
-    my @Attributes = ( $Self->{CustomerKey}, $Self->{CustomerID} );
+    # cCmbine needed attributes.
+    my @Attributes = map { $_->{DatabaseField} } @OrderByFields;
 
-    # perform user search
-    my $Result = $Self->{LDAP}->search(
+    # Perform the ldap user search.
+    my $ResultSearch = $Self->{LDAP}->search(
         base      => $Self->{BaseDN},
         scope     => $Self->{SScope},
         filter    => $Filter,
@@ -485,62 +1063,84 @@ sub CustomerUserList {
         attrs     => \@Attributes,
     );
 
-    # log ldap errors
-    if ( $Result->code() ) {
+    if ( $ResultSearch->code() ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => $Result->error(),
+            Message  => $ResultSearch->error(),
         );
     }
 
-    my %Users;
-    for my $Entry ( $Result->all_entries() ) {
+    my @TmpCustomerUsers;
+    for my $Entry ( $ResultSearch->all_entries() ) {
 
-        my $CustomerString = '';
-        for my $Field (@Attributes) {
+        my %Data;
+        for my $OrderBy (@OrderByFields) {
 
-            my $FieldValue = $Entry->get_value($Field);
-            $FieldValue = defined $FieldValue ? $FieldValue : '';
+            my $FieldValue = $Entry->get_value( $OrderBy->{DatabaseField} );
+            $FieldValue = $Self->_ConvertFrom($FieldValue);
 
-            $CustomerString .= $Self->_ConvertFrom($FieldValue) . ' ';
+            $Data{ $OrderBy->{Name} } = $FieldValue;
         }
 
-        my $KeyValue = $Entry->get_value( $Self->{CustomerKey} );
-        $KeyValue = defined $KeyValue ? $KeyValue : '';
-
-        $Users{ $Self->_ConvertFrom($KeyValue) } = $CustomerString;
+        push @TmpCustomerUsers, \%Data;
     }
 
-    # check if user need to be in a group!
+    # Sort the customer users.
+    @TmpCustomerUsers = sort { $Self->_SearchResultSort(@OrderByFields) } @TmpCustomerUsers;
+
+    my @IDs;
+
+    # Check if user need to be in a group!
     if ( $Self->{GroupDN} ) {
 
-        for my $Filter2 ( sort keys %Users ) {
+        FILTERID:
+        for my $Data (@TmpCustomerUsers) {
 
-            my $Result2 = $Self->{LDAP}->search(
+            my $ResultGroupDN = $Self->{LDAP}->search(
                 base      => $Self->{GroupDN},
                 scope     => $Self->{SScope},
-                filter    => 'memberUid=' . $Filter2,
+                filter    => 'memberUid=' . $Data->{UserLogin},
                 sizelimit => $Self->{UserSearchListLimit},
                 attrs     => ['1.1'],
             );
 
-            if ( !$Result2->all_entries() ) {
-                delete $Users{$Filter2};
-            }
+            next FILTERID if !$ResultGroupDN->all_entries();
+
+            push @IDs, $Data->{UserLogin};
         }
     }
-
-    # cache request
-    if ( $Self->{CacheObject} ) {
-        $Self->{CacheObject}->Set(
-            Type  => $Self->{CacheType},
-            Key   => "CustomerUserList::$Filter",
-            Value => \%Users,
-            TTL   => $Self->{CustomerUserMap}->{CacheTTL},
-        );
+    else {
+        @IDs = map { $_->{UserLogin} } @TmpCustomerUsers;
     }
 
-    return %Users;
+    if ( $Param{Limit} ) {
+        splice @IDs, $Param{Limit};
+    }
+
+    if ( $Result eq 'COUNT' ) {
+
+        if ( $Self->{CacheObject} ) {
+            $Self->{CacheObject}->Set(
+                Type  => $Self->{CacheType},
+                Key   => $CacheKey,
+                Value => scalar @IDs,
+                TTL   => $Self->{CustomerUserMap}->{CacheTTL},
+            );
+        }
+        return scalar @IDs;
+    }
+    else {
+
+        if ( $Self->{CacheObject} ) {
+            $Self->{CacheObject}->Set(
+                Type  => $Self->{CacheType},
+                Key   => $CacheKey,
+                Value => \@IDs,
+                TTL   => $Self->{CustomerUserMap}->{CacheTTL},
+            );
+        }
+        return \@IDs;
+    }
 }
 
 sub CustomerIDList {
@@ -567,6 +1167,12 @@ sub CustomerIDList {
         my $SearchFilter = $Self->{SearchPrefix} . $SearchTerm . $Self->{SearchSuffix};
         $SearchFilter =~ s/(\%+)/\%/g;
         $SearchFilter =~ s/(\*+)\*/*/g;
+
+        # quote LDAP filter value but keep asterisks unescaped (wildcard)
+        $SearchFilter =~ s/\*/encodedasterisk20160930/g;
+        $SearchFilter = escape_filter_value($SearchFilter);
+        $SearchFilter =~ s/encodedasterisk20160930/*/g;
+
         $Filter = "($Self->{CustomerID}=$SearchFilter)";
 
     }
@@ -597,10 +1203,23 @@ sub CustomerIDList {
 
     # log ldap errors
     if ( $Result->code() ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => $Result->error(),
-        );
+
+        if ( $Result->code() == 4 ) {
+
+            # Result code 4 (LDAP_SIZELIMIT_EXCEEDED) is normal if there
+            # are more items in LDAP than search limit defined in OTRS or
+            # in LDAP server. Avoid spamming logs with such errors.
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'debug',
+                Message  => 'LDAP size limit exceeded (' . $Result->error() . ').',
+            );
+        }
+        else {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => 'Search failed! ' . $Result->error(),
+            );
+        }
     }
 
     my %Users;
@@ -620,7 +1239,7 @@ sub CustomerIDList {
             my $Result2 = $Self->{LDAP}->search(
                 base      => $Self->{GroupDN},
                 scope     => $Self->{SScope},
-                filter    => 'memberUid=' . $Filter2,
+                filter    => 'memberUid=' . escape_filter_value($Filter2),
                 sizelimit => $Self->{UserSearchListLimit},
                 attrs     => ['1.1'],
             );
@@ -736,10 +1355,12 @@ sub CustomerUserDataGet {
 
     # perform user search
     my @Attributes;
+    ENTRY:
     for my $Entry ( @{ $Self->{CustomerUserMap}->{Map} } ) {
+        next ENTRY if $Entry->[5] eq 'dynamic_field';
         push( @Attributes, $Entry->[2] );
     }
-    my $Filter = "($Self->{CustomerKey}=$Param{User})";
+    my $Filter = "($Self->{CustomerKey}=" . escape_filter_value( $Param{User} ) . ')';
 
     # prepare filter
     if ( $Self->{AlwaysFilter} ) {
@@ -783,7 +1404,9 @@ sub CustomerUserDataGet {
 
     # get customer user info
     my %Data;
+    ENTRY:
     for my $Entry ( @{ $Self->{CustomerUserMap}->{Map} } ) {
+        next ENTRY if $Entry->[5] eq 'dynamic_field';
 
         my $Value = $Self->_ConvertFrom( $Result2->get_value( $Entry->[2] ) ) || '';
 
@@ -796,6 +1419,25 @@ sub CustomerUserDataGet {
 
     return if !$Data{UserLogin};
 
+    # to build the UserMailString
+    my $UserMailString = '';
+
+    for my $Field ( @{ $Self->{CustomerUserMap}->{CustomerUserListFields} } ) {
+
+        my $Value = $Self->_ConvertFrom( $Result2->get_value($Field) ) || '';
+
+        if ($Value) {
+            if ( $Field =~ /^targetaddress$/i ) {
+                $Value =~ s/SMTP:(.*)/$1/;
+            }
+            $UserMailString .= $Value . ' ';
+        }
+    }
+    $UserMailString =~ s/^(.*)\s(.+?\@.+?\..+?)(\s|)$/"$1" <$2>/;
+
+    # add the UserMailString to the data hash
+    $Data{UserMailString} = $UserMailString;
+
     # compat!
     $Data{UserID} = $Data{UserLogin};
 
@@ -804,9 +1446,16 @@ sub CustomerUserDataGet {
 
     # add last login timestamp
     if ( $Preferences{UserLastLogin} ) {
-        $Preferences{UserLastLoginTimestamp} = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-            SystemTime => $Preferences{UserLastLogin},
+
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                Epoch => $Preferences{UserLastLogin},
+            },
         );
+
+        $Preferences{UserLastLoginTimestamp} = $DateTimeObject->toString();
+
     }
 
     # cache request
@@ -983,6 +1632,56 @@ sub _ConvertTo {
         To   => $Self->{SourceCharset},
         From => 'utf-8',
     );
+}
+
+sub _CustomerUserCacheClear {
+    my ( $Self, %Param ) = @_;
+
+    return if !$Self->{CacheObject};
+
+    if ( !$Param{UserLogin} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Need UserLogin!',
+        );
+        return;
+    }
+
+    $Self->{CacheObject}->Delete(
+        Type => $Self->{CacheType},
+        Key  => "CustomerUserDataGet::$Param{UserLogin}",
+    );
+    $Self->{CacheObject}->Delete(
+        Type => $Self->{CacheType},
+        Key  => "CustomerName::$Param{UserLogin}",
+    );
+
+    $Self->{CacheObject}->CleanUp(
+        Type => $Self->{CacheType} . '_CustomerSearch',
+    );
+
+    $Self->{CacheObject}->CleanUp(
+        Type => 'CustomerGroup',
+    );
+
+    return 1;
+}
+
+sub _SearchResultSort {
+    my ( $Self, @OrderByFields ) = @_;
+
+    for my $OrderBy (@OrderByFields) {
+        my $Compare;
+
+        if ( $OrderBy->{Direction} && $OrderBy->{Direction} eq 'Up' ) {
+            $Compare = lc( $a->{ $OrderBy->{Name} } ) cmp lc( $b->{ $OrderBy->{Name} } );
+        }
+        else {
+            $Compare = lc( $b->{ $OrderBy->{Name} } ) cmp lc( $a->{ $OrderBy->{Name} } );
+        }
+        return $Compare if $Compare;
+    }
+    return 0;
 }
 
 sub DESTROY {

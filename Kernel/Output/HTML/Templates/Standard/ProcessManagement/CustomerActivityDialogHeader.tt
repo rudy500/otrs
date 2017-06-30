@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,6 +16,7 @@
             <input type="hidden" name="ActivityDialogEntityID" value="[% Data.ActivityDialogEntityID | html %]"/>
             <input type="hidden" name="Expand" id="Expand" value=""/>
             <input type="hidden" name="AJAXDialog" id="AJAXDialog" value="[% Data.AJAXDialog | html %]"/>
+            <input type="hidden" name="IsMainWindow" id="IsMainWindow" value="[% IF !Data.TicketID %]1[% END %]"/>
             <input type="hidden" name="FormID" value="[% Data.FormID | html %]"/>
             <div class="LayoutPopup">
 [% RenderBlockStart("Header") %]
@@ -27,7 +28,7 @@
 [% RenderBlockEnd("DescriptionShort") %]
                     </h1>
 [% RenderBlockStart("DescriptionLong") %]
-                    [% Data.DescriptionLong | html %] -
+                    <p>[% Data.DescriptionLong | html %]</p>
 [% RenderBlockEnd("DescriptionLong") %]
 [% RenderBlockStart("CancelLink") %]
                     <p>
@@ -38,3 +39,9 @@
 [% RenderBlockEnd("Header") %]
                 <div class="Content">
                     <fieldset class="TableLike">
+[% RenderBlockStart("DescriptionShortAlt") %]
+                        <h2>[% Data.DescriptionShort | html %]</h2>
+[% RenderBlockEnd("DescriptionShortAlt") %]
+[% RenderBlockStart("DescriptionLongAlt") %]
+                        <p class="Description">[% Data.DescriptionLong | html %]</p>
+[% RenderBlockEnd("DescriptionLongAlt") %]

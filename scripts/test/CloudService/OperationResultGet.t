@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,14 @@ use vars (qw($Self));
 # get needed objects
 my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
 my $CloudServiceObject = $Kernel::OM->Get('Kernel::System::CloudService::Backend::Run');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 my %RequestResult = (
     CloudServiceTest => [
@@ -77,7 +85,7 @@ my @Tests = (
         Success => 0,
     },
     {
-        Name   => 'Mising RequestResult',
+        Name   => 'Missing RequestResult',
         Config => {
             CloudService  => 'Test',
             Operation     => 'Test',
@@ -86,7 +94,7 @@ my @Tests = (
         Success => 0,
     },
     {
-        Name   => 'Mising CloudService',
+        Name   => 'Missing CloudService',
         Config => {
             CloudService  => undef,
             Operation     => 'Test',
@@ -95,7 +103,7 @@ my @Tests = (
         Success => 0,
     },
     {
-        Name   => 'Mising Operation',
+        Name   => 'Missing Operation',
         Config => {
             CloudService  => 'Test',
             Operation     => undef,
@@ -249,5 +257,7 @@ for my $Test (@Tests) {
         );
     }
 }
+
+# cleanup cache is done by RestoreDatabase
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,12 +13,20 @@ use utf8;
 use vars (qw($Self));
 
 # get needed objects
-my $HelperObject            = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $DynamicFieldObject      = $Kernel::OM->Get('Kernel::System::DynamicField');
 my $DynamicFieldValueObject = $Kernel::OM->Get('Kernel::System::DynamicFieldValue');
 my $TicketObject            = $Kernel::OM->Get('Kernel::System::Ticket');
 
-my $RandomID = int rand 1_000_000_000;
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $RandomID = $Helper->GetRandomID();
 
 # create a ticket
 my $TicketID = $TicketObject->TicketCreate(
@@ -36,6 +44,25 @@ my $TicketID = $TicketObject->TicketCreate(
 # sanity check
 $Self->True(
     $TicketID,
+    "TicketCreate() successful for Ticket ID $TicketID",
+);
+
+# Create second ticket.
+my $TicketID2 = $TicketObject->TicketCreate(
+    Title        => 'Some Ticket Title',
+    Queue        => 'Raw',
+    Lock         => 'unlock',
+    Priority     => '3 normal',
+    State        => 'new',
+    CustomerID   => '123465',
+    CustomerUser => 'customer@example.com',
+    OwnerID      => 1,
+    UserID       => 1,
+);
+
+# sanity check
+$Self->True(
+    $TicketID2,
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
@@ -717,7 +744,53 @@ $Self->True(
         0,
         "ValueGet() - deleted value - for field3 FieldID $FieldID",
     );
+
+    # Set value for second ticket.
+    $Success = $DynamicFieldValueObject->ValueSet(
+        FieldID    => $FieldID2,
+        ObjectType => 'Ticket',
+        ObjectID   => $TicketID2,
+        Value      => [
+            {
+                ValueText => 'Value test field2 ',
+            },
+        ],
+        UserID => 1,
+    );
+
+    # sanity check
+    $Self->True(
+        $Success,
+        "ValueSet() - with True - for Object ID $TicketID2",
+    );
 }
+
+# Delete the dynamic field values for object ID.
+my $ObjectValueDelete = $DynamicFieldValueObject->ObjectValuesDelete(
+    ObjectType => 'Ticket',
+    ObjectID   => $TicketID2,
+    UserID     => 1,
+);
+
+# Sanity check.
+$Self->True(
+    $ObjectValueDelete,
+    "ObjectValuesDelete() successful for Object ID $TicketID2",
+);
+
+# get the value with ValueGet()
+my $DeletedValue = $DynamicFieldValueObject->ValueGet(
+    FieldID    => $FieldID2,
+    ObjectType => 'Ticket',
+    ObjectID   => $TicketID2
+);
+
+# sanity check
+$Self->Is(
+    $DeletedValue->[0]->{ValueText},
+    undef,
+    "ValueGet() - for ObjectValuesDelete() is successful",
+);
 
 # delete the dynamic field values
 my $FieldValueDelete = $DynamicFieldValueObject->AllValuesDelete(
@@ -1012,20 +1085,6 @@ for my $TicketID (@CreatedTicketIds) {
     );
 }
 
-# delete created tickets
-for my $TicketID (@CreatedTicketIds) {
-
-    # delete the ticket
-    my $TicketDelete = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $TicketDelete,
-        "TicketDelete() successful for Ticket ID $TicketID - for HistoryValueGet()",
-    );
-}
+# cleanup is done by RestoreDatabase
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ package Kernel::Output::Template::Provider;
 use strict;
 use warnings;
 
-use base qw (Template::Provider);
+use parent qw (Template::Provider);
 
 use Scalar::Util qw();
 use Template::Constants;
@@ -37,13 +37,9 @@ Kernel::Output::Template::Provider - Template Toolkit custom provider
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 OTRSInit()
 
-=cut
-
-=item OTRSInit()
-
-performs some post-initialization and creates a bridget between Template::Toolkit
+performs some post-initialization and creates a bridge between Template::Toolkit
 and OTRS by adding the OTRS objects to the Provider object. This method must be
 called after instantiating the Provider object.
 
@@ -73,7 +69,9 @@ sub OTRSInit {
     $Self->{CachingEnabled} = $Kernel::OM->Get('Kernel::Config')->Get('Frontend::TemplateCache') // 1;
 }
 
-=item _fetch()
+=begin Internal:
+
+=head2 _fetch()
 
 try to get a compiled version of a template from the CacheObject,
 otherwise compile the template and return it.
@@ -171,7 +169,7 @@ sub _fetch {
 
 }
 
-=item _load()
+=head2 _load()
 
 calls our pre processor when loading a template.
 
@@ -196,7 +194,7 @@ sub _load {
     return @Result;
 }
 
-=item _compile()
+=head2 _compile()
 
 compiles a .tt template into a Perl package and uses the CacheObject
 to cache it.
@@ -277,7 +275,9 @@ sub _compile {
         : ( $error, Template::Constants::STATUS_ERROR )
 }
 
-=item store()
+=end Internal:
+
+=head2 store()
 
 inherited from Template::Provider. This function override just makes sure that the original
 in-memory cache cannot be used.
@@ -290,7 +290,9 @@ sub store {
     return $Data;    # no-op
 }
 
-=item _PreProcessTemplateContent()
+=begin Internal:
+
+=head2 _PreProcessTemplateContent()
 
 this is our template pre processor.
 
@@ -374,13 +376,15 @@ sub _PreProcessTemplateContent {
 
 }
 
-=item MigrateDTLtoTT()
+=end Internal:
 
-translates old DTL template content to Template::Toolkit syntax.
+=head2 MigrateDTLtoTT()
+
+translates old C<DTL> template content to L<Template::Toolkit> syntax.
 
     my $TTCode = $ProviderObject->MigrateDTLtoTT( Content => $DTLCode );
 
-If an error was found, this method will die(), so please use eval around it.
+If an error was found, this method will C<die()>, so please use eval around it.
 
 =cut
 
@@ -558,7 +562,7 @@ sub MigrateDTLtoTT {
         }esmxg;
 
     # drop empty $Text
-    $Content =~ s{\$Text{""}}{}xmsg;
+    $Content =~ s{ \$Text [{] "" [}] }{}xmsg;
 
     # $JSText
     $Content =~ s{
@@ -686,8 +690,6 @@ sub MigrateDTLtoTT {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

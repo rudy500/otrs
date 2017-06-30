@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,12 +11,13 @@ package Kernel::System::Console::Command::Maint::Registration::UpdateSend;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
+    'Kernel::System::DateTime',
+    'Kernel::Config',
     'Kernel::System::Registration',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
 );
 
 sub Configure {
@@ -40,34 +41,42 @@ sub Run {
 
     $Self->Print("<yellow>Sending system registration update...</yellow>\n");
 
+    # check if cloud services are disabled
+    my $CloudServicesDisabled = $Kernel::OM->Get('Kernel::Config')->Get('CloudServices::Disabled') || 0;
+
+    if ($CloudServicesDisabled) {
+        $Self->Print("<green>Done.</green>\n");
+        return $Self->ExitCodeOk();
+    }
+
     my $RegistrationObject = $Kernel::OM->Get('Kernel::System::Registration');
 
     my %RegistrationData = $RegistrationObject->RegistrationDataGet();
 
-    if ( $RegistrationData{State} ne 'registered' ) {
+    if ( !$RegistrationData{State} || $RegistrationData{State} ne 'registered' ) {
         $Self->Print("System is not registered, skipping...\n");
         $Self->Print("<green>Done.</green>\n");
         return $Self->ExitCodeOk();
     }
 
-    my $NextUpdateSystemTime = 0;
-
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $NextUpdateSystemTime;
 
     # if there is a defined NextUpdeTime convert it system time
     if ( $RegistrationData{NextUpdateTime} ) {
-        $NextUpdateSystemTime = $TimeObject->TimeStamp2SystemTime(
-            String => $RegistrationData{NextUpdateTime},
+        $NextUpdateSystemTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $RegistrationData{NextUpdateTime},
+            },
         );
     }
 
-    my $SystemTime = $TimeObject->SystemTime();
+    my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my $Force = $Self->GetOption('force') || 0;
 
     # do not update registration info before the next update (unless is forced)
-    if ( !$Force && $SystemTime < $NextUpdateSystemTime ) {
+    if ( !$Force && $NextUpdateSystemTime && $SystemTime < $NextUpdateSystemTime ) {
         $Self->Print("No need to send the registration update at this moment, skipping...\n");
         $Self->Print("<green>Done.</green>\n");
         return $Self->ExitCodeOk();
@@ -93,9 +102,9 @@ sub Run {
     if ( !$NextUpdateTime || $RegistrationData{NextUpdateTime} eq $NextUpdateTime ) {
 
         # calculate next update time set it in two hours
-        $NextUpdateTime = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $SystemTime + ( 60 * 60 * 2 ),
-        );
+        $NextUpdateTime = $SystemTime->Clone();
+        $NextUpdateTime->Add( Seconds => 60 * 60 * 2 );
+        $NextUpdateTime = $NextUpdateTime->ToString();
 
         # update or set the NextUpdateTime value
         if ( defined $UpdatedRegistrationData{NextUpdateTime} ) {
@@ -122,15 +131,3 @@ sub Run {
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

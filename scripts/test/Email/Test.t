@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,15 +12,13 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
 # do not really send emails
-$ConfigObject->Set(
+$Kernel::OM->Get('Kernel::Config')->Set(
     Key   => 'SendmailModule',
     Value => 'Kernel::System::Email::Test',
 );
 
+# get test email backed object
 my $TestBackendObject = $Kernel::OM->Get('Kernel::System::Email::Test');
 
 my $Success = $TestBackendObject->CleanUp();
@@ -42,12 +40,12 @@ for ( 1 .. 2 ) {
 
     # call Send and get results
     my ( $Header, $Body ) = $EmailObject->Send(
-        From    => 'john.smith@example.com',
-        To      => 'john.smith2@example.com',
-        Subject => 'some subject',
-        Body    => 'Some Body',
-        Type    => 'text/html',
-        Charset => 'utf8',
+        From     => 'john.smith@example.com',
+        To       => 'john.smith2@example.com',
+        Subject  => 'some subject',
+        Body     => 'Some Body',
+        MimeType => 'text/html',
+        Charset  => 'utf8',
     );
 
     $Self->True(

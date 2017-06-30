@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,20 +22,16 @@ our @ObjectDependencies = (
 
 Kernel::System::CSV - CSV lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All csv functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=item new()
+Don't use the constructor directly, use the ObjectManager instead:
 
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $CSVObject = $Kernel::OM->Get('Kernel::System::CSV');
 
 =cut
@@ -50,13 +46,14 @@ sub new {
     return $Self;
 }
 
-=item Array2CSV()
+=head2 Array2CSV()
 
 Returns a csv formatted string based on a array with head data.
 
     $CSV = $CSVObject->Array2CSV(
-        Head => [ 'RowA', 'RowB', ],   # optional
-        Data => [
+        WithHeader => [ 'RowA', 'RowB', ],   # optional
+        Head       => [ 'RowA', 'RowB', ],   # optional
+        Data       => [
             [ 1, 4 ],
             [ 7, 3 ],
             [ 1, 9 ],
@@ -91,6 +88,10 @@ sub Array2CSV {
     if ( $Param{Data} ) {
         @Data = @{ $Param{Data} };
     }
+    my @WithHeader;
+    if ( $Param{WithHeader} ) {
+        @WithHeader = @{ $Param{WithHeader} };
+    }
 
     # get format
     $Param{Format} //= 'CSV';
@@ -117,7 +118,17 @@ sub Array2CSV {
         # We will try to determine the appropriate length for each column.
         my @ColumnLengths;
         my $Row = 0;
-        for my $DataRaw ( \@Head, @Data ) {
+
+        my @Rows = ( \@Head, @Data );
+
+        if ( scalar @WithHeader ) {
+
+            # Adds \@WithHeader to the beggining of @Rows, if not empty.
+            #    Otherwise it adds empty first row - see bug#12467.
+            unshift @Rows, \@WithHeader;
+        }
+
+        for my $DataRaw (@Rows) {
             COL:
             for my $Col ( 0 .. ( scalar @{ $DataRaw // [] } ) - 1 ) {
                 next COL if !defined( $DataRaw->[$Col] );
@@ -180,6 +191,12 @@ sub Array2CSV {
             }
         );
 
+        # set header if given
+        if (@WithHeader) {
+            my $Status = $CSV->combine(@WithHeader);
+            $Output .= $CSV->string() . "\n";
+        }
+
         # if we have head param fill in header
         if (@Head) {
             my $Status = $CSV->combine(@Head);
@@ -205,7 +222,7 @@ sub Array2CSV {
     return $Output;
 }
 
-=item CSV2Array()
+=head2 CSV2Array()
 
 Returns an array with parsed csv data.
 
@@ -220,24 +237,14 @@ Returns an array with parsed csv data.
 sub CSV2Array {
     my ( $Self, %Param ) = @_;
 
-    # get separator
-    if ( !defined $Param{Separator} || $Param{Separator} eq '' ) {
-        $Param{Separator} = ';';
-    }
-
-    # get separator
-    if ( !defined $Param{Quote} ) {
-        $Param{Quote} = '"';
-    }
-
     # create new csv backend object
     my $CSV = Text::CSV->new(
         {
 
-            #            quote_char          => $Param{Quote},
-            #            escape_char         => $Param{Quote},
-            sep_char            => $Param{Separator},
-            eol                 => '',
+            quote_char => $Param{Quote} // '"',
+            escape_char => $Param{Quote}     || '"',
+            sep_char    => $Param{Separator} || ";",
+            eol         => '',
             always_quote        => 0,
             binary              => 1,
             keep_meta_info      => 0,
@@ -251,28 +258,31 @@ sub CSV2Array {
     # do some dos/unix file conversions
     $Param{String} =~ s/(\n\r|\r\r\n|\r\n|\r)/\n/g;
 
-    # if you change the split options, remember that each value can include \n
     my @Array;
-    my @Lines = split /$Param{Quote}\n/, $Param{String};
-    for my $Line (@Lines) {
-        if ( $CSV->parse( $Line . $Param{Quote} ) ) {
-            my @Fields = $CSV->fields();
-            push @Array, \@Fields;
-        }
-        else {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => 'Failed to parse line: ' . $CSV->error_input(),
-            );
-        }
+
+    # parse all CSV data line by line (allows newlines in data fields)
+    my $LineCounter = 1;
+    open my $FileHandle, '<', \$Param{String};    ## no critic
+    while ( my $ColRef = $CSV->getline($FileHandle) ) {
+        push @Array, $ColRef;
+        $LineCounter++;
+    }
+
+    # log error if occurred and exit
+    if ( !$CSV->eof() ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Failed to parse CSV line ' . $LineCounter
+                . ' (input: ' . $CSV->error_input()
+                . ', error: ' . $CSV->error_diag() . ')',
+        );
+        return;
     }
 
     return \@Array;
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

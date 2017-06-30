@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -13,6 +14,14 @@ use utf8;
 use vars (qw($Self));
 
 use Kernel::System::PostMaster;
+
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -33,6 +42,8 @@ my %NeededDynamicfields = (
     TicketFreeText5 => 1,
     TicketFreeKey5  => 1,
     TicketFreeText5 => 1,
+    TicketFreeKey6  => 1,
+    TicketFreeText6 => 1,
     TicketFreeTime1 => 1,
     TicketFreeTime2 => 1,
     TicketFreeTime3 => 1,
@@ -132,7 +143,7 @@ my $XHeaders          = $ConfigObject->Get('PostmasterX-Header');
 my @PostmasterXHeader = @{$XHeaders};
 HEADER:
 for my $Header ( sort keys %NeededXHeaders ) {
-    next HEADER if ( grep $_ eq $Header, @PostmasterXHeader );
+    next HEADER if ( grep { $_ eq $Header } @PostmasterXHeader );
     push @PostmasterXHeader, $Header;
 }
 $ConfigObject->Set(
@@ -142,7 +153,7 @@ $ConfigObject->Set(
 
 # disable not needed event module
 $ConfigObject->Set(
-    Key => 'Ticket::EventModulePost###TicketDynamicFieldDefault',
+    Key => 'Ticket::EventModulePost###9600-TicketDynamicFieldDefault',
 );
 
 # use different subject format
@@ -153,7 +164,7 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
     );
 
     # use different ticket number generators
-    for my $NumberModule (qw(AutoIncrement DateChecksum Date Random)) {
+    for my $NumberModule (qw(AutoIncrement DateChecksum Date)) {
 
         $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::PostMaster::Filter'] );
         my $PostMasterFilter = $Kernel::OM->Get('Kernel::System::PostMaster::Filter');
@@ -163,11 +174,11 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
             Value => "Kernel::System::Ticket::Number::$NumberModule",
         );
 
-        # use different storage backends
+        # use different storage back-ends
         for my $StorageModule (qw(ArticleStorageDB ArticleStorageFS)) {
             $ConfigObject->Set(
-                Key   => 'Ticket::StorageModule',
-                Value => "Kernel::System::Ticket::$StorageModule",
+                Key   => 'Ticket::Article::Backend::MIMEBase###ArticleStorage',
+                Value => "Kernel::System::Ticket::Article::Backend::MIMEBase::$StorageModule",
             );
 
             # Recreate Ticket object for every loop.
@@ -175,10 +186,10 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
             $Kernel::OM->Get('Kernel::System::Ticket');
 
             # add rand postmaster filter
-            my $FilterRand1 = 'filter' . int rand 1000000;
-            my $FilterRand2 = 'filter' . int rand 1000000;
-            my $FilterRand3 = 'filter' . int rand 1000000;
-            my $FilterRand4 = 'filter' . int rand 1000000;
+            my $FilterRand1 = 'filter' . $Helper->GetRandomID();
+            my $FilterRand2 = 'filter' . $Helper->GetRandomID();
+            my $FilterRand3 = 'filter' . $Helper->GetRandomID();
+            my $FilterRand4 = 'filter' . $Helper->GetRandomID();
             $PostMasterFilter->FilterAdd(
                 Name           => $FilterRand1,
                 StopAfterMatch => 0,
@@ -232,7 +243,7 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
             );
 
             # get rand sender address
-            my $UserRand1 = 'example-user' . ( int rand 1000000 ) . '@example.com';
+            my $UserRand1 = 'example-user' . $Helper->GetRandomID() . '@example.com';
 
             FILE:
             for my $File (qw(1 2 3 5 6 11 17 18 21 22 23)) {
@@ -301,14 +312,18 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                     next FILE;
                 }
 
-                # new/clear ticket object
-                $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Ticket'] );
+                # new/clear ticket and article objects
+                $Kernel::OM->ObjectsDiscard(
+                    Objects => [ 'Kernel::System::Ticket', 'Kernel::System::Ticket::Article' ]
+                );
                 my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
                 my %Ticket       = $TicketObject->TicketGet(
                     TicketID      => $Return[1],
                     DynamicFields => 1,
                 );
-                my @ArticleIDs = $TicketObject->ArticleIndex(
+                my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+                my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+                my @ArticleIDs           = map { $_->{ArticleID} } $ArticleObject->ArticleList(
                     TicketID => $Return[1],
                 );
 
@@ -355,9 +370,11 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                 if ( $File == 3 ) {
 
                     # check body
-                    my %Article = $TicketObject->ArticleGet(
+                    my %Article = $ArticleBackendObject->ArticleGet(
+                        TicketID      => $Ticket{TicketID},
                         ArticleID     => $ArticleIDs[0],
                         DynamicFields => 1,
+                        UserID        => 1,
                     );
                     my $MD5 = $MainObject->MD5sum( String => $Article{Body} ) || '';
                     $Self->Is(
@@ -367,11 +384,11 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                     );
 
                     # check attachments
-                    my %Index = $TicketObject->ArticleAttachmentIndex(
+                    my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
                         ArticleID => $ArticleIDs[0],
                         UserID    => 1,
                     );
-                    my %Attachment = $TicketObject->ArticleAttachment(
+                    my %Attachment = $ArticleBackendObject->ArticleAttachment(
                         ArticleID => $ArticleIDs[0],
                         FileID    => 2,
                         UserID    => 1,
@@ -387,11 +404,6 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
 
                 if ( $File == 5 ) {
 
-                    # check body
-                    my %Article = $TicketObject->ArticleGet(
-                        ArticleID     => $ArticleIDs[0],
-                        DynamicFields => 1,
-                    );
                     my @Tests = (
                         {
                             Key    => 'DynamicField_TicketFreeKey1',
@@ -436,7 +448,7 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                     );
                     for my $Test (@Tests) {
                         $Self->Is(
-                            $Article{ $Test->{Key} } || '',
+                            $Ticket{ $Test->{Key} } || '',
                             $Test->{Result} || '-',
                             $NamePrefix . " $Test->{Key} check",
                         );
@@ -446,9 +458,11 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                 if ( $File == 6 ) {
 
                     # check body
-                    my %Article = $TicketObject->ArticleGet(
+                    my %Article = $ArticleBackendObject->ArticleGet(
+                        TicketID      => $Ticket{TicketID},
                         ArticleID     => $ArticleIDs[0],
                         DynamicFields => 1,
+                        UserID        => 1,
                     );
                     my $MD5 = $MainObject->MD5sum( String => $Article{Body} ) || '';
                     $Self->Is(
@@ -458,11 +472,11 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                     );
 
                     # check attachments
-                    my %Index = $TicketObject->ArticleAttachmentIndex(
+                    my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
                         ArticleID => $ArticleIDs[0],
                         UserID    => 1,
                     );
-                    my %Attachment = $TicketObject->ArticleAttachment(
+                    my %Attachment = $ArticleBackendObject->ArticleAttachment(
                         ArticleID => $ArticleIDs[0],
                         FileID    => 2,
                         UserID    => 1,
@@ -478,9 +492,11 @@ for my $TicketSubjectConfig ( 'Right', 'Left' ) {
                 if ( $File == 11 ) {
 
                     # check body
-                    my %Article = $TicketObject->ArticleGet(
+                    my %Article = $ArticleBackendObject->ArticleGet(
+                        TicketID      => $Ticket{TicketID},
                         ArticleID     => $ArticleIDs[0],
                         DynamicFields => 1,
+                        UserID        => 1,
                     );
                     my $MD5 = $MainObject->MD5sum( String => $Article{Body} ) || '';
 
@@ -913,6 +929,143 @@ Some Content in Body
     }
 }
 
+# filter test Envelope-To and X-Envelope-To
+@Tests = (
+    {
+        Name  => '#1 - Envelope-To Test',
+        Email => 'From: Sender <sender@example.com>
+To: Some Name <recipient@example.com>
+Envelope-To: Some EnvelopeTo Name <envelopeto@example.com>
+Subject: some subject
+
+Some Content in Body
+',
+        Match => {
+            'Envelope-To' => 'envelopeto@example.com',
+        },
+        Set => {
+            'X-OTRS-Queue'        => 'Junk',
+            'X-OTRS-TicketKey5'   => 'Key5#1',
+            'X-OTRS-TicketValue5' => 'Text5#1',
+        },
+        Check => {
+            Queue                        => 'Junk',
+            DynamicField_TicketFreeKey5  => 'Key5#1',
+            DynamicField_TicketFreeText5 => 'Text5#1',
+        },
+    },
+    {
+        Name  => '#2 - X-Envelope-To Test',
+        Email => 'From: Sender <sender@example.com>
+To: Some Name <recipient@example.com>
+X-Envelope-To: Some XEnvelopeTo Name <xenvelopeto@example.com>
+Subject: some subject
+
+Some Content in Body
+',
+        Match => {
+            'X-Envelope-To' => 'xenvelopeto@example.com',
+        },
+        Set => {
+            'X-OTRS-Queue'        => 'Misc',
+            'X-OTRS-TicketKey6'   => 'Key6#1',
+            'X-OTRS-TicketValue6' => 'Text6#1',
+        },
+        Check => {
+            Queue                        => 'Misc',
+            DynamicField_TicketFreeKey6  => 'Key6#1',
+            DynamicField_TicketFreeText6 => 'Text6#1',
+        },
+    },
+);
+
+$Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::PostMaster::Filter'] );
+$PostMasterFilter = $Kernel::OM->Get('Kernel::System::PostMaster::Filter');
+
+for my $Test (@Tests) {
+    for my $Type (qw(Config DB)) {
+
+        if ( $Type eq 'DB' ) {
+            $PostMasterFilter->FilterAdd(
+                Name           => $Test->{Name},
+                StopAfterMatch => 0,
+                %{$Test},
+            );
+        }
+        else {
+            $ConfigObject->Set(
+                Key   => 'PostMaster::PreFilterModule###' . $Test->{Name},
+                Value => {
+                    %{$Test},
+                    Module => 'Kernel::System::PostMaster::Filter::Match',
+                },
+            );
+        }
+
+        my @Return;
+        {
+            my $PostMasterObject = Kernel::System::PostMaster->new(
+                Email => \$Test->{Email},
+            );
+
+            @Return = $PostMasterObject->Run();
+        }
+        $Self->Is(
+            $Return[0] || 0,
+            1,
+            "#Filter $Type Run() - NewTicket",
+        );
+        $Self->True(
+            $Return[1] || 0,
+            "#Filter $Type Run() - NewTicket/TicketID",
+        );
+
+        # new/clear ticket object
+        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Ticket'] );
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+
+        my %Ticket = $TicketObject->TicketGet(
+            TicketID      => $Return[1],
+            DynamicFields => 1,
+        );
+
+        TEST:
+        for my $TestCheck ($Test) {
+            next TEST if !$TestCheck->{Check};
+            for my $Key ( sort keys %{ $TestCheck->{Check} } ) {
+                $Self->Is(
+                    $Ticket{$Key},
+                    $TestCheck->{Check}->{$Key},
+                    "#Filter $Type Run('$TestCheck->{Name}') - $Key",
+                );
+            }
+        }
+
+        # delete ticket
+        my $Delete = $TicketObject->TicketDelete(
+            TicketID => $Return[1],
+            UserID   => 1,
+        );
+        $Self->True(
+            $Delete || 0,
+            "#Filter $Type TicketDelete()",
+        );
+
+        # remove filter
+        for my $Test (@Tests) {
+            if ( $Type eq 'DB' ) {
+                $PostMasterFilter->FilterDelete( Name => $Test->{Name} );
+            }
+            else {
+                $ConfigObject->Set(
+                    Key   => 'PostMaster::PreFilterModule###' . $Test->{Name},
+                    Value => undef,
+                );
+            }
+        }
+    }
+}
+
 # revert changes to dynamic fields
 for my $DynamicField (@DynamicFieldUpdate) {
     my $SuccessUpdate = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldUpdate(
@@ -940,7 +1093,7 @@ for my $DynamicFieldID (@DynamicfieldIDs) {
 }
 
 # test X-OTRS-(Owner|Responsible)
-my $Login = $Kernel::OM->Get('Kernel::System::UnitTest::Helper')->TestUserCreate();
+my $Login = $Helper->TestUserCreate();
 my $UserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup( UserLogin => $Login );
 
 my %OwnerResponsibleTests = (
@@ -1020,5 +1173,7 @@ for my $Test ( sort keys %OwnerResponsibleTests ) {
         );
     }
 }
+
+# cleanup is done by RestoreDatabase
 
 1;

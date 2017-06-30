@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,16 +9,6 @@
 [% RenderBlockStart("Content") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarLast">
     <h1>[% Translate("Customer Information Center") | html %] &mdash; <a href="#" id="CustomerInformationCenterHeading">[% Data.CustomerIDTitle | html %]</a></h1>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.Agent.Dashboard.Init();
-    $('#CustomerInformationCenterHeading').bind('click', function() {
-        Core.Agent.CustomerInformationCenterSearch.OpenSearchDialog();
-        return false;
-    });
-//]]></script>
-[% END %]
 
 [% InsertTemplate("AgentDashboardCommon.tt") %]
 

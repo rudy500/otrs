@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,12 +19,12 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Queue',
     'Kernel::System::Ticket',
+    'Kernel::System::Ticket::Article',
 );
 
 sub new {
     my ( $Type, %Param ) = @_;
 
-    # allocate new hash for object
     my $Self = {};
     bless( $Self, $Type );
 
@@ -34,7 +34,6 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # check needed param
     if ( !$Param{New}->{'TargetAddress'} ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
@@ -48,14 +47,28 @@ sub Run {
         UserID => 1,
     );
 
-    my %Article = $Kernel::OM->Get('Kernel::System::Ticket')->ArticleFirstArticle(
-        %Param,
-        UserID => 1,
-    );
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $ArticleBackendObject;
 
+    my @Articles = $ArticleObject->ArticleList(
+        %Param,
+        OnlyFirst => 1,
+    );
+    my %Article;
+    for my $Article (@Articles) {
+        $ArticleBackendObject = $ArticleObject->BackendForArticle(
+            %Param,
+            ArticleID => $Article->{ArticleID},
+        );
+        %Article = $ArticleBackendObject->ArticleGet(
+            %Param,
+            ArticleID => $Article->{ArticleID},
+            UserID    => 1,
+        );
+    }
     return if !(%Article);
 
-    my %AttachmentIndex = $Kernel::OM->Get('Kernel::System::Ticket')->ArticleAttachmentIndex(
+    my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
         %Article,
         UserID => 1,
     );
@@ -63,7 +76,7 @@ sub Run {
     my @Attachments;
 
     for my $FileID ( sort { $a <=> $b } keys %AttachmentIndex ) {
-        my %Attachment = $Kernel::OM->Get('Kernel::System::Ticket')->ArticleAttachment(
+        my %Attachment = $ArticleBackendObject->ArticleAttachment(
             %Article,
             UserID => 1,
             FileID => $FileID,
@@ -75,13 +88,13 @@ sub Run {
 
     my %FromQueue = $Kernel::OM->Get('Kernel::System::Queue')->GetSystemAddress( QueueID => $Ticket{QueueID} );
 
-    $Kernel::OM->Get('Kernel::System::Ticket')->ArticleSend(
+    my $EmailArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+
+    $EmailArticleBackendObject->ArticleSend(
         %Article,
         Attachment     => \@Attachments,
         To             => scalar $Param{New}->{'TargetAddress'},
         From           => "$FromQueue{RealName} <$FromQueue{Email}>",
-        ArticleType    => 'email-internal',
-        ArticleTypeID  => undef,                                        # overwrite from %Article
         SenderType     => 'system',
         SenderTypeID   => undef,                                        # overwrite from %Article
         HistoryType    => 'Forward',

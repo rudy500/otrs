@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -13,11 +14,20 @@ use utf8;
 use vars (qw($Self));
 
 use Kernel::System::PostMaster;
-use Kernel::System::Ticket;
 
 # get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 my $MainObject   = $Kernel::OM->Get('Kernel::System::Main');
+my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 my @Tests = (
     {
@@ -27,7 +37,7 @@ my @Tests = (
                 Filename           => 'ceeibejd.png',
                 ContentType        => 'image/png; name="ceeibejd.png"',
                 ContentID          => '<part1.02040705.00020608@otrs.com>',
-                ContentAlternative => '',
+                ContentAlternative => '1',
                 Disposition        => 'inline',
             },
             'ui-toolbar.png' => {
@@ -53,7 +63,7 @@ my @Tests = (
                 Filename           => 'ceeibejd.png',
                 ContentType        => 'image/png; name="ceeibejd.png"',
                 ContentID          => '<part1.02040705.00020608@otrs.com>',
-                ContentAlternative => '',
+                ContentAlternative => '1',
                 Disposition        => 'inline',
             },
             'ui-toolbar.png' => {
@@ -79,7 +89,7 @@ my @Tests = (
                 Filename           => 'ceeibejd.png',
                 ContentType        => 'image/png; name="ceeibejd.png"',
                 ContentID          => '<part1.02040705.00020608@otrs.com>',
-                ContentAlternative => '',
+                ContentAlternative => '1',
                 Disposition        => 'inline',
             },
             'ui-toolbar.png' => {
@@ -105,7 +115,7 @@ my @Tests = (
                 Filename           => 'ceeibejd.png',
                 ContentType        => 'image/png; name="ceeibejd.png"',
                 ContentID          => '<part1.02040705.00020608@otrs.com>',
-                ContentAlternative => '',
+                ContentAlternative => '1',
                 Disposition        => 'attachment',
             },
             'ui-toolbar.png' => {
@@ -128,12 +138,15 @@ my @Tests = (
 
 my @AddedTicketIDs;
 
+my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+
 for my $Test (@Tests) {
 
     for my $Backend (qw(DB FS)) {
 
         $ConfigObject->Set(
-            Key   => 'Ticket::StorageModule',
+            Key   => 'Ticket::Article::Backend::MIMEBase###ArticleStorage',
             Value => 'Kernel::System::Ticket::ArticleStorage' . $Backend,
         );
 
@@ -145,9 +158,6 @@ for my $Test (@Tests) {
             Mode     => 'binmode',
             Result   => 'ARRAY',
         );
-
-        # new/clear ticket object
-        my $TicketObject = Kernel::System::Ticket->new();
 
         my $TicketID;
         {
@@ -168,13 +178,13 @@ for my $Test (@Tests) {
         # remember added tickets
         push @AddedTicketIDs, $TicketID;
 
-        my @ArticleIDs = $TicketObject->ArticleIndex( TicketID => $TicketID );
+        my @ArticleIDs = map { $_->{ArticleID} } $ArticleObject->ArticleList( TicketID => $TicketID );
         $Self->True(
             $ArticleIDs[0],
             "$Test->{Name} | $Backend - Article created",
         );
 
-        my %AttachmentIndex = $TicketObject->ArticleAttachmentIndex(
+        my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
             ArticleID => $ArticleIDs[0],
             UserID    => 1,
         );
@@ -185,7 +195,7 @@ for my $Test (@Tests) {
 
             my $AttachmentID = $AttachmentsLookup{$AttachmentFilename};
 
-            # delete zise attributes for easy compare
+            # delete size attributes for easy compare
             delete $AttachmentIndex{$AttachmentID}->{Filesize};
             delete $AttachmentIndex{$AttachmentID}->{FilesizeRaw};
 
@@ -198,20 +208,6 @@ for my $Test (@Tests) {
     }
 }
 
-# cleanup the system
-my $TicketObject = Kernel::System::Ticket->new();
-
-for my $TicketID (@AddedTicketIDs) {
-
-    my $Success = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-
-    $Self->True(
-        $Success,
-        "TicketDelete() - removed ticket $TicketID",
-    );
-}
+# cleanup is done by RestoreDatabase.
 
 1;

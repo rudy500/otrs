@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,13 +11,15 @@ package Kernel::System::Auth;
 use strict;
 use warnings;
 
+use Kernel::Language qw(Translatable);
+
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Group',
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::SystemMaintenance',
-    'Kernel::System::Time',
     'Kernel::System::User',
     'Kernel::System::Valid',
 );
@@ -26,22 +28,16 @@ our @ObjectDependencies = (
 
 Kernel::System::Auth - agent authentication module.
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 The authentication module for the agent interface.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $AuthObject = $Kernel::OM->Get('Kernel::System::Auth');
 
 =cut
@@ -108,7 +104,7 @@ sub new {
     return $Self;
 }
 
-=item GetOption()
+=head2 GetOption()
 
 Get module options. Currently there is just one option, "PreAuth".
 
@@ -124,7 +120,7 @@ sub GetOption {
     return $Self->{AuthBackend}->GetOption(%Param);
 }
 
-=item Auth()
+=head2 Auth()
 
 The authentication function.
 
@@ -158,35 +154,10 @@ sub Auth {
         # next on no success
         next COUNT if !$User;
 
-        my $UserID = $UserObject->UserLookup(
-            UserLogin => $User,
-        );
-
-        # check 2factor auth backends
-        my $TwoFactorAuth;
-        TWOFACTORSOURCE:
-        for my $Count ( '', 1 .. 10 ) {
-
-            # return on no config setting
-            next TWOFACTORSOURCE if !$Self->{"AuthTwoFactorBackend$Count"};
-
-            # 2factor backend
-            my $AuthOk = $Self->{"AuthTwoFactorBackend$Count"}->Auth(
-                TwoFactorToken => $Param{TwoFactorToken},
-                User           => $User,
-                UserID         => $UserID,
-            );
-            $TwoFactorAuth = $AuthOk ? 'passed' : 'failed';
-
-            last TWOFACTORSOURCE if $AuthOk;
-        }
-
-        # if at least one 2factor auth backend was checked but none was successful,
-        # it counts as a failed login
-        if ( $TwoFactorAuth && $TwoFactorAuth ne 'passed' ) {
-            $User = undef;
-            last COUNT;
-        }
+        # Sync will happen before two factor authentication (if configured)
+        # because user might not exist before being created in sync (see bug #11966).
+        # A failed two factor auth after successful sync will result
+        # in a new or updated user but no information or permission leak.
 
         # configured auth sync backend
         my $AuthSyncBackend = $ConfigObject->Get("AuthModule::UseSyncBackend$Count");
@@ -220,14 +191,49 @@ sub Auth {
             }
         }
 
-        # remember auth backend
-        if ($UserID) {
-            $UserObject->SetPreferences(
-                Key    => 'UserAuthBackend',
-                Value  => $Count,
-                UserID => $UserID,
+        # If we have no UserID at this point
+        # it means auth was ok but user didn't exist before
+        # and wasn't created in sync module.
+        # We will skip two factor authentication even if configured
+        # because we don't have user data to compare the otp anyway.
+        # This will not count as a failed login.
+        my $UserID = $UserObject->UserLookup(
+            UserLogin => $User,
+        );
+        last COUNT if !$UserID;
+
+        # check 2factor auth backends
+        my $TwoFactorAuth;
+        TWOFACTORSOURCE:
+        for my $Count ( '', 1 .. 10 ) {
+
+            # return on no config setting
+            next TWOFACTORSOURCE if !$Self->{"AuthTwoFactorBackend$Count"};
+
+            # 2factor backend
+            my $AuthOk = $Self->{"AuthTwoFactorBackend$Count"}->Auth(
+                TwoFactorToken => $Param{TwoFactorToken},
+                User           => $User,
+                UserID         => $UserID,
             );
+            $TwoFactorAuth = $AuthOk ? 'passed' : 'failed';
+
+            last TWOFACTORSOURCE if $AuthOk;
         }
+
+        # if at least one 2factor auth backend was checked but none was successful,
+        # it counts as a failed login
+        if ( $TwoFactorAuth && $TwoFactorAuth ne 'passed' ) {
+            $User = undef;
+            last COUNT;
+        }
+
+        # remember auth backend
+        $UserObject->SetPreferences(
+            Key    => 'UserAuthBackend',
+            Value  => $Count,
+            UserID => $UserID,
+        );
 
         last COUNT;
     }
@@ -326,7 +332,7 @@ sub Auth {
 
             $Self->{LastErrorMessage} =
                 $ConfigObject->Get('SystemMaintenance::IsActiveDefaultLoginErrorMessage')
-                || "It is currently not possible to login due to a scheduled system maintenance.";
+                || Translatable("It is currently not possible to login due to a scheduled system maintenance.");
 
             return;
         }
@@ -335,14 +341,14 @@ sub Auth {
     # last login preferences update
     $UserObject->SetPreferences(
         Key    => 'UserLastLogin',
-        Value  => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+        Value  => $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch(),
         UserID => $UserID,
     );
 
     return $User;
 }
 
-=item GetLastErrorMessage()
+=head2 GetLastErrorMessage()
 
 Retrieve $Self->{LastErrorMessage} content.
 
@@ -361,8 +367,6 @@ sub GetLastErrorMessage {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

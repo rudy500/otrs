@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,24 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Service Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Service Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% IF Data.ServiceID == "NEW"  %]
+        [% BreadcrumbPath.push({ Name => Translate("Add Service"),}) %]
+    [% ELSIF Data.ServiceID %]
+        [% USE EditTitle = String(Translate("Edit Service")) %]
+        [% BreadcrumbPath.push({ Name => EditTitle.append( ': ', Data.ServiceName ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
         <div class="WidgetSimple">
 [% RenderBlockStart("ActionList") %]
@@ -32,6 +50,17 @@
             </div>
 [% RenderBlockEnd("ActionList") %]
         </div>
+
+[% RenderBlockStart("Filter") %]
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterServices">[% Translate("Filter for Services") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterServices" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterServices" value="" title="[% Translate("Filter for services") | html %]">
+            </div>
+        </div>
+[% RenderBlockEnd("Filter") %]
     </div>
 
     <div class="ContentColumn">
@@ -42,7 +71,7 @@
             </div>
             <div class="Content">
 
-                <table class="DataTable">
+                <table class="DataTable" id="Services">
                     <thead>
                         <tr>
                             <th>[% Translate("Service") | html %]</th>
@@ -69,19 +98,22 @@
                             <td>[% Data.CreateTime | Localize("TimeShort") %]</td>
                         </tr>
 [% RenderBlockEnd("OverviewListRow") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="5">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
+
             </div>
 [% RenderBlockEnd("OverviewList") %]
 
 [% RenderBlockStart("ServiceEdit") %]
             <div class="Header">
-[% RenderBlockStart("HeaderAdd") %]
+            [% IF Data.ServiceID == 'NEW' %]
                 <h2>[% Translate("Add Service") | html %]</h2>
-[% RenderBlockEnd("HeaderAdd") %]
-[% RenderBlockStart("HeaderEdit") %]
+            [% ELSE %]
                 <h2>[% Translate("Edit Service") | html %] : [% Data.Name | html %]</h2>
-[% RenderBlockEnd("HeaderEdit") %]
+            [% END %]
             </div>
             <div class="Content">
 
@@ -89,6 +121,9 @@
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="ServiceSave"/>
                     <input type="hidden" name="ServiceID" value="[% Data.ServiceID | html %]"/>
+                    [% IF Data.ServiceID != 'NEW' %]
+                        <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
+                    [% END %]
 
                     <fieldset class="TableLike">
 
@@ -96,7 +131,11 @@
                         <div class="Field">
                             <input type="text" name="Name" id="Name" value="[% Data.NameShort | html %]" class="W50pc Validate_Required [% Data.NameInvalid | html %]" maxlength="200"/>
                             <div id="NameError" class="TooltipErrorMessage" ><p>[% Translate("This field is required.") | html %]</p></div>
+                            [% IF Data.LongName %]
+                            <div id="NameServerError" class="TooltipErrorMessage" ><p>[% Translate("Service name maximum length is 200 characters (with Sub-service).") | html %]</p></div>
+                            [% ELSE %]
                             <div id="NameServerError" class="TooltipErrorMessage" ><p>[% Translate("This field is required.") | html %]</p></div>
+                            [% END %]
                         </div>
                         <div class="Clear"></div>
 
@@ -130,7 +169,7 @@
                         <label for="[% Data.Name | html %]">[% Translate(Data.Label) | html %]: </label>
                         <div class="Field">
                             <input type="text" name="[% Data.Name | html %]" id="[% Data.Name | html %]" value="[% Data.SelectedID | html %]" class="W25pc"/>
-                            <p class="FieldExplanation">([% Translate(Data.Desc) | html %])</p>
+                            <p class="FieldExplanation">[% Translate(Data.Desc) | html %]</p>
                         </div>
                         <div class="Clear"></div>
 [% RenderBlockEnd("Input") %]
@@ -138,7 +177,7 @@
                         <label for="[% Data.Name | html %]">[% Translate(Data.Label) | html %]: </label>
                         <div class="Field">
                             <textarea name="[% Data.Name | html %]" id="[% Data.Name | html %]" rows="[% Data.Rows | html %]" cols="[% Data.Cols | html %]">[% Data.SelectedID | html %]</textarea>
-                            <p class="FieldExplanation">([% Translate(Data.Desc) | html %])</p>
+                            <p class="FieldExplanation">[% Translate(Data.Desc) | html %]</p>
                         </div>
                         <div class="Clear"></div>
 [% RenderBlockEnd("TextArea") %]
@@ -146,7 +185,7 @@
                         <label for="[% Data.Name | html %]">[% Translate(Data.Label) | html %] [% Translate(Data.Key) | html %]:</label>
                         <div class="Field">
                             [% Data.Option %]
-                            <p class="FieldExplanation">([% Translate(Data.Desc) | html %])</p>
+                            <p class="FieldExplanation">[% Translate(Data.Desc) | html %]</p>
                         </div>
                         <div class="Clear"></div>
 [% RenderBlockEnd("Option") %]
@@ -167,7 +206,13 @@
 [% RenderBlockEnd("Password") %]
 [% RenderBlockEnd("Item") %]
                         <div class="Field SpacingTop">
-                            <button class="Primary CallForAction" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                            [% IF Data.ServiceID != 'NEW' %]
+                                <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                                [% Translate("or") | html %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            [% ELSE %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% END %]
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                         </div>

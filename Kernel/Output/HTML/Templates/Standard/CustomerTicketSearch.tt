@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -38,46 +38,21 @@
                 </div>
                 <div>
                     <label for="CustomerID">[% Translate("CustomerID") | html %]</label>
-                    <input title="[% Translate("Customer ID") | html %]" type="text" id="CustomerID" name="CustomerID" value="[% Data.CustomerID | html %]" size="20" />
+                    [% Data.CustomerIDStrg %]
                 </div>
             </fieldset>
             <fieldset>
-                <h2>[% Translate("Fulltext search in tickets (e. g. \"John*n\" or \"Will*\")") | html %]</h2>
+                <h2>[% Translate("Fulltext Search in Tickets (e. g. \"John*n\" or \"Will*\")") | html %]</h2>
+[% RenderBlockStart("SearchableArticleField") %]
                 <div>
-                    <label for="From">[% Translate("From") | html %]</label>
-                    <input title="[% Translate("Sender") | html %]" type="text" id="From" name="From" value="[% Data.From | html %]" size="20" class="[% Data.FromInvalid | html %]" />
-                    <div id="FromServerError" class="TooltipErrorMessage">
-                        <p>[% Data.FromInvalidTooltip | html %]</p>
+                    <label for="[% Data.ArticleFieldKey | html %]">[% Data.ArticleFieldLabel %]</label>
+                    <input title="[% Data.ArticleFieldLabel %]" type="text" id="[% Data.ArticleFieldKey %]" name="[% Data.ArticleFieldKey | html %]" value="[% Data.ArticleFieldValue | html %]" size="20" class="[% Data.ArticleFieldKey %]Invalid" />
+                    <div id="[% Data.ArticleFieldKey %]ServerError" class="TooltipErrorMessage">
+                        <p>[% Data.ArticleFieldKeyTooltip | html %]</p>
                     </div>
                 </div>
-                <div>
-                    <label for="To">[% Translate("To") | html %]</label>
-                    <input title="[% Translate("Recipient") | html %]" type="text" id="To" name="To" value="[% Data.To | html %]" size="20" class="[% Data.ToInvalid | html %]" />
-                    <div id="ToServerError" class="TooltipErrorMessage">
-                        <p>[% Data.ToInvalidTooltip | html %]</p>
-                    </div>
-                </div>
-                <div>
-                    <label for="Cc">[% Translate("Cc") | html %]</label>
-                    <input title="[% Translate("Carbon Copy") | html %]" type="text" id="Cc" name="Cc" value="[% Data.Cc | html %]" size="20" class="[% Data.CcInvalid | html %]" />
-                    <div id="CcServerError" class="TooltipErrorMessage">
-                        <p>[% Data.CcInvalidTooltip | html %]</p>
-                    </div>
-                </div>
-                <div>
-                    <label for="Subject">[% Translate("Subject") | html %]</label>
-                    <input title="[% Translate("Subject") | html %]" type="text" id="Subject" name="Subject" value="[% Data.Subject | html %]" size="20" class="[% Data.SubjectInvalid | html %]" />
-                    <div id="SubjectServerError" class="TooltipErrorMessage">
-                        <p>[% Data.SubjectInvalidTooltip | html %]</p>
-                    </div>
-                </div>
-                <div>
-                    <label for="Body">[% Translate("Text") | html %]</label>
-                    <input title="[% Translate("Text") | html %]" type="text" id="Body" name="Body" value="[% Data.Body | html %]" size="20" class="[% Data.BodyInvalid | html %]" />
-                    <div id="BodyServerError" class="TooltipErrorMessage">
-                        <p>[% Data.BodyInvalidTooltip | html %]</p>
-                    </div>
-                </div>
+[% RenderBlockEnd("SearchableArticleField") %]
+
 [% RenderBlockStart("DynamicField") %]
                 <div>
                     [% Data.Label %]
@@ -87,32 +62,28 @@
 [% RenderBlockEnd("DynamicField") %]
             </fieldset>
 
-[% RenderBlockStart("Attachment") %]
-            <fieldset>
-                <h2>[% Translate("Attachments") | html %]</h2>
-                <div>
-                    <label for="AttachmentName">[% Translate("Attachment Name") | html %]:</label>
-                    <input title="[% Translate("Attachment Name") | html %]" type="text" name="AttachmentName" value="[% Data.AttachmentName | html %]" size="20" />
-                    <p>[% Translate("e. g. m*file or myfi*") | html %]</p>
-                </div>
-            </fieldset>
-[% RenderBlockEnd("Attachment") %]
-
+[% IF Config('Ticket::Service') || Config('Ticket::Type') %]
             <fieldset class="Columns">
+[% IF Config('Ticket::Service') %]
                 <div class="Column">
                     <h2><label for="ServiceIDs">[% Translate("Services") | html %]:</label></h2>
                     <div>
                         [% Data.ServicesStrg %]
                     </div>
                 </div>
+[% END %]
+[% IF Config('Ticket::Type') %]
                 <div class="Column">
                     <h2><label for="TypeIDs">[% Translate("Types") | html %]:</label></h2>
                     <div>
                         [% Data.TypesStrg %]
                     </div>
                 </div>
+[% END %]
                 <div class="Clear"></div>
             </fieldset>
+[% END %]
+
             <fieldset class="Columns">
                 <div class="Column">
                     <h2><label for="PriorityIDs">[% Translate("Priority") | html %]:</label></h2>
@@ -129,25 +100,25 @@
                 <div class="Clear"></div>
             </fieldset>
             <fieldset class="TimeSearchType">
-                <h2>[% Translate("Time restrictions") | html %]</h2>
+                <h2>[% Translate("Time Restrictions") | html %]</h2>
                 <div>
                     <input title="[% Translate("No time settings") | html %]" type="radio"  id="NoTimeSet" name="TimeSearchType" value="" [% Data.item("TimeSearchType::None") %] />
                     <label for="NoTimeSet">[% Translate("All") | html %]</label>
                 </div>
                 <div>
-                    <input title="Specific date" type="radio" id="Date" name="TimeSearchType"  value="TimePoint" [% Data.item("TimeSearchType::TimePoint") %] />
+                    <input title="[% Translate("Specific date") | html %]" type="radio" id="Date" name="TimeSearchType"  value="TimePoint" [% Data.item("TimeSearchType::TimePoint") %] />
                     <label for="Date">[% Translate("Only tickets created") | html %]</label>
                     [% Data.TicketCreateTimePointStart %] [% Data.TicketCreateTimePoint %] [% Data.TicketCreateTimePointFormat %]
                 </div>
                 <div>
-                    <input title="Date range" type="radio" id="DateRange" name="TimeSearchType" value="TimeSlot" [% Data.item("TimeSearchType::TimeSlot") %] />
+                    <input title="[% Translate("Date range") | html %]" type="radio" id="DateRange" name="TimeSearchType" value="TimeSlot" [% Data.item("TimeSearchType::TimeSlot") %] />
                     <label for="DateRange">[% Translate("Only tickets created between") | html %]</label>
                     [% Data.TicketCreateTimeStart %] [% Translate("and") | html %] [% Data.TicketCreateTimeStop %]
                 </div>
             </fieldset>
 [% RenderBlockStart("SearchInArchive") %]
             <fieldset>
-                <h2>[% Translate("Ticket archive system") | html %]</h2>
+                <h2>[% Translate("Ticket Archive System") | html %]</h2>
                 <div>
                     <label for="SearchInArchive">[% Translate("Archive Search") | html %]:</label>
                     [% Data.SearchInArchiveStrg %]
@@ -155,7 +126,7 @@
             </fieldset>
 [% RenderBlockEnd("SearchInArchive") %]
             <fieldset>
-                <h2>[% Translate("Save search as template?") | html %]</h2>
+                <h2>[% Translate("Save Search as Template?") | html %]</h2>
                 <div>
                     <label for="SaveProfile">[% Translate("Save as Template?") | html %]</label>
                     <input title="[% Translate("Save as Template") | html %]" type="checkbox" id="SaveProfile" name="SaveProfile" />
@@ -173,16 +144,4 @@
         </form>
     </div>
 </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">
-    $('form').on('submit', function() {
-        if ($('#ResultForm').val() === 'Print') {
-            $('form').attr('target', '_blank');
-        }
-        else {
-            $('form').removeAttr('target');
-        }
-    });
-</script>
-[% END %]
 [% RenderBlockEnd("Search") %]

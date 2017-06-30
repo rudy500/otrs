@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -55,14 +56,15 @@ sub Run {
     # check for valid action backend
     if ( !IsHashRefWithData($ActionsConfig) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get registered configuration for action type $ActionType",
+            Message => $LayoutObject->{LanguageObject}
+                ->Translate( 'Could not get registered configuration for action type %s', $ActionType ),
         );
     }
 
     # check for WebserviceID
     if ( !$WebserviceID ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need WebserviceID!",
+            Message => Translatable('Need WebserviceID!'),
         );
     }
 
@@ -76,7 +78,8 @@ sub Run {
     # check for valid web service configuration
     if ( !IsHashRefWithData($WebserviceData) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get data for WebserviceID $WebserviceID",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not get data for WebserviceID %s', $WebserviceID ),
         );
     }
 
@@ -86,7 +89,8 @@ sub Run {
     # check for valid action backend
     if ( !$ActionBackend ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get backend for $ActionType $Action",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not get backend for %s %s', $ActionType, $Action ),
         );
     }
 
@@ -231,7 +235,8 @@ sub Run {
         # check for successful web service update
         if ( !$Success ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Could not update configuration data for WebserviceID $WebserviceID",
+                Message => $LayoutObject->{LanguageObject}
+                    ->Translate( 'Could not update configuration data for WebserviceID %s', $WebserviceID ),
             );
         }
 
@@ -350,15 +355,15 @@ sub _ShowEdit {
         Data => [
             {
                 Key   => 'Keep',
-                Value => 'Keep (leave unchanged)',
+                Value => Translatable('Keep (leave unchanged)'),
             },
             {
                 Key   => 'Ignore',
-                Value => 'Ignore (drop key/value pair)',
+                Value => Translatable('Ignore (drop key/value pair)'),
             },
             {
                 Key   => 'MapTo',
-                Value => 'MapTo (use provided value as default)',
+                Value => Translatable('Map to (use provided value as default)'),
             },
         ],
         Name         => 'DefaultKeyType',
@@ -371,11 +376,11 @@ sub _ShowEdit {
         Data => [
             {
                 Key   => 'KeyMapExact',
-                Value => 'Exact value(s)',
+                Value => Translatable('Exact value(s)'),
             },
             {
                 Key   => 'KeyMapRegEx',
-                Value => 'Regular expression',
+                Value => Translatable('Regular expression'),
             },
         ],
         Name         => 'KeyMapTypeStrg',
@@ -389,15 +394,15 @@ sub _ShowEdit {
         Data => [
             {
                 Key   => 'Keep',
-                Value => 'Keep (leave unchanged)',
+                Value => Translatable('Keep (leave unchanged)'),
             },
             {
                 Key   => 'Ignore',
-                Value => 'Ignore (drop Value/value pair)',
+                Value => Translatable('Ignore (drop Value/value pair)'),
             },
             {
                 Key   => 'MapTo',
-                Value => 'MapTo (use provided value as default)',
+                Value => Translatable('Map to (use provided value as default)'),
             },
         ],
         Name         => 'DefaultValueType',
@@ -411,11 +416,11 @@ sub _ShowEdit {
         Data => [
             {
                 Key   => 'ValueMapExact',
-                Value => 'Exact value(s)',
+                Value => Translatable('Exact value(s)'),
             },
             {
                 Key   => 'ValueMapRegEx',
-                Value => 'Regular expression',
+                Value => Translatable('Regular expression'),
             },
         ],
         Name         => 'ValueMapTypeStrg',
@@ -451,11 +456,11 @@ sub _ShowEdit {
             Data => [
                 {
                     Key   => 'KeyMapExact',
-                    Value => 'Exact value(s)',
+                    Value => Translatable('Exact value(s)'),
                 },
                 {
                     Key   => 'KeyMapRegEx',
-                    Value => 'Regular expression',
+                    Value => Translatable('Regular expression'),
                 },
             ],
             Name         => 'KeyMapTypeStrg' . $KeyIndex,
@@ -482,11 +487,11 @@ sub _ShowEdit {
                 Data => [
                     {
                         Key   => 'ValueMapExact',
-                        Value => 'Exact value(s)',
+                        Value => Translatable('Exact value(s)'),
                     },
                     {
                         Key   => 'ValueMapRegEx',
-                        Value => 'Regular expression',
+                        Value => Translatable('Regular expression'),
                     },
                 ],
                 Name         => 'ValueMapTypeStrg' . $KeyIndex . '_' . $ValueIndex,
@@ -521,6 +526,15 @@ sub _ShowEdit {
         );
 
     }
+
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'MappingSimple',
+        Value => {
+            WebServiceID  => $Param{WebserviceID},
+            DeletedString => $Param{DeletedString},
+        },
+    );
 
     # set key index
     $LayoutObject->Block(

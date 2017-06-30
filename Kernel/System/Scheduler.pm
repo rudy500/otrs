@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,22 +20,16 @@ our @ObjectDependencies = (
 
 Kernel::System::Scheduler - Scheduler lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Includes the functions to add a new task to the scheduler daemon.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create a scheduler object. Do not use it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $SchedulerObject = $Kernel::OM->Get('Kernel::System::Scheduler');
 
 =cut
@@ -50,7 +44,7 @@ sub new {
     return $Self;
 }
 
-=item TaskAdd()
+=head2 TaskAdd()
 
 add a task to scheduler
 
@@ -100,7 +94,7 @@ sub TaskAdd {
     return;
 }
 
-=item FutureTaskList()
+=head2 FutureTaskList()
 
 get the list of scheduler future tasks
 
@@ -136,7 +130,7 @@ sub FutureTaskList {
     return @List;
 }
 
-=item FutureTaskDelete()
+=head2 FutureTaskDelete()
 
 delete a task from scheduler future task list
 
@@ -164,8 +158,6 @@ sub FutureTaskDelete {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

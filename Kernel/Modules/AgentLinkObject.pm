@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AgentLinkObject;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -27,6 +29,80 @@ sub Run {
     my ( $Self, %Param ) = @_;
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    if ( $Self->{Subaction} eq 'UpdateComplextTablePreferences' ) {
+
+        # save user preferences (shown columns)
+
+        # Needed objects
+        my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+        my $JSONObject   = $Kernel::OM->Get('Kernel::System::JSON');
+
+        # challenge token check for write action
+        $LayoutObject->ChallengeTokenCheck();
+
+        my $SourceObject                   = $ParamObject->GetParam( Param => 'SourceObject' )                   || '';
+        my $SourceObjectID                 = $ParamObject->GetParam( Param => 'SourceObjectID' )                 || '';
+        my $DestinationObject              = $ParamObject->GetParam( Param => 'DestinationObject' )              || '';
+        my $AdditionalLinkListWithDataJSON = $ParamObject->GetParam( Param => 'AdditionalLinkListWithDataJSON' ) || '';
+
+        my $Success = $LayoutObject->ComplexTablePreferencesSet(
+            DestinationObject => $DestinationObject,
+        );
+
+        if ( !$Success ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "System was unable to update preferences!",
+            );
+            return;
+        }
+
+        # get linked objects
+        my $LinkListWithData = $Kernel::OM->Get('Kernel::System::LinkObject')->LinkListWithData(
+            Object           => $SourceObject,
+            Object2          => $DestinationObject,
+            Key              => $SourceObjectID,
+            State            => 'Valid',
+            UserID           => $Self->{UserID},
+            ObjectParameters => {
+                Ticket => {
+                    IgnoreLinkedTicketStateTypes => 1,
+                },
+            },
+        );
+
+        if ($AdditionalLinkListWithDataJSON) {
+
+            # decode JSON string
+            my $AdditionalLinkListWithData = $Kernel::OM->Get('Kernel::System::JSON')->Decode(
+                Data => $AdditionalLinkListWithDataJSON,
+            );
+
+            $LinkListWithData = {
+                %{$LinkListWithData},
+                %{$AdditionalLinkListWithData},
+            };
+        }
+
+        # create the link table
+        my $LinkTableStrg = $LayoutObject->LinkObjectTableCreate(
+            LinkListWithData               => $LinkListWithData,
+            ViewMode                       => 'Complex',                         # only make sense for complex
+            Object                         => $SourceObject,
+            Key                            => $SourceObjectID,
+            AJAX                           => 1,
+            AdditionalLinkListWithDataJSON => $AdditionalLinkListWithDataJSON,
+        );
+
+        return $LayoutObject->Attachment(
+            ContentType => 'text/html',
+            Content     => $LinkTableStrg,
+            Type        => 'inline',
+            NoCache     => 1,
+        );
+    }
 
     # ------------------------------------------------------------ #
     # close
@@ -47,8 +123,8 @@ sub Run {
     # check needed stuff
     if ( !$Form{SourceObject} || !$Form{SourceKey} ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need SourceObject and SourceKey!",
-            Comment => 'Please contact the admin.',
+            Message => Translatable('Need SourceObject and SourceKey!'),
+            Comment => Translatable('Please contact the administrator.'),
         );
     }
 
@@ -77,7 +153,7 @@ sub Run {
 
         if ( !$Permission ) {
             return $LayoutObject->NoPermission(
-                Message    => 'You need ro permission!',
+                Message    => Translatable('You need ro permission!'),
                 WithHeader => 'yes',
             );
         }
@@ -212,9 +288,9 @@ sub Run {
         # to close the popup without reloading the parent window
         if ( $Form{Mode} eq 'Temporary' ) {
 
-            $LayoutObject->Block(
-                Name => 'LinkDeleteTemporaryLink',
-                Data => {},
+            $LayoutObject->AddJSData(
+                Name => 'TemporaryLink',
+                Data => 1,
             );
         }
 
@@ -257,6 +333,74 @@ sub Run {
         $Output .= $LayoutObject->Footer( Type => 'Small' );
 
         return $Output;
+    }
+
+    # ------------------------------------------------------------ #
+    # instant link delete (from the link table)
+    # ------------------------------------------------------------ #
+    elsif ( $Self->{Subaction} eq 'InstantLinkDelete') {
+
+        # challenge token check for write action
+        $LayoutObject->ChallengeTokenCheck();
+
+        # get target identifier and redirect URL
+        my $TargetIdentifier = $ParamObject->GetParam( Param => 'TargetIdentifier' );
+        my $Redirect         = $ParamObject->GetParam( Param => 'Redirect' );
+
+        # get target components
+        my @Target = $TargetIdentifier =~ m{^ ( [^:]+? ) :: (.+?) :: ( [^:]+? ) $}smx;
+
+        if ( $Target[0]       # TargetObject
+             && $Target[1]    # TargetKey
+             && $Target[2]    # LinkType
+        ) {
+
+            # check source permission
+            my $SourcePermission = $LinkObject->ObjectPermission(
+                Object => $Form{SourceObject},
+                Key    => $Form{SourceKey},
+                UserID => $Self->{UserID},
+            );
+
+            # check target permission
+            my $TargetPermission = $LinkObject->ObjectPermission(
+                Object => $Target[0],
+                Key    => $Target[1],
+                UserID => $Self->{UserID},
+            );
+
+            if ( !$SourcePermission || !$TargetPermission ) {
+                return $LayoutObject->NoPermission(
+                    Message    => Translatable('You need ro permission!'),
+                    WithHeader => 'yes',
+                );
+            }
+
+            # delete link from database
+            my $Success = $LinkObject->LinkDelete(
+                Object1 => $Form{SourceObject},
+                Key1    => $Form{SourceKey},
+                Object2 => $Target[0],
+                Key2    => $Target[1],
+                Type    => $Target[2],
+                UserID  => $Self->{UserID},
+            );
+        }
+
+        # build empty JSON output
+        my $JSON = $LayoutObject->JSONEncode(
+            Data => {
+                Success => 1,
+            },
+        );
+
+        # send JSON response
+        return $LayoutObject->Attachment(
+            ContentType => 'application/json; charset=' . $LayoutObject->{Charset},
+            Content     => $JSON,
+            Type        => 'inline',
+            NoCache     => 1,
+        );
     }
 
     # ------------------------------------------------------------ #
@@ -354,13 +498,10 @@ sub Run {
                         $Output .= $LayoutObject->Notify(
                             Priority => 'Error',
                             Data     => $LayoutObject->{LanguageObject}->Translate(
-                                "Can not create link with %s!",
+                                'Can not create link with %s! Object already linked as %s.',
                                 $TargetObjectDescription{Normal},
-                                )
-                                . $LayoutObject->{LanguageObject}->Translate(
-                                "Object already linked as %s.",
                                 $TypeName,
-                                ),
+                            ),
                         );
 
                         next TARGETKEYORG;
@@ -443,8 +584,9 @@ sub Run {
         # check needed stuff
         if ( !$TargetObjectStrg ) {
             return $LayoutObject->ErrorScreen(
-                Message => "The Object $Form{SourceObject} cannot link with other object!",
-                Comment => 'Please contact the admin.',
+                Message => $LayoutObject->{LanguageObject}
+                    ->Translate( 'The object %s cannot link with other object!', $Form{SourceObject} ),
+                Comment => Translatable('Please contact the administrator.'),
             );
         }
 
@@ -463,9 +605,9 @@ sub Run {
         # to close the popup without reloading the parent window
         if ( $Form{Mode} eq 'Temporary' ) {
 
-            $LayoutObject->Block(
-                Name => 'LinkAddTemporaryLink',
-                Data => {},
+            $LayoutObject->AddJSData(
+                Key   => 'TemporaryLink',
+                Value => 1,
             );
         }
 

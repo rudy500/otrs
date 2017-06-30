@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -14,15 +14,15 @@ Core.App = Core.App || {};
 Core.App.Responsive = (function (Namespace) {
     Namespace.RunUnitTests = function(){
 
-        module('Core.App.Responsive');
+        QUnit.module('Core.App.Responsive');
 
-        test('IsSmallerOrEqual', function(){
-            expect(4);
+        QUnit.test('IsSmallerOrEqual', function(Assert){
+            Assert.expect(4);
 
-            ok(Core.App.Responsive.IsSmallerOrEqual('ScreenL', 'ScreenXL'));
-            ok(Core.App.Responsive.IsSmallerOrEqual('ScreenXS', 'ScreenL'));
-            ok(Core.App.Responsive.IsSmallerOrEqual('ScreenM', 'ScreenM'));
-            ok(!Core.App.Responsive.IsSmallerOrEqual('ScreenL', 'ScreenM'));
+            Assert.ok(Core.App.Responsive.IsSmallerOrEqual('ScreenL', 'ScreenXL'));
+            Assert.ok(Core.App.Responsive.IsSmallerOrEqual('ScreenXS', 'ScreenL'));
+            Assert.ok(Core.App.Responsive.IsSmallerOrEqual('ScreenM', 'ScreenM'));
+            Assert.ok(!Core.App.Responsive.IsSmallerOrEqual('ScreenL', 'ScreenM'));
         });
     };
 

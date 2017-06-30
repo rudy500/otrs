@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,8 +7,22 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Edit System Maintenance %s", Data.Name) | html %]</h1>
+    <h1>[% Translate("Edit System Maintenance") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate("System Maintenance Management"),
+                Link => Env("Action"),
+            },
+            {
+                Name => Translate("Edit System Maintenance")
+            }
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
         <div class="WidgetSimple">
             <div class="Header">
@@ -32,13 +46,13 @@
                     <div class="WidgetAction Toggle">
                         <a href="#" title="[% Translate("Show or hide the content") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
                     </div>
-                    <h2>[% Translate("Edit System Maintenance information") | html %]</h2>
+                    <h2>[% Translate("Edit System Maintenance Information") | html %]</h2>
                 </div>
                 <div class="Content">
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="SystemMaintenanceEditAction"/>
-                    <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
                     <input type="hidden" name="SystemMaintenanceID" value="[% Data.SystemMaintenanceID | html %]"/>
+                    <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
                     <fieldset class="TableLike">
 
 
@@ -98,7 +112,9 @@
                         <div class="Clear"></div>
 
                         <div class="Field SpacingTop">
-                            <button class="Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]">[% Translate("Save") | html %]</button>
+                            <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% Translate("or") | html %]
+                            <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]"><span>[% Translate("Cancel") | html %]</span></a>
                         </div>
@@ -146,7 +162,7 @@
                                 <tr>
                                     <td>[% Data.SessionID | html %]</td>
                                     <td>[% Data.UserType | html %]</td>
-                                    <td>[% Data.UserFirstname | html %] [% Data.UserLastname %]</td>
+                                    <td>[% Data.UserFullname | html %]</td>
                                     <td>
                                         <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminSystemMaintenance;Subaction=Kill;WantSessionID=[% Data.SessionID | uri %];[% Env("ChallengeTokenParam") | html %];SystemMaintenanceID=[% Data.SystemMaintenanceID | html %]">[% Translate("Kill this session") | html %]</a>
                                     </td>
@@ -178,7 +194,7 @@
                                 <tr>
                                     <td>[% Data.SessionID | html %]</td>
                                     <td>[% Data.UserType | html %]</td>
-                                    <td>[% Data.UserFirstname | html %] [% Data.UserLastname %]</td>
+                                    <td>[% Data.UserFullname | html %]</td>
                                     <td>
                                         <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminSystemMaintenance;Subaction=Kill;WantSessionID=[% Data.SessionID | uri %];[% Env("ChallengeTokenParam") | html %];SystemMaintenanceID=[% Data.SystemMaintenanceID | html %]">[% Translate("Kill this session") | html %]</a>
                                     </td>

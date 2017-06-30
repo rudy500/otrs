@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <otrs_config version="1.0" init="Application">
-    <ConfigItem Name="Ticket::EventModulePost###1000-GenericInterface" Required="0" Valid="1">
+    <ConfigItem Name="Ticket::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>Core::Ticket</SubGroup>
+        <SubGroup>Core::Event::Ticket</SubGroup>
         <Setting>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -12,10 +12,10 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem Name="Package::EventModulePost###1000-GenericInterface" Required="0" Valid="1">
+    <ConfigItem Name="Package::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>Core::Package</SubGroup>
+        <SubGroup>Core::Event::Package</SubGroup>
         <Setting>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -24,10 +24,10 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem Name="CustomerCompany::EventModulePost###1000-GenericInterface" Required="0" Valid="1">
+    <ConfigItem Name="CustomerCompany::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>Core::CustomerCompany</SubGroup>
+        <SubGroup>Core::Event::CustomerCompany</SubGroup>
         <Setting>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -36,10 +36,10 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem Name="CustomerUser::EventModulePost###1000-GenericInterface" Required="0" Valid="1">
+    <ConfigItem Name="CustomerUser::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>Core::CustomerUser</SubGroup>
+        <SubGroup>Core::Event::CustomerUser</SubGroup>
         <Setting>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -48,10 +48,10 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem Name="Queue::EventModulePost###1000-GenericInterface" Required="0" Valid="1">
+    <ConfigItem Name="Queue::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>Core::Queue</SubGroup>
+        <SubGroup>Core::Event::Queue</SubGroup>
         <Setting>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -60,10 +60,10 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem Name="DynamicField::EventModulePost###1000-GenericInterface" Required="0" Valid="1">
+    <ConfigItem Name="DynamicField::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>Core::DynamicField</SubGroup>
+        <SubGroup>Core::Event::DynamicField</SubGroup>
         <Setting>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -75,7 +75,7 @@
     <ConfigItem Name="GenericInterface::WebserviceConfig::CacheTTL" Required="1" Valid="1">
         <Description Translatable="1">Cache time in seconds for the web service config backend.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>GenericInterface::Webservice</SubGroup>
+        <SubGroup>GenericInterface</SubGroup>
         <Setting>
             <String Regex="">86400</String><!-- default 1 day -->
         </Setting>
@@ -83,7 +83,7 @@
     <ConfigItem Name="GenericInterface::Operation::Common::CachedAuth::AgentCacheTTL" Required="1" Valid="1">
         <Description Translatable="1">Cache time in seconds for agent authentication in the GenericInterface.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>GenericInterface::Webservice</SubGroup>
+        <SubGroup>GenericInterface::Operation</SubGroup>
         <Setting>
             <String Regex="">300</String><!-- default 5 min -->
         </Setting>
@@ -91,7 +91,7 @@
     <ConfigItem Name="GenericInterface::Operation::Common::CachedAuth::CustomerCacheTTL" Required="1" Valid="1">
         <Description Translatable="1">Cache time in seconds for customer authentication in the GenericInterface.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>GenericInterface::Webservice</SubGroup>
+        <SubGroup>GenericInterface::Operation</SubGroup>
         <Setting>
             <String Regex="">300</String><!-- default 5 min -->
         </Setting>
@@ -148,6 +148,7 @@
                 <Loader>
                     <CSS>Core.Agent.Admin.GenericInterface.css</CSS>
                     <CSS>Core.Agent.SortedTree.css</CSS>
+                    <JavaScript>Core.Agent.Admin.GenericInterfaceTransportHTTPSOAP.js</JavaScript>
                     <JavaScript>Core.Agent.SortedTree.js</JavaScript>
                 </Loader>
             </FrontendModuleReg>
@@ -164,6 +165,7 @@
                 <Title Translatable="1">GenericInterface TransportHTTPREST GUI</Title>
                 <Loader>
                     <CSS>Core.Agent.Admin.GenericInterface.css</CSS>
+                    <JavaScript>Core.Agent.Admin.GenericInterfaceTransportHTTPREST.js</JavaScript>
                 </Loader>
             </FrontendModuleReg>
         </Setting>
@@ -313,7 +315,7 @@
                 <Title Translatable="1">GenericInterface Webservice Mapping GUI</Title>
                 <Loader>
                     <CSS>Core.Agent.Admin.GenericInterface.css</CSS>
-                    <JavaScript>Core.Agent.Admin.GenericInterfaceMappingSimple.js</JavaScript>
+                    <JavaScript>Core.Agent.Admin.GenericInterfaceMapping.js</JavaScript>
                 </Loader>
             </FrontendModuleReg>
         </Setting>
@@ -341,6 +343,7 @@
                 <Title Translatable="1">GenericInterface Webservice Mapping GUI</Title>
                 <Loader>
                     <CSS>Core.Agent.Admin.GenericInterface.css</CSS>
+                    <JavaScript>Core.Agent.Admin.GenericInterfaceMappingXSLT.js</JavaScript>
                 </Loader>
             </FrontendModuleReg>
         </Setting>
@@ -418,13 +421,28 @@
             </Hash>
         </Setting>
     </ConfigItem>
+    <ConfigItem Name="GenericInterface::Operation::Module###Ticket::TicketHistoryGet" Required="0" Valid="1">
+        <Description Translatable="1">GenericInterface module registration for the operation layer.</Description>
+        <Group>GenericInterface</Group>
+        <SubGroup>GenericInterface::Operation::ModuleRegistration</SubGroup>
+        <Setting>
+            <Hash>
+                <Item Key="Name">TicketHistoryGet</Item>
+                <Item Key="Controller">Ticket</Item>
+                <Item Key="ConfigDialog">AdminGenericInterfaceOperationDefault</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
 
-    <ConfigItem Name="GenericInterface::Operation::TicketCreate###ArticleType" Required="1" Valid="1">
-        <Description Translatable="1">Defines the default type of the article for this operation.</Description>
+    <ConfigItem Name="GenericInterface::Operation::TicketCreate###IsVisibleForCustomer" Required="1" Valid="1">
+        <Description Translatable="1">Defines the default visibility of the article to customer for this operation.</Description>
         <Group>GenericInterface</Group>
         <SubGroup>GenericInterface::Operation::TicketCreate</SubGroup>
         <Setting>
-            <String Regex="">webrequest</String>
+            <Option SelectedID="1">
+                <Item Key="0" Translatable="1">No</Item>
+                <Item Key="1" Translatable="1">Yes</Item>
+            </Option>
         </Setting>
     </ConfigItem>
     <ConfigItem Name="GenericInterface::Operation::TicketCreate###HistoryType" Required="1" Valid="1">
@@ -452,18 +470,21 @@
         </Setting>
     </ConfigItem>
 
-    <ConfigItem Name="GenericInterface::Operation::TicketUpdate###ArticleType" Required="1" Valid="1">
-        <Description Translatable="1">Defines the default type of the article for this operation.</Description>
+    <ConfigItem Name="GenericInterface::Operation::TicketUpdate###IsVisibleForCustomer" Required="1" Valid="1">
+        <Description Translatable="1">Defines the default visibility of the article to customer for this operation.</Description>
         <Group>GenericInterface</Group>
         <SubGroup>GenericInterface::Operation::TicketUpdate</SubGroup>
         <Setting>
-            <String Regex="">webrequest</String>
+            <Option SelectedID="1">
+                <Item Key="0" Translatable="1">No</Item>
+                <Item Key="1" Translatable="1">Yes</Item>
+            </Option>
         </Setting>
     </ConfigItem>
     <ConfigItem Name="GenericInterface::Operation::ResponseLoggingMaxSize" Required="1" Valid="1">
         <Description Translatable="1">Defines the maximum size in KiloByte of GenericInterface responses that get logged to the gi_debugger_entry_content table.</Description>
         <Group>GenericInterface</Group>
-        <SubGroup>GenericInterface::Operation::ResponseLoggingMaxSize</SubGroup>
+        <SubGroup>GenericInterface::Operation</SubGroup>
         <Setting>
             <String Regex="">200</String>
         </Setting>

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,9 +9,9 @@
 <div class="LayoutPopup ARIARoleMain">
 
     <div class="Header">
-        <h1>[% Translate("View Email Plain Text for %s%s", Config('Ticket::Hook'), Data.TicketNumber) | html %] &mdash; [% Data.Title | html %]</h1>
+        <h1>[% Translate("View Email Plain Text for %s%s%s", Config('Ticket::Hook'), Config('Ticket::HookDivider'), Data.TicketNumber) | html %] &mdash; [% Data.Title | html %]</h1>
         <p>
-            <a class="CancelClosePopup" href="#">[% Translate("Close") | html %]</a>
+            <a class="CancelClosePopup" href="#">[% Translate("Close dialog") | html %]</a>
         </p>
     </div>
 
@@ -20,7 +20,7 @@
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>
-                    [% Translate("Plain") | html %] [% Config("Ticket::Hook") %]: [% Data.TicketNumber | html %] / TicketID: [% Data.TicketID | html %] / ArticleID: [% Data.ArticleID | html %]
+                    [% Translate("Plain") | html %] [% Config("Ticket::Hook") %][% Config("Ticket::HookDivider") %][% Data.TicketNumber | html %] / TicketID: [% Data.TicketID | html %] / ArticleID: [% Data.ArticleID | html %]
                     -
                     <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Download;ArticleID=[% Data.ArticleID | uri %];TicketID=[% Data.TicketID | uri %]">
                         [% Translate("Download this email") | html %]

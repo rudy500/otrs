@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,18 +15,24 @@ use vars (qw($Self));
 use Kernel::System::Ticket;
 use Kernel::System::GenericAgent;
 
-# get needed objects
-my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+# get dynamic field object
 my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
-my $BackendObject      = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
-my $RandomID = $HelperObject->GetRandomID();
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $RandomID = $Helper->GetRandomID();
 
 # define structure for create and update values
 my %TicketValues = (
     Create => {
-        Title      => 'Test ticket for UntitTest of the event ticket actions.',
+        Title      => 'Test ticket for UnitTest of the event ticket actions.',
         StateID    => 1,
         PriorityID => 2,
         OwnerID    => 1,
@@ -42,7 +48,6 @@ my %TicketValues = (
         CustomerID => '456',
         LockID     => 2,
         QueueID    => 3,
-
     },
 );
 
@@ -54,11 +59,11 @@ my %NewJob  = (
 
     Data => {
         TicketNumber                => '',
-        From                        => '',
-        Body                        => '',
-        To                          => '',
-        Cc                          => '',
-        Subject                     => '',
+        MIMEBase_From               => '',
+        MIMEBase_Body               => '',
+        MIMEBase_To                 => '',
+        MIMEBase_Cc                 => '',
+        MIMEBase_Subject            => '',
         CustomerID                  => '',
         TimeSearchType              => 'TimePoint',
         TicketCreateTimePoint       => 1,
@@ -105,15 +110,14 @@ for my $Item ( sort keys %{ $TicketValues{Update} } ) {
 }
 
 # add dynamic fields
-my @DynamicfieldIDs;
-my %AddDynamicfields = (
+my %AddDynamicFields = (
     NewDynamicField          => 'A new value',
-    InterestingDynamicField  => 'The most beautyful song in the world.',
+    InterestingDynamicField  => 'The most beautiful song in the world.',
     NothingToSayDynamicField => 'Null',
     TooLongDynamicField      => $RandomID,
 );
 
-for my $FieldName ( sort keys %AddDynamicfields ) {
+for my $FieldName ( sort keys %AddDynamicFields ) {
 
     # create a dynamic field
     my $FieldID = $DynamicFieldObject->DynamicFieldAdd(
@@ -135,13 +139,13 @@ for my $FieldName ( sort keys %AddDynamicfields ) {
         "DynamicFieldAdd() successful for Field $FieldName",
     );
 
-    push @DynamicfieldIDs, $FieldID;
-
-    $NewJob{Data}->{ 'DynamicField_' . $FieldName . $RandomID } = $AddDynamicfields{$FieldName};
+    $NewJob{Data}->{ 'DynamicField_' . $FieldName . $RandomID } = $AddDynamicFields{$FieldName};
 }
 
-my $TicketObject       = Kernel::System::Ticket->new();
-my $GenericAgentObject = Kernel::System::GenericAgent->new();
+my $TicketObject          = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject         = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleInternalObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal');
+my $GenericAgentObject    = $Kernel::OM->Get('Kernel::System::GenericAgent');
 
 # create the new job
 my $JobAdd = $GenericAgentObject->JobAdd(
@@ -192,14 +196,14 @@ for my $Item ( sort keys %{ $TicketValues{Create} } ) {
     );
 }
 
-my $ArticleID = $TicketObject->ArticleCreate(
-    TicketID    => $TicketID,
-    ArticleType => 'note-internal',
-    SenderType  => 'agent',
-    From        => 'Agent Some Agent Some Agent <email@example.com>',
-    To          => 'Customer A <customer-a@example.com>',
-    Subject     => 'some short description',
-    Body        => 'this article is just for trigger a ArticleCreate event.',
+my $ArticleID = $ArticleInternalObject->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 0,
+    SenderType           => 'agent',
+    From                 => 'Agent Some Agent Some Agent <email@example.com>',
+    To                   => 'Customer A <customer-a@example.com>',
+    Subject              => 'some short description',
+    Body                 => 'this article is just for trigger a ArticleCreate event.',
 
     #    MessageID => '<asdasdasd.123@example.com>',
     ContentType    => 'text/plain; charset=ISO-8859-15',
@@ -211,8 +215,16 @@ my $ArticleID = $TicketObject->ArticleCreate(
 
 # Destroy the ticket object for triggering the transactional events.
 # Recreate all objects which have references to the old TicketObject too!
-$TicketObject       = Kernel::System::Ticket->new();
-$GenericAgentObject = Kernel::System::GenericAgent->new();
+$Kernel::OM->ObjectsDiscard(
+    Objects => [
+        'Kernel::System::Ticket',
+        'Kernel::System::Ticket::Article',
+        'Kernel::System::Ticket::GenericAgent',
+    ],
+);
+$TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
+$ArticleObject      = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+$GenericAgentObject = $Kernel::OM->Get('Kernel::System::GenericAgent');
 
 my %TicketMod = $TicketObject->TicketGet(
     TicketID      => $TicketID,
@@ -230,65 +242,89 @@ for my $Item ( sort keys %{ $TicketValues{Update} } ) {
 }
 
 # check also for Dynamic Fields
-for my $Item ( sort keys %AddDynamicfields ) {
+for my $Item ( sort keys %AddDynamicFields ) {
 
     $Self->Is(
         $TicketMod{ 'DynamicField_' . $Item . $RandomID },
-        $AddDynamicfields{$Item},
+        $AddDynamicFields{$Item},
         "TicketGet() - DynamicFields - $Item",
     );
 }
 
-for my $DynamicFieldID (@DynamicfieldIDs) {
+# add the new Job
+my $RandomID2 = $Helper->GetRandomID();
+my $JobName2  = 'UnitTest_' . $RandomID2;
+my %NewJob2   = (
+    Name => $JobName2,
+    Data => {
+        EventValues        => ['TicketStateUpdate'],
+        StateIDs           => [ 6, 7, 8 ],
+        NewPendingTime     => 10,
+        NewPendingTimeType => 86400,
+        Valid              => 1,
+    },
+);
 
-    my $ValuesDelete = $BackendObject->AllValuesDelete(
-        DynamicFieldConfig => {
-            ID         => $DynamicFieldID,
-            ObjectType => 'Ticket',
-            FieldType  => 'Text',
-        },
-        UserID => 1,
-    );
+# create the new job
+my $JobAdd2 = $GenericAgentObject->JobAdd(
+    %NewJob2,
+    UserID => 1,
+);
+$Self->True(
+    $JobAdd2 || '',
+    'JobAdd()',
+);
 
-    # sanity check
-    $Self->True(
-        $ValuesDelete,
-        "AllValuesDelete() successful for Field ID $DynamicFieldID",
-    );
-
-    # delete the dynamic field
-    my $FieldDelete = $DynamicFieldObject->DynamicFieldDelete(
-        ID     => $DynamicFieldID,
-        UserID => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $FieldDelete,
-        "DynamicFieldDelete() successful for Field ID $DynamicFieldID",
-    );
-}
-
-# delete the ticket
-my $TicketDelete = $TicketObject->TicketDelete(
+my $StateSetSuccess1 = $TicketObject->TicketStateSet(
+    State    => 'open',
     TicketID => $TicketID,
     UserID   => 1,
 );
 
-# sanity check
 $Self->True(
-    $TicketDelete,
-    "TicketDelete() successful for Ticket ID $TicketID",
+    $StateSetSuccess1,
+    'Update #1',
 );
 
-# delete job
-my $JobDelete = $GenericAgentObject->JobDelete(
-    Name   => $JobName,
-    UserID => 1,
+my $StateSetSuccess2 = $TicketObject->TicketStateSet(
+    State    => 'pending reminder',
+    TicketID => $TicketID,
+    UserID   => 1,
 );
 $Self->True(
-    $JobDelete || '',
-    'JobDelete()',
+    $StateSetSuccess2,
+    'Update #2',
 );
+
+$Kernel::OM->ObjectsDiscard(
+    Objects => [
+        'Kernel::System::Ticket',
+        'Kernel::System::Ticket::Article',
+        'Kernel::System::Ticket::GenericAgent',
+    ],
+);
+$TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
+$ArticleObject      = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+$GenericAgentObject = $Kernel::OM->Get('Kernel::System::GenericAgent');
+
+%Ticket = $TicketObject->TicketGet(
+    TicketID      => $TicketID,
+    DynamicFields => 0,
+);
+
+# get current time
+my $DateTimeObject = $Kernel::OM->Create(
+    'Kernel::System::DateTime',
+);
+my $SystemTime = $DateTimeObject->ToEpoch();
+
+$Self->True(
+    ( $Ticket{RealTillTimeNotUsed} > $SystemTime + 863500 )
+        && ( $Ticket{RealTillTimeNotUsed} < $SystemTime + 864500 )
+    ,
+    "Check pending time",
+);
+
+# cleanup is done by RestoreDatabase.
 
 1;

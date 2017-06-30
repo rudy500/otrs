@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,19 +13,25 @@ use utf8;
 use vars (qw($Self));
 
 # get needed objects
-my $ConfigObject          = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject          = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $CustomerCompanyObject = $Kernel::OM->Get('Kernel::System::CustomerCompany');
 my $TicketObject          = $Kernel::OM->Get('Kernel::System::Ticket');
 
-my @CustomerCompanyIDs;
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-for ( 1 .. 3 ) {
-    my $RandomString = $HelperObject->GetRandomID();
-    push @CustomerCompanyIDs, $RandomString;
-    my $ID = $CustomerCompanyObject->CustomerCompanyAdd(
-        CustomerID             => $RandomString,
-        CustomerCompanyName    => "$RandomString-Name",
+my @CustomerCompanyIDs;
+for my $Item ( 1 .. 3 ) {
+    my $CustomerCompany = 'CustomerCompany' . $Helper->GetRandomID();
+    push @CustomerCompanyIDs, $CustomerCompany;
+    my $CustomerCompanyID = $CustomerCompanyObject->CustomerCompanyAdd(
+        CustomerID             => $CustomerCompany,
+        CustomerCompanyName    => "$CustomerCompany-Name",
         CustomerCompanyStreet  => '5201 Blue Lagoon Drive',
         CustomerCompanyZIP     => '33126',
         CustomerCompanyCity    => 'Miami',
@@ -36,13 +42,11 @@ for ( 1 .. 3 ) {
         UserID                 => 1,
     );
     $Self->True(
-        $ID,
-        "Created company $RandomString with id $ID",
+        $CustomerCompanyID,
+        "Created company $CustomerCompany with id $CustomerCompanyID",
     );
-
 }
 
-my @TicketIDs;
 my %CustomerIDTickets;
 for my $CustomerID (@CustomerCompanyIDs) {
     for ( 1 .. 3 ) {
@@ -64,7 +68,7 @@ for my $CustomerID (@CustomerCompanyIDs) {
             $TicketID,
             "Ticket created for test - $CustomerID - $TicketID",
         );
-        push @TicketIDs, $TicketID;
+
         push @{ $CustomerIDTickets{$CustomerID} }, $TicketID;
 
     }
@@ -118,15 +122,6 @@ for my $CustomerID (@CustomerCompanyIDs) {
 
 }
 
-for my $TicketID (@TicketIDs) {
-    my $Success = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-    $Self->True(
-        $Success,
-        "Removed ticket $TicketID",
-    );
-}
+# cleanup is done by RestoreDatabase.
 
 1;

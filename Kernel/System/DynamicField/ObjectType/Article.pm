@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,24 +19,23 @@ our @ObjectDependencies = (
     'Kernel::System::DB',
     'Kernel::System::Log',
     'Kernel::System::Ticket',
+    'Kernel::System::Ticket::Article',
 );
 
 =head1 NAME
 
-Kernel::System::DynamicField::Backend::Article
+Kernel::System::DynamicField::ObjectType::Article
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Article object handler for DynamicFields
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=item new()
+=head2 new()
 
 usually, you want to create an instance of this
-by using Kernel::System::DynamicField::Backend->new();
+by using Kernel::System::DynamicField::ObjectType::Article->new();
 
 =cut
 
@@ -49,7 +48,7 @@ sub new {
     return $Self;
 }
 
-=item PostValueSet()
+=head2 PostValueSet()
 
 perform specific functions after the Value set for this object type.
 
@@ -97,35 +96,59 @@ sub PostValueSet {
         }
     }
 
-    # Don't hold a permanent reference to the TicketObject.
-    #   This is because the TicketObject has a Kernel::DynamicField::Backend object, which has this
-    #   object, which has a TicketObject again. Without weaken() we'd have a cyclic reference.
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+    #
+    # This is a rare case where we don't have the TicketID of an article, even though the article API requires it.
+    #   Since this is not called often and we don't want to cache on per-article basis, get the ID directly from the
+    #   database and use it.
+    #
 
-    my %Article = $TicketObject->ArticleGet(
-        ArticleID     => $Param{ObjectID},
-        DynamicFields => 0,
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+
+    my $TicketID;
+
+    return if !$DBObject->Prepare(
+        SQL => '
+            SELECT ticket_id
+            FROM article
+            WHERE id = ?',
+        Bind  => [ \$Param{ObjectID} ],
+        Limit => 1,
     );
 
-    # get database object
-    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+    while ( my @Row = $DBObject->FetchrowArray() ) {
+        $TicketID = $Row[0];
+    }
+
+    if ( !$TicketID ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Could not determine TicketID of Article $Param{ArticleID}!",
+        );
+        return;
+    }
 
     # update change time
     return if !$DBObject->Do(
-        SQL => 'UPDATE ticket SET change_time = current_timestamp, '
-            . ' change_by = ? WHERE id = ?',
-        Bind => [ \$Param{UserID}, \$Article{TicketID} ],
+        SQL => '
+            UPDATE ticket
+            SET change_time = current_timestamp, change_by = ?
+            WHERE id = ?',
+        Bind => [ \$Param{UserID}, \$TicketID ],
     );
 
-    # clear ticket cache
-    $TicketObject->_TicketCacheClear( TicketID => $Article{TicketID} );
+    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-    # trigger event
+    $TicketObject->_TicketCacheClear( TicketID => $TicketID );
+
     $TicketObject->EventHandler(
         Event => 'ArticleDynamicFieldUpdate',
         Data  => {
-            TicketID  => $Article{TicketID},
+            FieldName => $Param{DynamicFieldConfig}->{Name},
+            Value     => $Param{Value},
+            OldValue  => $Param{OldValue},
+            TicketID  => $TicketID,
             ArticleID => $Param{ObjectID},
+            UserID    => $Param{UserID},
         },
         UserID => $Param{UserID},
     );
@@ -134,8 +157,6 @@ sub PostValueSet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

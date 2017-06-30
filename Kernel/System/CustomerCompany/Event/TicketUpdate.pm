@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -57,11 +57,11 @@ sub Run {
 
     # create ticket object and perform search
     my @Tickets = $TicketObject->TicketSearch(
-        Result       => 'ARRAY',
-        Limit        => 100_000,
-        CustomerID   => $Param{Data}->{OldCustomerID},
-        ArchiveFlags => [ 'y', 'n' ],
-        UserID       => 1,
+        Result        => 'ARRAY',
+        Limit         => 100_000,
+        CustomerIDRaw => $Param{Data}->{OldCustomerID},
+        ArchiveFlags  => [ 'y', 'n' ],
+        UserID        => 1,
     );
 
     # update the customer ID of tickets

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,8 +12,9 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
-use base qw(Kernel::System::DynamicField::Driver::Base);
+use parent qw(Kernel::System::DynamicField::Driver::Base);
 
 our @ObjectDependencies = (
     'Kernel::System::DB',
@@ -27,13 +28,11 @@ Kernel::System::DynamicField::Driver::BaseText - sub module of
 Kernel::System::DynamicField::Driver::Text and
 Kernel::System::DynamicField::Driver::TextArea
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Text common functions.
 
 =head1 PUBLIC INTERFACE
-
-=over 4
 
 =cut
 
@@ -79,9 +78,15 @@ sub ValueValidate {
         UserID => $Param{UserID}
     );
 
+    my $CheckRegex = 1;
+    if ( defined $Param{NoValidateRegex} && $Param{NoValidateRegex} ) {
+        $CheckRegex = 0;
+    }
+
     if (
         IsArrayRefWithData( $Param{DynamicFieldConfig}->{Config}->{RegExList} )
         && IsStringWithData( $Param{Value} )
+        && $CheckRegex
         )
     {
         # check regular expressions
@@ -109,6 +114,15 @@ sub ValueValidate {
 sub SearchSQLGet {
     my ( $Self, %Param ) = @_;
 
+    if ( $Param{Operator} eq 'Like' ) {
+        my $SQL = $Kernel::OM->Get('Kernel::System::DB')->QueryCondition(
+            Key   => "$Param{TableAlias}.value_text",
+            Value => $Param{SearchTerm},
+        );
+
+        return $SQL;
+    }
+
     my %Operators = (
         Equals            => '=',
         GreaterThan       => '>',
@@ -117,31 +131,38 @@ sub SearchSQLGet {
         SmallerThanEquals => '<=',
     );
 
-    # get database object
-    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-
-    if ( $Operators{ $Param{Operator} } ) {
-        my $SQL = " $Param{TableAlias}.value_text $Operators{$Param{Operator}} '";
-        $SQL .= $DBObject->Quote( $Param{SearchTerm} ) . "' ";
-        return $SQL;
+    if ( $Param{Operator} eq 'Empty' ) {
+        if ( $Param{SearchTerm} ) {
+            return " $Param{TableAlias}.value_text IS NULL ";
+        }
+        else {
+            my $DatabaseType = $Kernel::OM->Get('Kernel::System::DB')->{'DB::Type'};
+            if ( $DatabaseType eq 'oracle' ) {
+                return " $Param{TableAlias}.value_text IS NOT NULL ";
+            }
+            else {
+                return " $Param{TableAlias}.value_text <> '' ";
+            }
+        }
     }
-
-    if ( $Param{Operator} eq 'Like' ) {
-
-        my $SQL = $DBObject->QueryCondition(
-            Key   => "$Param{TableAlias}.value_text",
-            Value => $Param{SearchTerm},
+    elsif ( !$Operators{ $Param{Operator} } ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            'Priority' => 'error',
+            'Message'  => "Unsupported Operator $Param{Operator}",
         );
-
-        return $SQL;
+        return;
     }
 
-    $Kernel::OM->Get('Kernel::System::Log')->Log(
-        'Priority' => 'error',
-        'Message'  => "Unsupported Operator $Param{Operator}",
-    );
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+    my $Lower    = '';
+    if ( $DBObject->GetDatabaseFunction('CaseSensitive') ) {
+        $Lower = 'LOWER';
+    }
 
-    return;
+    my $SQL = " $Lower($Param{TableAlias}.value_text) $Operators{ $Param{Operator} } ";
+    $SQL .= "$Lower('" . $DBObject->Quote( $Param{SearchTerm} ) . "') ";
+
+    return $SQL;
 }
 
 sub SearchSQLOrderFieldGet {
@@ -166,7 +187,7 @@ sub EditFieldRender {
     }
     $Value = $Param{Value} // $Value;
 
-    # extract the dynamic field value form the web request
+    # extract the dynamic field value from the web request
     my $FieldValue = $Self->EditFieldValueGet(
         %Param,
     );
@@ -258,7 +279,7 @@ sub EditFieldValueGet {
     my $Value;
 
     # check if there is a Template and retrieve the dynamic field value from there
-    if ( IsHashRefWithData( $Param{Template} ) ) {
+    if ( IsHashRefWithData( $Param{Template} ) && defined $Param{Template}->{$FieldName} ) {
         $Value = $Param{Template}->{$FieldName};
     }
 
@@ -332,7 +353,7 @@ sub EditFieldValueValidate {
 sub DisplayValueRender {
     my ( $Self, %Param ) = @_;
 
-    # set HTMLOuput as default if not specified
+    # set HTMLOutput as default if not specified
     if ( !defined $Param{HTMLOutput} ) {
         $Param{HTMLOutput} = 1;
     }
@@ -341,7 +362,7 @@ sub DisplayValueRender {
     my $Value = defined $Param{Value} ? $Param{Value} : '';
     my $Title = $Value;
 
-    # HTMLOuput transformations
+    # HTMLOutput transformations
     if ( $Param{HTMLOutput} ) {
         $Value = $Param{LayoutObject}->Ascii2Html(
             Text => $Value,
@@ -363,13 +384,15 @@ sub DisplayValueRender {
     }
 
     # set field link form config
-    my $Link = $Param{DynamicFieldConfig}->{Config}->{Link} || '';
+    my $Link        = $Param{DynamicFieldConfig}->{Config}->{Link}        || '';
+    my $LinkPreview = $Param{DynamicFieldConfig}->{Config}->{LinkPreview} || '';
 
     # create return structure
     my $Data = {
-        Value => $Value,
-        Title => $Title,
-        Link  => $Link,
+        Value       => $Value,
+        Title       => $Title,
+        Link        => $Link,
+        LinkPreview => $LinkPreview,
     };
 
     return $Data;
@@ -416,7 +439,7 @@ EOF
 
     my $AdditionalText;
     if ( $Param{UseLabelHints} ) {
-        $AdditionalText = 'e.g. Text or Te*t';
+        $AdditionalText = Translatable('e.g. Text or Te*t');
     }
 
     # call EditLabelRender on the common Driver
@@ -473,7 +496,7 @@ sub SearchFieldParameterBuild {
     my $Operator = 'Equals';
 
     # search for a wild card in the value
-    if ( $Value && $Value =~ m{\*} ) {
+    if ( $Value && ( $Value =~ m{\*} || $Value =~ m{\|\|} ) ) {
 
         # change operator
         $Operator = 'Like';
@@ -628,8 +651,6 @@ sub ValueLookup {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

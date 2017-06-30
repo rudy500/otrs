@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,15 +20,9 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::GenericInterface::Transport - GenericInterface network transport interface
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create an object.
 
@@ -84,10 +78,10 @@ sub new {
     return $Self;
 }
 
-=item ProviderProcessRequest()
+=head2 ProviderProcessRequest()
 
 process an incoming web service request. This function has to read the request data
-from from the web server process.
+from the web server process.
 
     my $Result = $TransportObject->ProviderProcessRequest();
 
@@ -118,7 +112,7 @@ sub ProviderProcessRequest {
     return $Result;
 }
 
-=item ProviderGenerateResponse()
+=head2 ProviderGenerateResponse()
 
 generate response for an incoming web service request.
 
@@ -158,7 +152,7 @@ sub ProviderGenerateResponse {
     return $Self->{BackendObject}->ProviderGenerateResponse(%Param);
 }
 
-=item RequesterPerformRequest()
+=head2 RequesterPerformRequest()
 
 generate an outgoing web service request, receive the response and return its data..
 
@@ -200,8 +194,6 @@ sub RequesterPerformRequest {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

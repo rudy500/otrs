@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -29,21 +29,12 @@ our @ObjectDependencies = (
 
 Kernel::GenericInterface::Provider - handler for incoming webservice requests.
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object
-
-    use Kernel::System::ObjectManager;
-
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $ProviderObject = $Kernel::OM->Get('Kernel::GenericInterface::Provider');
 
 =cut
@@ -58,7 +49,7 @@ sub new {
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
 receives the current incoming web service request, handles it,
 and returns an appropriate answer based on the configured requested
@@ -365,7 +356,9 @@ sub Run {
     return;
 }
 
-=item _GenerateErrorResponse()
+=begin Internal:
+
+=head2 _GenerateErrorResponse()
 
 returns an error message to the client.
 
@@ -395,7 +388,7 @@ sub _GenerateErrorResponse {
 
 1;
 
-=back
+=end Internal:
 
 =head1 TERMS AND CONDITIONS
 

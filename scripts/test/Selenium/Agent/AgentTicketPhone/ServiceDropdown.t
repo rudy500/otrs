@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,7 +16,8 @@ use vars (qw($Self));
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 # do not checkmx
-$ConfigObject->Set(
+$Kernel::OM->Get('Kernel::System::UnitTest::Helper')->ConfigSettingChange(
+    Valid => 1,
     Key   => 'CheckEmailAddresses',
     Value => 0,
 );
@@ -33,22 +34,16 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
         # update sysconfig settings
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 1,
         );
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['users'],
         ) || die "Did not get test user";
@@ -81,14 +76,24 @@ $Selenium->RunTest(
             UserID       => 1,
         );
 
-        my $RandomID = $Helper->GetRandomID();
+        $Self->True(
+            $TicketID,
+            "Ticket is created - $TicketID",
+        );
+
+        my $TestService = "Service-" . $Helper->GetRandomID();
 
         # create a test service
         my $ServiceID = $ServiceObject->ServiceAdd(
-            Name    => 'SeleniumTestService' . $RandomID,
+            Name    => $TestService,
             Comment => 'Selenium Test Service',
             ValidID => 1,
             UserID  => 1,
+        );
+
+        $Self->True(
+            $ServiceID,
+            "Service is created - $ServiceID",
         );
 
         # allow access to the just created service to the test user
@@ -100,17 +105,25 @@ $Selenium->RunTest(
         );
 
         # create an article for the test ticket
-        my $ArticleID = $TicketObject->ArticleCreate(
-            TicketID       => $TicketID,
-            ArticleType    => 'note-internal',
-            SenderType     => 'agent',
-            Subject        => 'Selenium test',
-            Body           => 'Just a test body for selenium testing',
-            Charset        => 'ISO-8859-15',
-            MimeType       => 'text/plain',
-            HistoryType    => 'AddNote',
-            HistoryComment => 'Selenium testing',
-            UserID         => 1,
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => 'Internal',
+        );
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $TicketID,
+            IsVisibleForCustomer => 0,
+            SenderType           => 'agent',
+            Subject              => 'Selenium test',
+            Body                 => 'Just a test body for selenium testing',
+            Charset              => 'ISO-8859-15',
+            MimeType             => 'text/plain',
+            HistoryType          => 'AddNote',
+            HistoryComment       => 'Selenium testing',
+            UserID               => 1,
+        );
+
+        $Self->True(
+            $ArticleID,
+            "Article is created - $ArticleID",
         );
 
         my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
@@ -118,26 +131,57 @@ $Selenium->RunTest(
         # real selenium test start
         # open the page that clicking on Split link of the zoom view of the
         # just created ticket would open
-        $Selenium->get(
+        $Selenium->VerifiedGet(
             "${ScriptAlias}index.pl?Action=AgentTicketPhone;TicketID=$TicketID;ArticleID=$ArticleID"
         );
 
-        # verify that the services dropdown has the just created service
-        $Selenium->find_element( "select#ServiceID option[value='$ServiceID']", 'css' );
-
-        # set the test service to invalid
-        $ServiceObject->ServiceUpdate(
-            ServiceID => $ServiceID,
-            Name      => 'SeleniumTestService' . $RandomID,
-            ValidID   => 2,
-            UserID    => 1,
+        # verify that the services dropdown has just created service
+        $Self->True(
+            $Selenium->find_element( "select#ServiceID option[value='$ServiceID']", 'css' ),
+            "The services dropdown has created service - $TestService",
         );
 
+        # get DB object
+        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+
+        # clean up test data
         # delete the test ticket
-        $TicketObject->TicketDelete(
+        my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => 1,
         );
+
+        $Self->True(
+            $Success,
+            "Deleted ticket - $TicketID",
+        );
+
+        # delete the test service
+        $Success = $DBObject->Do(
+            SQL => "DELETE FROM service_customer_user WHERE service_id = $ServiceID",
+        );
+        $Self->True(
+            $Success,
+            "ServiceCustomerUser deleted - $ServiceID",
+        );
+
+        $Success = $DBObject->Do(
+            SQL => "DELETE FROM service WHERE id = $ServiceID",
+        );
+        $Self->True(
+            $Success,
+            "Deleted Service - $ServiceID",
+        );
+
+        # make sure the cache is correct.
+        for my $Cache (
+            qw (Service Ticket)
+            )
+        {
+            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+                Type => $Cache,
+            );
+        }
     }
 );
 

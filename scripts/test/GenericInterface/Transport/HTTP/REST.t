@@ -1,37 +1,36 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-# helper object
-# skip SSL certificate verification
+# Skip SSL certificate verification.
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
     },
 );
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-# add webservice to be used (empty config)
+# Add web service to be used (empty config).
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 $Self->Is(
     'Kernel::System::GenericInterface::Webservice',
     ref $WebserviceObject,
-    "Create webservice object",
+    'Create web service object'
 );
-my $WebserviceName = 'TestREST' . $HelperObject->GetRandomID();
+my $WebserviceName = 'REST' . $Helper->GetRandomID();
 my $WebserviceID   = $WebserviceObject->WebserviceAdd(
     Name   => $WebserviceName,
     Config => {
@@ -49,29 +48,13 @@ my $WebserviceID   = $WebserviceObject->WebserviceAdd(
 );
 $Self->True(
     $WebserviceID,
-    "Added Webservice",
+    'Added Web service'
 );
 
-# get remote host with some precautions for certain unit test systems
-my $Host;
-my $FQDN = $ConfigObject->Get('FQDN');
+# Get remote host with some precautions for certain unit test systems.
+my $Host = $Helper->GetTestHTTPHostname();
 
-# try to resolve FQDN host
-if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
-    $Host = $FQDN;
-}
-
-# try to resolve localhost instead
-if ( !$Host && gethostbyname('localhost') ) {
-    $Host = 'localhost';
-}
-
-# use hard coded localhost IP address
-if ( !$Host ) {
-    $Host = '127.0.0.1';
-}
-
-# prepare webservice config
+# Prepare web service config.
 my $BaseURL =
     $ConfigObject->Get('HttpType')
     . '://'
@@ -868,22 +851,312 @@ my @Tests = (
             },
         },
     },
+
+    # tests for bug #12049
+    {
+        Name        => 'UTF8 test GET',
+        Success     => '1',
+        RequestData => {
+            Other => 'äöüß€ÄÖÜ',
+        },
+        ExpectedReturnData => {
+            Other => 'äöüß€ÄÖÜ',
+        },
+        WebserviceConfig => {
+            Name        => 'TestSimple1',
+            Description => '',
+            Debugger    => {
+                DebugThreshold => 'debug',
+                TestMode       => 1,
+            },
+            Provider => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        KeepAlive             => '',
+                        MaxLength             => '100000000',
+                        RouteOperationMapping => {
+                            TestSimple => {
+                                RequestMethod => ['GET'],
+                                Route         => '/Test',
+                            },
+                        },
+                    },
+                },
+                Operation => {
+                    TestSimple => {
+                        Type => 'Test::Test',
+                    },
+                },
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        DefaultCommand           => 'GET',
+                        Host                     => $BaseURL,
+                        InvokerControllerMapping => {
+                            TestSimple => {
+                                Controller => '/Test',
+                            },
+                        },
+                    },
+                },
+                Invoker => {
+                    TestSimple => {
+                        Type => 'Test::TestSimple',
+                    },
+                },
+            },
+        },
+    },
+    {
+        Name        => 'UTF8 test POST',
+        Success     => '1',
+        RequestData => {
+            Other => 'äöüß€ÄÖÜ',
+        },
+        ExpectedReturnData => {
+            Other => 'äöüß€ÄÖÜ',
+        },
+        WebserviceConfig => {
+            Name        => 'TestSimple1',
+            Description => '',
+            Debugger    => {
+                DebugThreshold => 'debug',
+                TestMode       => 1,
+            },
+            Provider => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        KeepAlive             => '',
+                        MaxLength             => '100000000',
+                        RouteOperationMapping => {
+                            TestSimple => {
+                                RequestMethod => ['POST'],
+                                Route         => '/Test',
+                            },
+                        },
+                    },
+                },
+                Operation => {
+                    TestSimple => {
+                        Type => 'Test::Test',
+                    },
+                },
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        DefaultCommand           => 'POST',
+                        Host                     => $BaseURL,
+                        InvokerControllerMapping => {
+                            TestSimple => {
+                                Controller => '/Test',
+                            },
+                        },
+                    },
+                },
+                Invoker => {
+                    TestSimple => {
+                        Type => 'Test::TestSimple',
+                    },
+                },
+            },
+        },
+    },
+    {
+        Name        => 'UTF8 test POST mixed with GET params',
+        Success     => '1',
+        RequestData => {
+            Other  => 'äöüß€ÄÖÜ',
+            Other1 => 'ÄÖÜß€äöü',
+        },
+        ExpectedReturnData => {
+            Other  => 'äöüß€ÄÖÜ',
+            Other1 => 'ÄÖÜß€äöü',
+        },
+        WebserviceConfig => {
+            Name        => 'TestSimple1',
+            Description => '',
+            Debugger    => {
+                DebugThreshold => 'debug',
+                TestMode       => 1,
+            },
+            Provider => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        KeepAlive             => '',
+                        MaxLength             => '100000000',
+                        RouteOperationMapping => {
+                            TestSimple => {
+                                RequestMethod => ['POST'],
+                                Route         => '/Test',
+                            },
+                        },
+                    },
+                },
+                Operation => {
+                    TestSimple => {
+                        Type => 'Test::Test',
+                    },
+                },
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        DefaultCommand           => 'POST',
+                        Host                     => $BaseURL,
+                        InvokerControllerMapping => {
+                            TestSimple => {
+                                Controller => '/Test?Other1=:Other1',
+                            },
+                        },
+                    },
+                },
+                Invoker => {
+                    TestSimple => {
+                        Type => 'Test::TestSimple',
+                    },
+                },
+            },
+        },
+    },
+    {
+        Name        => 'UTF8 test GET with URI params',
+        Success     => '1',
+        RequestData => {
+            Other => 'äöüß€ÄÖÜ',
+        },
+        ExpectedReturnData => {
+            Other  => 'äöüß€ÄÖÜ',
+            Other1 => 'ÄÖÜß€äöü',
+        },
+        WebserviceConfig => {
+            Name        => 'TestSimple1',
+            Description => '',
+            Debugger    => {
+                DebugThreshold => 'debug',
+                TestMode       => 1,
+            },
+            Provider => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        KeepAlive             => '',
+                        MaxLength             => '100000000',
+                        RouteOperationMapping => {
+                            TestSimple => {
+                                RequestMethod => ['GET'],
+                                Route         => '/Test/:Other1',
+                            },
+                        },
+                    },
+                },
+                Operation => {
+                    TestSimple => {
+                        Type => 'Test::Test',
+                    },
+                },
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        DefaultCommand           => 'GET',
+                        Host                     => $BaseURL,
+                        InvokerControllerMapping => {
+                            TestSimple => {
+                                Controller => '/Test/ÄÖÜß€äöü',
+                            },
+                        },
+                    },
+                },
+                Invoker => {
+                    TestSimple => {
+                        Type => 'Test::TestSimple',
+                    },
+                },
+            },
+        },
+    },
+    {
+        Name        => 'UTF8 test POST with URI params',
+        Success     => '1',
+        RequestData => {
+            Other => 'äöüß€ÄÖÜ',
+        },
+        ExpectedReturnData => {
+            Other  => 'äöüß€ÄÖÜ',
+            Other1 => 'ÄÖÜß€äöü',
+        },
+        WebserviceConfig => {
+            Name        => 'TestSimple1',
+            Description => '',
+            Debugger    => {
+                DebugThreshold => 'debug',
+                TestMode       => 1,
+            },
+            Provider => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        KeepAlive             => '',
+                        MaxLength             => '100000000',
+                        RouteOperationMapping => {
+                            TestSimple => {
+                                RequestMethod => ['POST'],
+                                Route         => '/Test/:Other1',
+                            },
+                        },
+                    },
+                },
+                Operation => {
+                    TestSimple => {
+                        Type => 'Test::Test',
+                    },
+                },
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        DefaultCommand           => 'POST',
+                        Host                     => $BaseURL,
+                        InvokerControllerMapping => {
+                            TestSimple => {
+                                Controller => '/Test/ÄÖÜß€äöü',
+                            },
+                        },
+                    },
+                },
+                Invoker => {
+                    TestSimple => {
+                        Type => 'Test::TestSimple',
+                    },
+                },
+            },
+        },
+    },
 );
 
-# create requester object
+# Create requester object.
 my $RequesterObject = $Kernel::OM->Get('Kernel::GenericInterface::Requester');
 $Self->Is(
     'Kernel::GenericInterface::Requester',
     ref $RequesterObject,
-    "Create requester object",
+    'Create requester object'
 );
 
 TEST:
 for my $Test (@Tests) {
 
-    # update webservice with real config
+    # Update web service with real config.
     my $WebserviceUpdate = $WebserviceObject->WebserviceUpdate(
-
         ID      => $WebserviceID,
         Name    => $WebserviceName,
         Config  => $Test->{WebserviceConfig},
@@ -892,10 +1165,10 @@ for my $Test (@Tests) {
     );
     $Self->True(
         $WebserviceUpdate,
-        "$Test->{Name} - Updated Webservice $WebserviceID",
+        "$Test->{Name} - Updated Web service $WebserviceID"
     );
 
-    # start requester with our webservice
+    # start requester with our web service
     my $RequesterResult = $RequesterObject->Run(
         WebserviceID => $WebserviceID,
         Invoker      => 'TestSimple',
@@ -906,7 +1179,7 @@ for my $Test (@Tests) {
     $Self->Is(
         'HASH',
         ref $RequesterResult,
-        "$Test->{Name} - Requester result structure is valid",
+        "$Test->{Name} - Requester result structure is valid"
     );
 
     if ( !$Test->{Success} ) {
@@ -914,14 +1187,14 @@ for my $Test (@Tests) {
         # check result
         $Self->False(
             $RequesterResult->{Success},
-            "$Test->{Name} - Requester unsuccessful result",
+            "$Test->{Name} - Requester unsuccessful result"
         );
 
         if ( $Test->{ExpectedReturnData} ) {
             $Self->IsNot(
                 $RequesterResult->{Message},
                 $Test->{ExpectedReturnData},
-                "$Test->{Name} - Requester unsuccessful status (needs configured and running webserver)",
+                "$Test->{Name} - Requester unsuccessful status (needs configured and running web server)"
             );
         }
 
@@ -930,7 +1203,7 @@ for my $Test (@Tests) {
 
     $Self->True(
         $RequesterResult->{Success},
-        "$Test->{Name} - Requester successful result",
+        "$Test->{Name} - Requester successful result"
     );
 
     delete $RequesterResult->{Data}->{RequestMethod};
@@ -938,18 +1211,215 @@ for my $Test (@Tests) {
     $Self->IsDeeply(
         $RequesterResult->{Data},
         $Test->{ExpectedReturnData},
-        "$Test->{Name} - Requester success status (needs configured and running webserver)",
+        "$Test->{Name} - Requester success status (needs configured and running web server)"
     );
-}    #end loop
+}
 
-# clean up webservice
+# Check direct requests.
+@Tests = (
+    {
+        Name        => 'Correct Direct Request GET Special Chars',
+        Success     => '1',
+        RequestData => {
+            Other1 => 'DataOne',
+            Other2 => 'Data Two',
+            Other3 => 'Data%20Tree',
+            Other4 => 'Data+Four',
+            Other5 => 'Data%2BFive'
+        },
+        ExpectedReturnData => {
+            Other1 => 'DataOne',
+            Other2 => 'Data Two',
+            Other3 => 'Data Tree',
+            Other4 => 'Data Four',
+            Other5 => 'Data+Five'
+        },
+        WebserviceConfig => {
+            Name        => 'TestSimple1',
+            Description => '',
+            Debugger    => {
+                DebugThreshold => 'debug',
+                TestMode       => 1,
+            },
+            Provider => {
+                Transport => {
+                    Type   => 'HTTP::REST',
+                    Config => {
+                        KeepAlive             => '',
+                        MaxLength             => '100000000',
+                        RouteOperationMapping => {
+                            TestSimple => {
+                                RequestMethod => [ 'GET', 'POST' ],
+                                Route         => '/Test',
+                            },
+                        },
+                    },
+                },
+                Operation => {
+                    TestSimple => {
+                        Type => 'Test::Test',
+                    },
+                },
+            },
+        },
+    },
+);
+
+# Get JSON object.
+my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
+
+TEST:
+for my $Test (@Tests) {
+
+    # Update web service with real config.
+    my $WebserviceUpdate = $WebserviceObject->WebserviceUpdate(
+        ID      => $WebserviceID,
+        Name    => $WebserviceName,
+        Config  => $Test->{WebserviceConfig},
+        ValidID => 1,
+        UserID  => 1,
+    );
+    $Self->True(
+        $WebserviceUpdate,
+        "$Test->{Name} - Updated Web service $WebserviceID"
+    );
+
+    my $RequestParams;
+    for my $DataKey ( sort keys %{ $Test->{RequestData} } ) {
+        $RequestParams .= "$DataKey=$Test->{RequestData}->{$DataKey}&";
+    }
+
+    # Perform request.
+    my %Response = $Kernel::OM->Get('Kernel::System::WebUserAgent')->Request(
+        Type => 'GET',
+        URL  => $BaseURL
+            . $Test->{WebserviceConfig}->{Provider}->{Transport}->{Config}->{RouteOperationMapping}->{TestSimple}
+            ->{Route}
+            . '?'
+            . $RequestParams,
+    );
+
+    if ( !$Test->{Success} ) {
+
+        # Check result.
+        $Self->IsNot(
+            $Response{Status},
+            '200 OK',
+            "$Test->{Name} - Response unsuccessful result"
+        );
+
+        next TEST;
+    }
+
+    $Self->Is(
+        $Response{Status},
+        '200 OK',
+        "$Test->{Name} - Response successful result"
+    );
+
+    my $ReturnData = $JSONObject->Decode(
+        Data => ${ $Response{Content} },
+    );
+
+    delete $ReturnData->{RequestMethod};
+
+    $Self->IsDeeply(
+        $ReturnData,
+        $Test->{ExpectedReturnData},
+        "$Test->{Name} - Response data (needs configured and running web server)"
+    );
+}
+
+# Check headers.
+@Tests = (
+    {
+        Name   => 'Standard response header',
+        Config => {},
+        Header => {
+            'Content-Type' => 'application/json; charset=UTF-8',
+        },
+    },
+    {
+        Name   => 'Additional response headers',
+        Config => {
+            AdditionalHeaders => {
+                Key1 => 'Value1',
+                Key2 => 'Value2',
+            },
+        },
+        Header => {
+            'Content-Type' => 'application/json; charset=UTF-8',
+            Key1           => 'Value1',
+            Key2           => 'Value2',
+        },
+    },
+);
+
+# Create debugger object.
+my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
+    DebuggerConfig => {
+        DebugThreshold => 'debug',
+        TestMode       => 1,
+    },
+    CommunicationType => 'Provider',
+    WebserviceID      => $WebserviceID,
+);
+
+for my $Test (@Tests) {
+
+    # Create REST transport object with test configuration.
+    my $TransportObject = Kernel::GenericInterface::Transport->new(
+        DebuggerObject  => $DebuggerObject,
+        TransportConfig => {
+            Type   => 'HTTP::REST',
+            Config => $Test->{Config},
+        },
+    );
+    $Self->Is(
+        ref $TransportObject,
+        'Kernel::GenericInterface::Transport',
+        "$Test->{Name} - TransportObject instantiated with REST backend"
+    );
+
+    my $Response = '';
+    my $Result;
+    {
+
+        # Redirect STDOUT from string so that the transport layer will write there.
+        local *STDOUT;
+        open STDOUT, '>:utf8', \$Response;    ## no critic
+
+        # Discard request object to prevent errors.
+        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
+
+        # Create response.
+        $Result = $TransportObject->ProviderGenerateResponse(
+            Success => 1,
+            Data    => {},
+        );
+    }
+    $Self->True(
+        $Result,
+        "$Test->{Name} - Response created"
+    );
+
+    # Analyze headers.
+    for my $Key ( sort keys %{ $Test->{Header} } ) {
+        $Self->True(
+            index( $Response, "$Key: $Test->{Header}->{$Key}\r\n" ) != -1,
+            "$Test->{Name} - Found header '$Key' with value '$Test->{Header}->{$Key}'"
+        );
+    }
+}
+
+# Cleanup test web service.
 my $WebserviceDelete = $WebserviceObject->WebserviceDelete(
     ID     => $WebserviceID,
     UserID => 1,
 );
 $Self->True(
     $WebserviceDelete,
-    "Deleted Webservice $WebserviceID",
+    "Deleted Web service $WebserviceID"
 );
 
 1;

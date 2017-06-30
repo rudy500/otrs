@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -32,44 +32,46 @@ if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     sleep $SleepTime;
 }
 
-# get needed objects
-my $TaskWorkerObject  = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+my $TaskWorkerObject  = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker');
 
-# wait until task is executed
-ACTIVESLEEP:
-for my $Sec ( 1 .. 120 ) {
+my $RunTasks = sub {
 
-    # run the worker
-    $TaskWorkerObject->Run();
+    local $SIG{CHLD} = "IGNORE";
 
-    my @List = $SchedulerDBObject->TaskList();
+    # wait until task is executed
+    ACTIVESLEEP:
+    for my $Sec ( 1 .. 120 ) {
 
-    last ACTIVESLEEP if !scalar @List;
+        # run the worker
+        $TaskWorkerObject->Run();
+        $TaskWorkerObject->_WorkerPIDsCheck();
 
-    sleep 1;
+        my @List = $SchedulerDBObject->TaskList();
 
-    print "Waiting $Sec secs for scheduler tasks to be executed\n";
-}
+        last ACTIVESLEEP if !scalar @List;
 
-# get helper object
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        sleep 1;
+
+        print "Waiting $Sec secs for scheduler tasks to be executed\n";
+    }
+};
+
+$RunTasks->();
 
 # freeze time
-$HelperObject->FixedTimeSet();
+$Helper->FixedTimeSet();
 
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-    SystemTime => $TimeObject->SystemTime(),
-);
-
-my $SecsDiff = $Sec - 60;
+my $CurSysDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+my $SecsDiff       = $CurSysDTObject->Get()->{Second} - 60;
 
 # go back in time to have 0 seconds in the current minute
-$HelperObject->FixedTimeAddSeconds($SecsDiff);
+$Helper->FixedTimeAddSeconds($SecsDiff);
 
 # get random ID
-my $RandomID = $HelperObject->GetRandomID();
+my $RandomID = $Helper->GetRandomID();
 
 my @Tests = (
     {
@@ -229,25 +231,31 @@ for my $Test (@Tests) {
             "$Test->{Name} task manager Run() - with true (this will create the recurrent task but not execution)",
         );
 
-        my $StartSystemTime = $TimeObject->SystemTime();
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $StartSystemTime,
+        my $StartSystemTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        my $SecondsAdd            = ( 60 - $StartSystemTimeObject->Get()->{Second} );
+        $Helper->FixedTimeAddSeconds($SecondsAdd);
+        my $EndSystemTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        printf(
+            "  Added %s seconds to time (initial adjustment) from %s to %s\n",
+            $SecondsAdd,
+            $StartSystemTimeObject->ToEpoch(),
+            $EndSystemTimeObject->ToEpoch(),
         );
-        my $SecondsAdd = ( 60 - $Sec );
-        $HelperObject->FixedTimeAddSeconds($SecondsAdd);
-        my $EndSystemTime = $TimeObject->SystemTime();
-        print("  Added $SecondsAdd seconds to time (initial adjustment) form $StartSystemTime to $EndSystemTime\n");
-
     }
 
     $JobName //= $Test->{JobName} || '';
 
     # add seconds if needed
     if ( $Test->{SecondsAdd} ) {
-        my $StartSystemTime = $TimeObject->SystemTime();
-        $HelperObject->FixedTimeAddSeconds( $Test->{SecondsAdd} );
-        my $EndSystemTime = $TimeObject->SystemTime();
-        print("  Added $Test->{SecondsAdd} seconds to time form $StartSystemTime to $EndSystemTime\n");
+        my $StartSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+        $Helper->FixedTimeAddSeconds( $Test->{SecondsAdd} );
+        my $EndSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+        printf(
+            "  Added %s seconds to time from %s to %s\n",
+            $Test->{SecondsAdd},
+            $StartSystemTime,
+            $EndSystemTime,
+        );
     }
 
     # cleanup Task Manager Cache
@@ -302,8 +310,11 @@ for my $Test (@Tests) {
         ACTIVESLEEP:
         for my $Sec ( 1 .. 120 ) {
 
+            local $SIG{CHLD} = "IGNORE";
+
             # run the worker
             $TaskWorkerObject->Run();
+            $TaskWorkerObject->_WorkerPIDsCheck();
 
             @List = $SchedulerDBObject->TaskList(
                 Type => 'GenericAgent',
@@ -411,8 +422,6 @@ my %TestJobNames = (
 # get db object
 my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
-my $SystemTime = $TimeObject->SystemTime();
-
 # add tasks
 for my $Name ( sort keys %TestJobNames ) {
     my $AddSucess = $DBObject->Do(
@@ -432,7 +441,7 @@ for my $Name ( sort keys %TestJobNames ) {
     );
 }
 
-# make sure all task are listed
+# make sure all tasks are listed
 my @List = $SchedulerDBObject->RecurrentTaskList(
     Type => 'GenericAgent',
 );
@@ -495,5 +504,8 @@ $Self->True(
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     system("$Daemon start");
 }
+
+# cleanup cache
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,15 +9,16 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("ACL Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('ACL Management'),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
     <div class="SidebarColumn">
-        <div class="WidgetSimple">
-            <div class="Header">
-                <h2><label for="Filter">[% Translate("Filter for ACLs") | html %]</label></h2>
-            </div>
-            <div class="Content">
-                <input type="text" id="Filter" class="W95pc" name="Filter" value="" title="[% Translate("Filter") | html %]" placeholder="[% Translate("ACL Name") | html %]" />
-            </div>
-        </div>
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>[% Translate("Actions") | html %]</h2>
@@ -36,10 +37,18 @@
                 </ul>
             </div>
         </div>
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterACLs">[% Translate("Filter for ACLs") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterACLs" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterACLs" value="" title="[% Translate("Filter for ACLs") | html %]">
+            </div>
+        </div>
 
         <div class="WidgetSimple">
             <div class="Header">
-                <h2>[% Translate("Configuration import") | html %]</h2>
+                <h2>[% Translate("Configuration Import") | html %]</h2>
             </div>
             <div class="Content">
                 <p class="FieldExplanation">
@@ -116,6 +125,9 @@
                             </td>
                         </tr>
 [% RenderBlockEnd("ACLNoDataRow") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="5">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -124,8 +136,3 @@
     </div>
     <div class="Clear"></div>
 </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.UI.Table.InitTableFilter($('#Filter'), $('#ACLs'), 0);
-//]]></script>
-[% END %]

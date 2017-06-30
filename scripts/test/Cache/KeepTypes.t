@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,8 +11,6 @@ use warnings;
 use utf8;
 
 use vars (qw($Self));
-
-use Kernel::System::Cache;
 
 # get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -40,11 +38,11 @@ for my $ModuleFile (@BackendModuleFiles) {
     );
 
     # create a local cache object
-    my $CacheObject = Kernel::System::Cache->new();
+    my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
 
     die "Could not setup $Module" if !$CacheObject;
 
-    # flush the cache to have a clear test enviroment
+    # flush the cache to have a clear test environment
     $CacheObject->CleanUp();
 
     my $SetCaches = sub {

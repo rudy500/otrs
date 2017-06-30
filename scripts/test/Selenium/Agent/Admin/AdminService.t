@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,17 +12,16 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
-my $ServiceObject = $Kernel::OM->Get('Kernel::System::Service');
-my $DBObject      = $Kernel::OM->Get('Kernel::System::DB');
-my $Selenium      = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -33,20 +32,29 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminService");
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+
+        # navigate to AdminService screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminService");
 
         # check overview AdminService screen
         $Selenium->find_element( "table",             'css' );
         $Selenium->find_element( "table thead tr th", 'css' );
         $Selenium->find_element( "table tbody tr td", 'css' );
 
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
+
         # click 'Add Service'
-        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->VerifiedClick();
 
         # check client side validation
         $Selenium->find_element( "#Name", 'css' )->clear();
-        $Selenium->find_element( "#Name", 'css' )->submit();
+        $Selenium->find_element( "#Name", 'css' )->VerifiedSubmit();
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#Name').hasClass('Error')"
@@ -55,8 +63,11 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value',
         );
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminService");
-        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->click();
+        # navigate to AdminService screen again
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminService");
+
+        # click 'Add new service'
+        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->VerifiedClick();
 
         # check add Service screen
         for my $ID (
@@ -68,28 +79,34 @@ $Selenium->RunTest(
             $Element->is_displayed();
         }
 
+        # check breadcrumb on Add screen
+        my $Count = 1;
+        for my $BreadcrumbText ( 'Service Management', 'Add Service' ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
         # create first test Service
         my $ServiceRandomID = "service" . $Helper->GetRandomID();
         my $ServiceComment  = "Selenium test Service";
 
         $Selenium->find_element( "#Name",    'css' )->send_keys($ServiceRandomID);
         $Selenium->find_element( "#Comment", 'css' )->send_keys($ServiceComment);
-        $Selenium->find_element( "#Name",    'css' )->submit();
-
-        # wait to load overview screen
-        $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('.ActionList span:contains(Add service)').length" );
+        $Selenium->find_element( "#Name",    'css' )->VerifiedSubmit();
 
         # create second test Service
-        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->VerifiedClick();
 
         my $ServiceRandomID2 = "service" . $Helper->GetRandomID();
 
         $Selenium->find_element( "#Name",    'css' )->send_keys($ServiceRandomID2);
         $Selenium->find_element( "#Comment", 'css' )->send_keys($ServiceComment);
-        $Selenium->find_element( "#Name",    'css' )->submit();
-
-        # wait to load overview screen
-        $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('a.AsBlock:contains($ServiceRandomID)').length" );
+        $Selenium->find_element( "#Name",    'css' )->VerifiedSubmit();
 
         # check for created test Services on AdminService screen
         $Self->True(
@@ -102,7 +119,7 @@ $Selenium->RunTest(
         );
 
         # check new test Service values
-        $Selenium->find_element( $ServiceRandomID2, 'link_text' )->click();
+        $Selenium->find_element( $ServiceRandomID2, 'link_text' )->VerifiedClick();
         $Self->Is(
             $Selenium->find_element( '#Name', 'css' )->get_value(),
             $ServiceRandomID2,
@@ -118,6 +135,21 @@ $Selenium->RunTest(
             1,
             "#ValidID stored value",
         );
+
+        # check breadcrumb on Edit screen
+        $Count = 1;
+        for my $BreadcrumbText ( 'Service Management', 'Edit Service: ' . $ServiceRandomID2 ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
+        # get service object
+        my $ServiceObject = $Kernel::OM->Get('Kernel::System::Service');
 
         # get test Services IDs
         my @ServiceIDs;
@@ -135,7 +167,7 @@ $Selenium->RunTest(
         $Selenium->execute_script("\$('#ParentID').val('$ServiceID').trigger('redraw.InputField').trigger('change');");
         $Selenium->find_element( "#Comment", 'css' )->clear();
         $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Name", 'css' )->submit();
+        $Selenium->find_element( "#Name", 'css' )->VerifiedSubmit();
 
         # check class of invalid Service in the overview table
         $Self->True(
@@ -148,7 +180,7 @@ $Selenium->RunTest(
         # check edited test Selenium values
         my $ServiceUpdatedRandomID2 = "$ServiceRandomID\::$ServiceRandomID2";
 
-        $Selenium->find_element( $ServiceUpdatedRandomID2, 'link_text' )->click();
+        $Selenium->find_element( $ServiceUpdatedRandomID2, 'link_text' )->VerifiedClick();
         $Self->Is(
             $Selenium->find_element( '#ParentID', 'css' )->get_value(),
             $ServiceID,
@@ -165,10 +197,40 @@ $Selenium->RunTest(
             "#ValidID updated value",
         );
         $Selenium->execute_script("\$('#ParentID').val('').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Name", 'css' )->submit();
+        $Selenium->find_element( "#Name", 'css' )->VerifiedSubmit();
 
-        # Since there are no tickets that rely on our test Services we can remove
-        # them from DB
+        # create third test Service
+        $Selenium->find_element("//a[contains(\@href, \'ServiceEdit;ServiceID=NEW' )]")->VerifiedClick();
+
+        my $ServiceRandomID3 = "Long service" . $Helper->GetRandomID();
+        $ServiceRandomID3
+            .= $ServiceRandomID3 . $ServiceRandomID3 . $ServiceRandomID3 . $ServiceRandomID3 . $ServiceRandomID3;
+
+        $Selenium->find_element( "#Name", 'css' )->send_keys($ServiceRandomID3);
+        $Selenium->execute_script("\$('#ParentID').val('$ServiceID2').trigger('redraw.InputField').trigger('change');");
+
+        $Selenium->find_element( "#Comment", 'css' )->send_keys($ServiceComment);
+        $Selenium->find_element( "#Name",    'css' )->VerifiedSubmit();
+
+        # Check for created test Services on AdminService screen.
+        $Self->False(
+            index( $Selenium->get_page_source(), $ServiceRandomID3 ) > -1,
+            "$ServiceRandomID3 Service found on page",
+        );
+        $Selenium->WaitFor(
+            JavaScript => 'return $(".Dialog:visible button.Close").length',
+        );
+
+        $Selenium->find_element( ".Dialog button.Close", "css" )->VerifiedClick();
+
+        # Check if tooltip error message is there.
+        $Self->True(
+            index( $Selenium->get_page_source(), "Service name maximum length is 200 characters" ) > -1,
+            "Check tooltip error message",
+        );
+
+        # Since there are no tickets that rely on our test Services we can remove them from DB.
+        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
         for my $ServiceID (@ServiceIDs) {
             my $Success = $DBObject->Do(
                 SQL => "DELETE FROM service_preferences WHERE service_id = $ServiceID",

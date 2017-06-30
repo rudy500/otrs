@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,33 +12,30 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $DBObject     = $Kernel::OM->Get('Kernel::System::DB');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        # disable check email address
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'CheckEmailAddresses',
             Value => 0
         );
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+
+        # set enable auto complete
+        $Helper->ConfigSettingChange(
             Valid => 1,
-            Key   => 'CheckMXRecord',
-            Value => 0
+            Key   => 'AdminCustomerUser::UseAutoComplete',
+            Value => 1
         );
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -49,10 +46,12 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $RandomID = 'TestCustomer' . $Helper->GetRandomID();
+        # get customer company object
+        my $CustomerCompanyObject = $Kernel::OM->Get('Kernel::System::CustomerCompany');
 
-        # Also create a CustomerCompany so that it can be selected in the dropdown
-        $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyAdd(
+        # also create a CustomerCompany so that it can be selected in the dropdown
+        my $RandomID        = 'TestCustomer' . $Helper->GetRandomID();
+        my $CustomerCompany = $CustomerCompanyObject->CustomerCompanyAdd(
             CustomerID             => $RandomID,
             CustomerCompanyName    => $RandomID,
             CustomerCompanyStreet  => $RandomID,
@@ -63,12 +62,15 @@ $Selenium->RunTest(
             CustomerCompanyComment => $RandomID,
             ValidID                => 1,
             UserID                 => 1,
-        ) || die "Could not create test CustomerCompany";
-
-        my $RandomID2 = 'TestCustomer' . $Helper->GetRandomID();
+        );
+        $Self->True(
+            $CustomerCompany,
+            "CustomerCompanyAdd - $CustomerCompany",
+        );
 
         # Also create a CustomerCompany so that it can be selected in the dropdown
-        $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyAdd(
+        my $RandomID2        = 'TestCustomer' . $Helper->GetRandomID();
+        my $CustomerCompany2 = $CustomerCompanyObject->CustomerCompanyAdd(
             CustomerID             => $RandomID2,
             CustomerCompanyName    => $RandomID2,
             CustomerCompanyStreet  => $RandomID2,
@@ -79,21 +81,33 @@ $Selenium->RunTest(
             CustomerCompanyComment => $RandomID2,
             ValidID                => 1,
             UserID                 => 1,
-        ) || die "Could not create test CustomerCompany";
+        );
+        $Self->True(
+            $CustomerCompany2,
+            "CustomerCompanyAdd - $CustomerCompany2",
+        );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminCustomerUser");
+        # navigate to AdminCustomerUser screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminCustomerUser");
 
-        # check AdminCustomerCompany screen
+        # check overview AdminCustomerCompany
         $Selenium->find_element( "table",             'css' );
         $Selenium->find_element( "table thead tr th", 'css' );
         $Selenium->find_element( "table tbody tr td", 'css' );
         $Selenium->find_element( "#Source",           'css' );
         $Selenium->find_element( "#Search",           'css' );
 
-        # click 'Add customer user' link
-        $Selenium->find_element( "button.CallForAction", 'css' )->click();
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
+
+        # click 'Add customer'
+        $Selenium->find_element( "button.CallForAction", 'css' )->VerifiedClick();
 
         # check add customer user screen
         for my $ID (
@@ -105,9 +119,27 @@ $Selenium->RunTest(
             $Element->is_displayed();
         }
 
+        # check add customer screen if auto complete is activated
+        my $AutoCompleteElement = $Selenium->find_element( '.CustomerAutoCompleteSimple', 'css' );
+        $AutoCompleteElement->is_enabled();
+        $AutoCompleteElement->is_displayed();
+
+        # check breadcrumb on Add screen
+        my $Count = 1;
+        my $IsLinkedBreadcrumbText;
+        for my $BreadcrumbText ( 'Customer User Management', 'Add Customer User' ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
         # check client side validation
         $Selenium->find_element( "#UserFirstname", 'css' )->clear();
-        $Selenium->find_element( "#UserFirstname", 'css' )->submit();
+        $Selenium->find_element( "#UserFirstname", 'css' )->VerifiedSubmit();
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#UserFirstname').hasClass('Error')"
@@ -116,8 +148,11 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value',
         );
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminCustomerUser");
-        $Selenium->find_element( "button.CallForAction", 'css' )->click();
+        # navigate to AdminCustomerUser screen again
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminCustomerUser");
+
+        # click 'Add customer'
+        $Selenium->find_element( "button.CallForAction", 'css' )->VerifiedClick();
 
         # create a real test customer user
         $Selenium->find_element( "#UserFirstname", 'css' )->send_keys($RandomID);
@@ -125,8 +160,9 @@ $Selenium->RunTest(
         $Selenium->find_element( "#UserLogin",     'css' )->send_keys($RandomID);
         $Selenium->find_element( "#UserEmail",     'css' )->send_keys( $RandomID . "\@localhost.com" );
         $Selenium->execute_script(
-            "\$('#UserCustomerID').val('$RandomID').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#UserFirstname", 'css' )->submit();
+            "\$('#UserCustomerID').val('$RandomID').trigger('redraw.InputField').trigger('change');"
+        );
+        $Selenium->find_element( "#UserFirstname", 'css' )->VerifiedSubmit();
 
         # check overview page
         $Self->True(
@@ -134,20 +170,29 @@ $Selenium->RunTest(
             "$RandomID found on page",
         );
 
+        #check is there notification after customer user is added
+        my $Notification = "Customer $RandomID added ( New phone ticket - New email ticket )!";
+        $Self->True(
+            $Selenium->execute_script("return \$('.MessageBox.Notice p:contains($Notification)').length"),
+            "$Notification - notification is found."
+        );
+
         # create another test customer user for filter search test
-        $Selenium->find_element( "button.CallForAction", 'css' )->click();
-        $Selenium->find_element( "#UserFirstname",       'css' )->send_keys($RandomID2);
-        $Selenium->find_element( "#UserLastname",        'css' )->send_keys($RandomID2);
-        $Selenium->find_element( "#UserLogin",           'css' )->send_keys($RandomID2);
-        $Selenium->find_element( "#UserEmail",           'css' )->send_keys( $RandomID2 . "\@localhost.com" );
+        $Selenium->find_element( "button.CallForAction", 'css' )->VerifiedClick();
+
+        $Selenium->find_element( "#UserFirstname", 'css' )->send_keys($RandomID2);
+        $Selenium->find_element( "#UserLastname",  'css' )->send_keys($RandomID2);
+        $Selenium->find_element( "#UserLogin",     'css' )->send_keys($RandomID2);
+        $Selenium->find_element( "#UserEmail",     'css' )->send_keys( $RandomID2 . "\@localhost.com" );
         $Selenium->execute_script(
-            "\$('#UserCustomerID').val('$RandomID2').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#UserFirstname", 'css' )->submit();
+            "\$('#UserCustomerID').val('$RandomID2').trigger('redraw.InputField').trigger('change');"
+        );
+        $Selenium->find_element( "#UserFirstname", 'css' )->VerifiedSubmit();
 
         # test search filter only for test Customer users
         $Selenium->find_element( "#Search", 'css' )->clear();
         $Selenium->find_element( "#Search", 'css' )->send_keys('TestCustomer');
-        $Selenium->find_element( "#Search", 'css' )->submit();
+        $Selenium->find_element( "#Search", 'css' )->VerifiedSubmit();
 
         # check for another customer user
         $Self->True(
@@ -158,7 +203,7 @@ $Selenium->RunTest(
         # test search filter by customer user $RandomID
         $Selenium->find_element( "#Search", 'css' )->clear();
         $Selenium->find_element( "#Search", 'css' )->send_keys($RandomID);
-        $Selenium->find_element( "#Search", 'css' )->submit();
+        $Selenium->find_element( "#Search", 'css' )->VerifiedSubmit();
 
         $Self->True(
             index( $Selenium->get_page_source(), $RandomID ) > -1,
@@ -171,7 +216,7 @@ $Selenium->RunTest(
         );
 
         # check and edit new customer user
-        $Selenium->find_element( $RandomID, 'link_text' )->click();
+        $Selenium->find_element( $RandomID, 'link_text' )->VerifiedClick();
 
         $Self->Is(
             $Selenium->find_element( '#UserFirstname', 'css' )->get_value(),
@@ -199,23 +244,84 @@ $Selenium->RunTest(
             "#UserCustomerID updated value",
         );
 
+        # check breadcrumb on Edit screen
+        $Count = 1;
+        for my $BreadcrumbText ( 'Customer User Management', 'Edit Customer User: ' . $RandomID ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
         # set test customer user to invalid
         $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#UserFirstname", 'css' )->submit();
+        $Selenium->find_element( "#UserFirstname", 'css' )->VerifiedSubmit();
+
+        #check is there notification after customer user is updated
+        $Notification = "Customer user updated!";
+        $Self->True(
+            $Selenium->execute_script("return \$('.MessageBox.Notice p:contains($Notification)').length"),
+            "$Notification - notification is found."
+        );
 
         # test search filter
         $Selenium->find_element( "#Search", 'css' )->clear();
         $Selenium->find_element( "#Search", 'css' )->send_keys($RandomID);
-        $Selenium->find_element( "#Search", 'css' )->submit();
+        $Selenium->find_element( "#Search", 'css' )->VerifiedSubmit();
 
-        # chack class of invalid customer user in the overview table
+        # check class of invalid customer user in the overview table
         $Self->True(
             $Selenium->find_element( "tr.Invalid", 'css' ),
             "There is a class 'Invalid' for test Customer User",
         );
 
+        # navigate to AgentTicketPhone
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketPhone");
+
+        # click on '[ Customer User ]' to test customer user creation from iframe
+        $Selenium->find_element( "#OptionCustomer", 'css' )->click();
+
+        sleep 1;
+
+        $Selenium->switch_to_frame( $Selenium->find_element( '.TextOption', 'css' ) );
+
+        # click to 'Add customer user'
+        $Selenium->find_element("//button[\@class='CallForAction Fullsize Center']")->VerifiedClick();
+
+        sleep 1;
+
+        # create new test customer user
+        my $RandomID3 = 'TestCustomer' . $Helper->GetRandomID();
+        my $UserEmail = $RandomID3 . "\@localhost.com";
+        $Selenium->find_element( "#UserFirstname", 'css' )->send_keys($RandomID3);
+        $Selenium->find_element( "#UserLastname",  'css' )->send_keys($RandomID3);
+        $Selenium->find_element( "#UserLogin",     'css' )->send_keys($RandomID3);
+        $Selenium->find_element( "#UserEmail",     'css' )->send_keys( $RandomID3 . "\@localhost.com" );
+        $Selenium->execute_script(
+            "\$('#UserCustomerID').val('$RandomID').trigger('redraw.InputField').trigger('change');"
+        );
+        $Selenium->find_element( "#UserFirstname", 'css' )->submit();
+
+        # return focus back on AgentTicketPhone window
+        my $Handles = $Selenium->get_window_handles();
+        $Selenium->switch_to_window( $Handles->[0] );
+
+        # verify created customer user is added directly in AgentTicketPhone form
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#CustomerID").val().length' );
+        $Self->Is(
+            $Selenium->find_element( "#CustomerID", 'css' )->get_value(),
+            $RandomID,
+            "Test customer user $RandomID3 is successfully created from AgentTicketPhone screen"
+        );
+
+        # get DB object
+        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+
         # delete created test customer user and customer company
-        for my $CustomerID ( $RandomID, $RandomID2 ) {
+        for my $CustomerID ( $RandomID, $RandomID2, $RandomID3 ) {
             my $Success = $DBObject->Do(
                 SQL  => "DELETE FROM customer_user WHERE customer_id = ?",
                 Bind => [ \$CustomerID ],
@@ -235,7 +341,7 @@ $Selenium->RunTest(
             );
         }
 
-        # make sure the cache is correct.
+        # make sure the cache is correct
         for my $Cache (qw(CustomerCompany CustomerUser)) {
             $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
                 Type => $Cache,

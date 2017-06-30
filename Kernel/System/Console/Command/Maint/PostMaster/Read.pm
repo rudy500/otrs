@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,11 +11,11 @@ package Kernel::System::Console::Command::Maint::PostMaster::Read;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
-    'Kernel::System::PostMaster',
+    'Kernel::System::Main',
 );
 
 sub Configure {
@@ -48,10 +48,9 @@ sub Configure {
 sub PreRun {
     my ( $Self, %Param ) = @_;
 
-    my $Debug = $Self->GetOption('debug');
-    my $Name  = $Self->Name();
+    my $Name = $Self->Name();
 
-    if ($Debug) {
+    if ( $Self->GetOption('debug') ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'debug',
             Message  => "OTRS email handle ($Name) started.",
@@ -61,6 +60,15 @@ sub PreRun {
 
 sub Run {
     my ( $Self, %Param ) = @_;
+
+    my $Debug = $Self->GetOption('debug');
+
+    if ($Debug) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'debug',
+            Message  => "Trying to read email from STDIN...",
+        );
+    }
 
     # get email from SDTIN
     my @Email = <STDIN>;
@@ -72,21 +80,46 @@ sub Run {
         return $Self->ExitCodeError(1);
     }
 
+    if ($Debug) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'debug',
+            Message  => "Email with " . ( scalar @Email ) . " lines successfully read from STDIN.",
+        );
+    }
+
     # Wrap the main part of the script in an "eval" block so that any
     # unexpected (but probably transient) fatal errors (such as the
     # database being unavailable) can be trapped without causing a
     # bounce
     eval {
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::PostMaster' => {
+        if ($Debug) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'debug',
+                Message  => "Processing email...",
+            );
+        }
+
+        my $PostMasterObject = $Kernel::OM->Create(
+            'Kernel::System::PostMaster',
+            ObjectParams => {
                 Email   => \@Email,
                 Trusted => $Self->GetOption('untrusted') ? 0 : 1,
-                Debug   => $Self->GetOption('debug'),
+                Debug   => $Debug,
             },
         );
-        my @Return = $Kernel::OM->Get('Kernel::System::PostMaster')->Run(
+
+        my @Return = $PostMasterObject->Run(
             Queue => $Self->GetOption('target-queue'),
         );
+
+        if ($Debug) {
+            my $Dump = $Kernel::OM->Get('Kernel::System::Main')->Dump( \@Return );
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'debug',
+                Message  => "Email processing completed, return data: $Dump",
+            );
+        }
+
         if ( !$Return[0] ) {
             die "Can't process mail, see log!\n";
         }
@@ -100,9 +133,10 @@ sub Run {
         # it; see sysexits.h. Most mail programs will retry an
         # EX_TEMPFAIL delivery for about four days, then bounce the
         # message.)
+        my $Message = $@;
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => $@,
+            Message  => $Message,
         );
         return $Self->ExitCodeError(75);
     }
@@ -113,10 +147,9 @@ sub Run {
 sub PostRun {
     my ( $Self, %Param ) = @_;
 
-    my $Debug = $Self->GetOption('debug');
-    my $Name  = $Self->Name();
+    my $Name = $Self->Name();
 
-    if ($Debug) {
+    if ( $Self->GetOption('debug') ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'debug',
             Message  => "OTRS email handle ($Name) stopped.",
@@ -125,15 +158,3 @@ sub PostRun {
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

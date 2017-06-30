@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -68,7 +68,7 @@ sub Run {
         Permission                       => $Self->{Config}->{Permission},
         UserID                           => $Self->{UserID},
         CacheTTL                         => $Self->{Config}->{CacheTTLLocal} * 60,
-    );
+    ) || 0;
 
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
@@ -89,7 +89,7 @@ sub Run {
         Permission    => $Self->{Config}->{Permission},
         UserID        => $Self->{UserID},
         CacheTTL      => $Self->{Config}->{CacheTTLLocal} * 60,
-    );
+    ) || 0;
 
     $LayoutObject->Block(
         Name => 'ContentSmallCustomerIDStatusOpenTickets',
@@ -101,13 +101,13 @@ sub Run {
 
     # closed tickets
     $Count = $TicketObject->TicketSearch(
-        StateType     => 'Closed',
+        StateType     => 'closed',
         CustomerIDRaw => $CustomerIDRaw,
         Result        => 'COUNT',
         Permission    => $Self->{Config}->{Permission},
         UserID        => $Self->{UserID},
         CacheTTL      => $Self->{Config}->{CacheTTLLocal} * 60,
-    );
+    ) || 0;
 
     $LayoutObject->Block(
         Name => 'ContentSmallCustomerIDStatusClosedTickets',
@@ -124,7 +124,7 @@ sub Run {
         Permission    => $Self->{Config}->{Permission},
         UserID        => $Self->{UserID},
         CacheTTL      => $Self->{Config}->{CacheTTLLocal} * 60,
-    );
+    ) || 0;
 
     $LayoutObject->Block(
         Name => 'ContentSmallCustomerIDStatusAllTickets',
@@ -143,7 +143,7 @@ sub Run {
             Permission    => $Self->{Config}->{Permission},
             UserID        => $Self->{UserID},
             CacheTTL      => $Self->{Config}->{CacheTTLLocal} * 60,
-        );
+        ) || 0;
 
         $LayoutObject->Block(
             Name => 'ContentSmallCustomerIDStatusArchivedTickets',
@@ -160,7 +160,7 @@ sub Run {
             %{ $Self->{Config} },
             Name => $Self->{Name},
         },
-        KeepScriptTags => $Param{AJAX},
+        AJAX => $Param{AJAX},
     );
 
     return $Content;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,35 +10,63 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("PGP Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate("PGP Management"),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% IF Data.Subaction == 'Add' %]
+        [% BreadcrumbPath.push({ Name => Translate('Add PGP Key'), }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
-[% RenderBlockStart("Disabled") %]
+[% RenderBlockStart("Notice") %]
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>[% Translate("Notice") | html %]</h2>
             </div>
             <div class="Content ActionList">
                 <form action="[% Env("CGIHandle") %]" method="post">
-                    <input type="hidden" name="Action" value="AdminSysConfig"/>
+                    <input type="hidden" name="Action" value="AdminSystemConfiguration"/>
                     <input type="hidden" name="Subaction" value="Edit"/>
                     <input type="hidden" name="SysConfigGroup" value="Framework"/>
                     <input type="hidden" name="SysConfigSubGroup" value="Crypt::PGP"/>
-                    <h3>[% Translate("This feature is disabled!") | html %]</h3>
+[% RenderBlockStart("Disabled") %]
+                    <h3><span class="Warning">[% Translate("PGP support is disabled") | html %]</span></h3>
                     <fieldset>
                         <p class="FieldExplanation">
-                            [% Translate("Use this feature if you want to work with PGP keys.") | html %]
+                            [% Translate("To be able to use PGP in OTRS, you have to enable it first.") | html %]
                         </p>
-                        <div class="Field SpacingTop">
+                        <div class="Field">
                             <button class="CallForAction Fullsize Center" type="submit" value="[% Translate("Enable it here!") | html %]">
-                                <span><i class="fa fa-unlock-alt"></i> [% Translate("Enable it here!") | html %]</span>
+                                <span><i class="fa fa-unlock-alt"></i> [% Translate("Enable PGP support") | html %]</span>
                             </button>
                         </div>
+[% RenderBlockEnd("Disabled") %]
+[% RenderBlockStart("NotWorking") %]
+                    <h3><span class="Error">[% Translate("Faulty PGP configuration") | html %]</span></h3>
+                    <fieldset>
+                        <p class="FieldExplanation">
+                            [% Translate("PGP support is enabled, but the relevant configuration contains errors. Please check the configuration using the button below.") | html %]
+                        </p>
+                        <div class="Field">
+                            <button class="CallForAction Fullsize Center" type="submit" value="[% Translate("Configure it here!") | html %]">
+                                <span><i class="fa fa-unlock-alt"></i> [% Translate("Check PGP configuration") | html %]</span>
+                            </button>
+                        </div>
+[% RenderBlockEnd("NotWorking") %]
                         <div class="Clear"></div>
                     </fieldset>
                 </form>
             </div>
         </div>
-[% RenderBlockEnd("Disabled") %]
-
+[% RenderBlockEnd("Notice") %]
 [% RenderBlockStart("ActionList") %]
         <div class="WidgetSimple">
             <div class="Header"><h2>[% Translate("Actions") | html %]</h2></div>
@@ -112,7 +140,7 @@
                             <th>[% Translate("Fingerprint") | html %]</th>
                             <th>[% Translate("Created") | html %]</th>
                             <th>[% Translate("Expires") | html %]</th>
-                            <th>[% Translate("Delete") | html %]</th>
+                            <th class="Center">[% Translate("Delete") | html %]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -176,7 +204,7 @@
                         <div class="Clear"></div>
 
                         <div class="Field SpacingTop">
-                            <button class="Primary" type="submit">[% Translate("Add") | html %]</button>
+                            <button class="Primary CallForAction" type="submit"><span>[% Translate("Add") | html %]</span></button>
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]"><span>[% Translate("Cancel") | html %]</span></a>
                         </div>

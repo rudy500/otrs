@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,8 +16,16 @@ use vars (qw($Self));
 my $MainObject       = $Kernel::OM->Get('Kernel::System::Main');
 my $SystemDataObject = $Kernel::OM->Get('Kernel::System::SystemData');
 
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 # add system data
-my $SystemDataNameRand0 = 'systemdata' . int( rand(1000000) );
+my $SystemDataNameRand0 = 'systemdata' . $Helper->GetRandomID();
 
 my $Success = $SystemDataObject->SystemDataAdd(
     Key    => $SystemDataNameRand0,
@@ -98,7 +106,7 @@ $Self->False(
 
 # test setting value to empty string
 # add system data 1
-my $SystemDataNameRand1 = 'systemdata' . int( rand(1000000) );
+my $SystemDataNameRand1 = 'systemdata' . $Helper->GetRandomID();
 
 $Success = $SystemDataObject->SystemDataAdd(
     Key    => $SystemDataNameRand1,
@@ -187,12 +195,13 @@ $Self->True(
     'SystemDataDelete() - removed key',
 );
 
-my $SystemDataGroupRand = 'systemdata' . int( rand(1000000) );
+my $SystemDataGroupRand = 'systemdata' . $Helper->GetRandomID();
 
 my %Storage = (
-    Foo  => 'bar',
-    Bar  => 'baz',
-    Beef => 'spam',
+    Foo   => 'bar',
+    Bar   => 'baz',
+    Beef  => 'spam',
+    Empty => '',
 );
 
 for my $Key ( sort keys %Storage ) {
@@ -271,5 +280,7 @@ for my $Key ( sort keys %Group ) {
         "SystemData: deleted key " . $SystemDataGroupRand . '::' . $Key,
     );
 }
+
+# cleanup is done by RestoreDatabase
 
 1;

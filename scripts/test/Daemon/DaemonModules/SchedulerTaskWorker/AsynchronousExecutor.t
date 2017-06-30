@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,9 +11,15 @@ use strict;
 use warnings;
 use utf8;
 
-use Kernel::System::ObjectManager;
-
 use vars (qw($Self));
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # prevent mails send
 $Kernel::OM->Get('Kernel::Config')->Set(
@@ -151,6 +157,24 @@ my @Tests = (
         Result => 1,
     },
     {
+        Name   => 'Correct with array parameters',
+        Config => {
+            TaskID   => 123,
+            TaskName => 'UnitTest',
+            Data     => {
+                Object   => 'Kernel::System::Ticket',
+                Function => 'TicketPriorityList',
+
+                # this will coerce into a hash, but we need to test that array params work
+                Params => [
+                    'TicketID', 1,
+                    'UserID',   1,
+                ],
+            },
+        },
+        Result => 1,
+    },
+    {
         Name   => 'Correct with empty parameters',
         Config => {
             TaskID   => 123,
@@ -169,11 +193,11 @@ my @Tests = (
             TaskID   => 123,
             TaskName => 'UnitTest',
             Data     => {
-                Object   => 'Kernel::System::Ticket',
-                Function => 'TicketPriorityList',
+                Object   => 'Kernel::System::Valid',
+                Function => 'ValidList',
             },
         },
-        Result => 0,
+        Result => 1,
     },
 );
 
@@ -192,5 +216,7 @@ for my $Test (@Tests) {
         "$Test->{Name} execution result",
     );
 }
+
+# cleanup cache is done by RestoreDatabase.
 
 1;

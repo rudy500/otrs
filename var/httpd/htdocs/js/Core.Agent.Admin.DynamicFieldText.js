@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -81,7 +81,7 @@ Core.Agent.Admin.DynamicFieldText = (function (TargetNS) {
             if($(this).hasClass('RemoveRegEx')) {
 
                 // bind click function to remove button
-                $(this).bind('click', function () {
+                $(this).on('click', function () {
                     TargetNS.RemoveRegEx($(this).attr('id'));
                     return false;
                 });
@@ -101,6 +101,38 @@ Core.Agent.Admin.DynamicFieldText = (function (TargetNS) {
 
         return false;
     };
+
+    /**
+    * @name Init
+    * @memberof Core.Agent.Admin.DynamicFieldText
+    * @function
+    * @description
+    *       Initialize module functionality
+    */
+    TargetNS.Init = function () {
+
+        $('.ShowWarning').on('change keyup', function () {
+            $('p.Warning').removeClass('Hidden');
+        });
+
+        // click handler to add regex
+        $('#AddRegEx').on('click', function () {
+            TargetNS.AddRegEx(
+                $(this).closest('fieldset').find('.RegExInsert')
+            );
+            return false;
+        });
+
+        // Bind click event to remove button for existing RegExs.
+        $('a.RemoveRegEx').on('click', function () {
+            TargetNS.RemoveRegEx($(this).attr('id'));
+            return false;
+        });
+
+        Core.Agent.Admin.DynamicField.ValidationInit();
+    };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.Agent.Admin.DynamicFieldText || {}));

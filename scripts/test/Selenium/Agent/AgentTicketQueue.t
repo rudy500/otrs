@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,15 +12,49 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-        # create test user and login
+        # Do not check email addresses.
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
+
+        # Change settings Ticket::Frontend::AgentTicketQueue###VisualAlarms to 'Yes'.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketQueue###VisualAlarms',
+            Value => 1,
+        );
+
+        # Change settings Ticket::Frontend::AgentTicketQueue###Blink to 'Yes'.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketQueue###Blink',
+            Value => 1,
+        );
+
+        # Change settings Ticket::Frontend::AgentTicketQueue###HighlightAge1 to 10 minutes.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketQueue###HighlightAge1',
+            Value => 10,
+        );
+
+        # Change settings Ticket::Frontend::AgentTicketQueue###HighlightAge2 to 10 minutes.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketQueue###HighlightAge2',
+            Value => 20,
+        );
+
+        # Create test user and login.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -31,42 +65,40 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # get test user ID
         my $TestUserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        # add test customer for testing
-        my $TestCustomer = 'Customer' . $Helper->GetRandomID();
-        my $UserLogin    = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
-            Source         => 'CustomerUser',
-            UserFirstname  => $TestCustomer,
-            UserLastname   => $TestCustomer,
-            UserCustomerID => $TestCustomer,
-            UserLogin      => $TestCustomer,
-            UserEmail      => "$TestCustomer\@localhost.com",
-            ValidID        => 1,
-            UserID         => $TestUserID,
-        );
+        # Create test queues.
+        my @Queues;
+        for ( 1 .. 2 ) {
+            my $QueueName = 'Queue' . $Helper->GetRandomID();
+            my $QueueID   = $Kernel::OM->Get('Kernel::System::Queue')->QueueAdd(
+                Name            => $QueueName,
+                ValidID         => 1,
+                GroupID         => 1,
+                SystemAddressID => 1,
+                SalutationID    => 1,
+                SignatureID     => 1,
+                Comment         => 'Selenium Queue',
+                UserID          => $TestUserID,
+            );
+            $Self->True(
+                $QueueID,
+                "QueueAdd() successful for test $QueueName ID $QueueID",
+            );
 
-        # create test queue
-        my $QueueName = 'Queue' . $Helper->GetRandomID();
-        my $QueueID   = $Kernel::OM->Get('Kernel::System::Queue')->QueueAdd(
-            Name            => $QueueName,
-            ValidID         => 1,
-            GroupID         => 1,
-            SystemAddressID => 1,
-            SalutationID    => 1,
-            SignatureID     => 1,
-            Comment         => 'Selenium Queue',
-            UserID          => $TestUserID,
-        );
-        $Self->True(
-            $QueueID,
-            "QueueAdd() successful for test $QueueName ID $QueueID",
-        );
+            push @Queues,
+                {
+                QueueName => $QueueName,
+                QueueID   => $QueueID,
+                },
+        }
 
-        # create params for test tickets
+        # Set fixed time to test Visual alarms
+        my $FixedTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+
+        # Create params for test tickets
         my @Tests = (
             {
                 Queue   => 'Postmaster',
@@ -89,79 +121,107 @@ $Selenium->RunTest(
                 Lock    => 'lock',
             },
             {
-                Queue   => $QueueName,
-                QueueID => $QueueID,
-                Lock    => 'unlock'
+                Queue        => $Queues[0]->{QueueName},
+                QueueID      => $Queues[0]->{QueueID},
+                Lock         => 'unlock',
+                FixedTimeSet => $FixedTime - 10 * 60 - 100,
+            },
+            {
+                Queue        => $Queues[1]->{QueueName},
+                QueueID      => $Queues[1]->{QueueID},
+                Lock         => 'unlock',
+                FixedTimeSet => $FixedTime - 20 * 60 - 100,
             }
         );
 
-        # get ticket object
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-        # create test tickets
+        # Create test tickets.
         my @TicketIDs;
         for my $TicketCreate (@Tests) {
+
+            $Helper->FixedTimeSet( $TicketCreate->{FixedTimeSet} ) if defined $TicketCreate->{FixedTimeSet};
+
             my $TicketID = $TicketObject->TicketCreate(
                 Title         => 'Selenium Test Ticket',
                 Queue         => $TicketCreate->{Queue},
                 Lock          => $TicketCreate->{Lock},
                 Priority      => '3 normal',
                 State         => 'open',
-                CustomerID    => $TestCustomer,
-                CustomerUser  => "$TestCustomer\@localhost.com",
+                CustomerID    => 'SeleniumCustomer',
+                CustomerUser  => 'SeleniumCustomer@localhost.com',
                 OwnerID       => $TestUserID,
                 UserID        => $TestUserID,
                 ResponsibleID => $TestUserID,
             );
-
             $Self->True(
                 $TicketID,
-                "Ticket is create - $TicketID",
+                "Ticket is created - ID $TicketID",
             );
 
             push @TicketIDs, $TicketID;
 
         }
 
-        # go to AgentTicketQueue
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketQueue");
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
-        # verify that there is no tickets with My Queue filter
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketQueue;QueueID=0;\' )]")->click();
+        # Navigate to AgentTicketQueue screen.
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketQueue");
+
+        # Check Blink visual alarm - Oldest class.
+        $Self->True(
+            $Selenium->find_element( '.Oldest', 'css' ),
+            "Visual alarm Blink is found - Oldest class",
+        );
+
+        # Check HighlightAge1 visual alarm - OlderLevel2 class.
+        $Self->True(
+            $Selenium->find_element( '.OlderLevel1', 'css' ),
+            "Visual alarm HighlightAge1 is found - OlderLevel2 class",
+        );
+
+        # Check HighlightAge2 visual alarm - OlderLevel2 class.
+        $Self->True(
+            $Selenium->find_element( '.OlderLevel2', 'css' ),
+            "Visual alarm HighlightAge2 is found - OlderLevel2 class",
+        );
+
+        # Verify that there is no tickets with My Queue filter.
+        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketQueue;QueueID=0;\' )]")->VerifiedClick();
+
         $Self->True(
             index( $Selenium->get_page_source(), 'No ticket data found.' ) > -1,
             "No tickets found with My Queue filters",
         );
 
-        # return to default queue view
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketQueue;View=Small");
+        # Return to default queue view.
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketQueue;View=Small");
 
-        # test if tickets show with appropriate filters
+        # Test if tickets show with appropriate filters.
         for my $Test (@Tests) {
 
-            # check for Queue filter buttons (Postmaster / Raw / Junk / Misc / QueueTest)
+            # Check for Queue filter buttons (Postmaster / Raw / Junk / Misc / QueueTest).
             my $Element = $Selenium->find_element(
                 "//a[contains(\@href, \'Action=AgentTicketQueue;QueueID=$Test->{QueueID};\' )]"
             );
             $Element->is_enabled();
             $Element->is_displayed();
-            $Element->click();
+            $Element->VerifiedClick();
 
-            # check different views for filters
+            # Check different views for filters.
             for my $View (qw(Small Medium Preview)) {
 
-                # return to default small view
-                $Selenium->get(
+                # Return to default small view.
+                $Selenium->VerifiedGet(
                     "${ScriptAlias}index.pl?Action=AgentTicketQueue;QueueID=$Test->{QueueID};SortBy=Age;OrderBy=Down;View=Small"
                 );
 
-                # click on viewer controler
+                # Click on viewer controller.
                 $Selenium->find_element(
                     "//a[contains(\@href, \'Action=AgentTicketQueue;Filter=Unlocked;View=$View;QueueID=$Test->{QueueID};SortBy=Age;OrderBy=Down;View=Small;\' )]"
-                )->click();
+                )->VerifiedClick();
 
-                # verify that all expected tickets are present
+                # Verify that all expected tickets are present.
                 for my $TicketID (@TicketIDs) {
 
                     my %TicketData = $TicketObject->TicketGet(
@@ -169,10 +229,10 @@ $Selenium->RunTest(
                         UserID   => $TestUserID,
                     );
 
-                    # check for locked and unlocked tickets
+                    # Check for locked and unlocked tickets.
                     if ( $Test->{Lock} eq 'lock' ) {
 
-                        # for locked tickets we expect no data to be found with 'Available tickets' filter on
+                        # For locked tickets we expect no data to be found with 'Available tickets' filter on.
                         $Self->True(
                             index( $Selenium->get_page_source(), $TicketData{TicketNumber} ) == -1,
                             "Ticket is not found on page - $TicketData{TicketNumber}",
@@ -182,7 +242,7 @@ $Selenium->RunTest(
 
                     elsif ( ( $TicketData{Lock} eq 'unlock' ) && ( $TicketData{QueueID} eq $Test->{QueueID} ) ) {
 
-                        # check for tickets with 'Available tickets' filter on
+                        # Check for tickets with 'Available tickets' filter on.
                         $Self->True(
                             index( $Selenium->get_page_source(), $TicketData{TicketNumber} ) > -1,
                             "Ticket is found on page - $TicketData{TicketNumber} ",
@@ -192,7 +252,7 @@ $Selenium->RunTest(
             }
         }
 
-        # delete created test tickets
+        # Delete created test tickets.
         my $Success;
         for my $TicketID (@TicketIDs) {
             $Success = $TicketObject->TicketDelete(
@@ -201,42 +261,33 @@ $Selenium->RunTest(
             );
             $Self->True(
                 $Success,
-                "Delete ticket - $TicketID"
+                "Delete ticket - ID $TicketID"
             );
         }
 
-        # get DB object
-        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+        # Delete created test queue.
+        for my $Queue (@Queues) {
+            $Success = $Kernel::OM->Get('Kernel::System::DB')->Do(
+                SQL => "DELETE FROM queue WHERE id = $Queue->{QueueID}",
+            );
+            $Self->True(
+                $Success,
+                "Delete queue - ID $Queue->{QueueID}",
+            );
+        }
 
-        # delete created test queue
-        $Success = $DBObject->Do(
-            SQL => "DELETE FROM queue WHERE id = $QueueID",
-        );
-        $Self->True(
-            $Success,
-            "Delete queue - $QueueID",
-        );
-
-        # delete created test customer user
-        $TestCustomer = $DBObject->Quote($TestCustomer);
-        $Success      = $DBObject->Do(
-            SQL  => "DELETE FROM customer_user WHERE login = ?",
-            Bind => [ \$TestCustomer ],
-        );
-        $Self->True(
-            $Success,
-            "Delete customer user - $TestCustomer",
-        );
-
-        # make sure the cache is correct.
+        # Make sure the cache is correct.
         for my $Cache (
-            qw (Ticket CustomerUser Queue)
+            qw (Ticket Queue)
             )
         {
             $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
                 Type => $Cache,
             );
         }
+
+        # Unset fixed time.
+        $Helper->FixedTimeUnset();
 
     }
 );

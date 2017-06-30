@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,20 +12,41 @@ use utf8;
 
 use vars (qw($Self));
 
-our $ObjectManagerDisabled = 1;
-
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+        # get needed variable
+        my $RandomID = $Helper->GetRandomID();
+
+        # set generic agent run limit
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::GenericAgentRunLimit',
+            Value => 10
+        );
+
+        # enable extended condition search for generic agent ticket search
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::GenericAgentTicketSearch###ExtendedSearchCondition',
+            Value => 1,
+        );
+
+        # disable modernize fields
+        $Helper->ConfigSettingChange(
+            Key   => 'ModernizeFormFields',
+            Value => 0,
+        );
+
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
-            Groups => ['admin'],
+            Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
 
         $Selenium->Login(
@@ -34,128 +55,399 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
-
-        # Create Ticket to test AdminGenericAgent frontend
-        my $TicketID = $TicketObject->TicketCreate(
-            Title        => 'Testticket for Untittest of the Generic Agent',
-            Queue        => 'Raw',
-            Lock         => 'unlock',
-            PriorityID   => 1,
-            StateID      => 1,
-            CustomerNo   => '123465',
-            CustomerUser => 'customerUnitTest@example.com',
-            OwnerID      => 1,
-            UserID       => 1,
+        # get test user ID
+        my $UserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
+            UserLogin => $TestUserLogin,
         );
 
-        my $ArticleID = $TicketObject->ArticleCreate(
-            TicketID       => $TicketID,
-            ArticleType    => 'note-internal',
-            SenderType     => 'agent',
-            From           => 'Some Agent <email@example.com>',
-            To             => 'Customer A <customer-a@example.com>',
-            Cc             => 'Customer B <customer-b@example.com>',
-            ReplyTo        => 'Customer B <customer-b@example.com>',
-            Subject        => 'some short description',
-            Body           => 'the message text Perl modules provide a range of',
-            ContentType    => 'text/plain; charset=ISO-8859-15',
-            HistoryType    => 'OwnerUpdate',
-            HistoryComment => 'Some free text!',
-            UserID         => 1,
-            NoAgentNotify  => 1,
+        # get dynamic field object
+        my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
+
+        # create test dynamic field of type date
+        my $DynamicFieldName = 'Test' . $RandomID;
+        my $DynamicFieldID   = $DynamicFieldObject->DynamicFieldAdd(
+            Name       => $DynamicFieldName,
+            Label      => $DynamicFieldName,
+            FieldOrder => 9991,
+            FieldType  => 'Date',
+            ObjectType => 'Ticket',
+            Config     => {
+                DefaultValue    => 0,
+                YearsInFuture   => 0,
+                YearsInPast     => 0,
+                YearsPeriod     => 0,
+                DateRestriction => 'DisablePastDates',    # turn on validation of no past dates
+            },
+            ValidID => 1,
+            UserID  => $UserID,
         );
 
-        my $TicketNumber = $TicketObject->TicketNumberLookup(
-            TicketID => $TicketID,
-            UserID   => 1,
+        $Self->True(
+            $DynamicFieldID,
+            "Dynamic field $DynamicFieldName - ID $DynamicFieldID - created",
         );
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminGenericAgent");
+        # create also a dynamic field of type checkbox
+        my $CheckboxDynamicFieldName = 'TestCheckbox' . $RandomID;
+        my $CheckboxDynamicFieldID   = $DynamicFieldObject->DynamicFieldAdd(
+            Name       => $CheckboxDynamicFieldName,
+            Label      => $CheckboxDynamicFieldName,
+            FieldOrder => 9992,
+            FieldType  => 'Checkbox',
+            ObjectType => 'Ticket',
+            Config     => {
+                DefaultValue => 0,
+            },
+            ValidID => 1,
+            UserID  => $UserID,
+        );
 
-        my $RandomID = "GenericAgent" . $Helper->GetRandomID();
+        $Self->True(
+            $CheckboxDynamicFieldID,
+            "Dynamic field $CheckboxDynamicFieldName - ID $CheckboxDynamicFieldID - created",
+        );
+
+        # get ticket object
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+
+        # create test tickets
+        my $TestTicketTitle = "Test Ticket $RandomID Generic Agent";
+        my @TicketNumbers;
+        for ( 1 .. 20 ) {
+
+            # create Ticket to test AdminGenericAgent frontend
+            my $TicketID = $TicketObject->TicketCreate(
+                Title        => $TestTicketTitle,
+                Queue        => 'Raw',
+                Lock         => 'unlock',
+                PriorityID   => 1,
+                StateID      => 1,
+                CustomerNo   => 'SeleniumTestCustomer',
+                CustomerUser => 'customerUnitTest@example.com',
+                OwnerID      => $UserID,
+                UserID       => $UserID,
+            );
+            $Self->True(
+                $TicketID,
+                "Ticket is created - $TicketID",
+            );
+
+            my $TicketNumber = $TicketObject->TicketNumberLookup(
+                TicketID => $TicketID,
+                UserID   => 1,
+            );
+
+            push @TicketNumbers, $TicketNumber;
+
+        }
+
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+
+        # navigate to AdminGenericAgent screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminGenericAgent");
 
         # check overview AdminGenericAgent
         $Selenium->find_element( "table",             'css' );
         $Selenium->find_element( "table thead tr th", 'css' );
         $Selenium->find_element( "table tbody tr td", 'css' );
 
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
+
         # check add job page
-        $Selenium->find_element("//a[contains(\@href, \'Subaction=Update' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=Update' )]")->VerifiedClick();
+
+        # check breadcrumb on Add job screen
+        my $Count = 1;
+        my $IsLinkedBreadcrumbText;
+        for my $BreadcrumbText ( 'Generic Agent', 'Add job' ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
 
         my $Element = $Selenium->find_element( "#Profile", 'css' );
         $Element->is_displayed();
         $Element->is_enabled();
 
-        # toggle Automatic execution (multiple tickets) widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_0')]")->click();
+        # Toggle widgets
+        $Selenium->execute_script('$(".WidgetSimple.Collapsed .WidgetAction.Toggle a").click();');
 
-        # toggle Even based execution widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_1')]")->click();
+        # test AddEvent() JS function
+        $Selenium->find_element( "#AddEvent", 'css' )->click();
 
-        # toggle Select Tickets widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_2')]")->click();
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('#EventsTable tbody tr:eq(1)').length"
+            ),
+            '1',
+            'JS function AddEvent() is success',
+        );
 
-        # toggle Update/Add Ticket Attribued widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_3')]")->click();
+        # try to add same event, test ShowDuplicatedDialog() JS function
+        $Selenium->find_element( "#AddEvent", 'css' )->click();
 
-        # toggle Add Note widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_4')]")->click();
+        # wait for dialog to show up, if necessary
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $(".Dialog:visible").length === 1;'
+        );
 
-        # toggle Execute Ticket Commands widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_5')]")->click();
+        # verify dialog message
+        $Self->True(
+            index(
+                $Selenium->get_page_source(),
+                'This event is already attached to the job, Please use a different one.'
+                ) > -1,
+            "Duplicated event dialog message is found",
+        );
 
-        # toggle Execude Custome Module widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_6')]")->click();
+        # close dialog
+        $Selenium->find_element( "#DialogButton1", 'css' )->click();
+
+        # wait for dialog to disappear, if necessary
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $(".Dialog:visible").length === 0;'
+        );
+
+        # click to delete added event, confirmation dialog will appear
+        $Selenium->execute_script("\$('#EventsTable tbody tr:eq(1) #DeleteEvent').click();");
+
+        # wait for dialog to show up, if necessary
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $(".Dialog:visible").length === 1;'
+        );
+
+        # verify confirmation dialog message on delete event
+        $Self->True(
+            index( $Selenium->get_page_source(), 'Do you really want to delete this event trigger?' ) > -1,
+            "Delete event dialog message is found",
+        );
+
+        # confirm delete event
+        $Selenium->find_element( "#DialogButton2", 'css' )->click();
+
+        # wait for dialog to disappear, if necessary
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $(".Dialog:visible").length === 0;'
+        );
+
+        # verify delete action event
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('#EventsTable tbody tr:eq(1)').length"
+            ),
+            '0',
+            'Added event is deleted',
+        );
+
+        # check AddSelectClearButton() JS function
+        $Selenium->find_element( "#PriorityIDs option[value='1']", 'css' )->click();
+        $Self->True(
+            $Selenium->execute_script(
+                "return \$('#PriorityIDs option:eq(0)').is(':selected')"
+            ),
+            "Priority '1 very low' is selected"
+        );
+
+        # click to clear selection for Priority field and verify action
+        $Selenium->find_element("//a[contains(\@data-select, \'PriorityIDs' )]")->click();
+        $Self->False(
+            $Selenium->execute_script(
+                "return \$('#PriorityIDs option:eq(0)').is(':selected')"
+            ),
+            "Priority '1 very low' is no longer selected - JS is success"
+        );
 
         # create test job
-        $Selenium->find_element( "#Profile",      'css' )->send_keys($RandomID);
-        $Selenium->find_element( "#TicketNumber", 'css' )->send_keys($TicketNumber);
-        $Selenium->find_element( "#Profile",      'css' )->submit();
+        my $GenericTicketSearch = "*Ticket $RandomID Generic*";
+        my $GenericAgentJob     = "GenericAgent" . $RandomID;
+        $Selenium->find_element( "#Profile", 'css' )->send_keys($GenericAgentJob);
+        $Selenium->find_element( "#Title",   'css' )->send_keys($GenericTicketSearch);
+
+        # set test dynamic field to date in the past, but do not activate it
+        # validation used to kick in even if checkbox in front wasn't activated
+        # see bug#12210 for more information
+        $Selenium->find_element( "#DynamicField_${DynamicFieldName}Year", 'css' )->send_keys('2015');
+
+        $Selenium->find_element( "#DynamicField_${CheckboxDynamicFieldName}Used1", 'css' )->VerifiedClick();
+
+        # save job
+        $Selenium->find_element( "#Profile", 'css' )->VerifiedSubmit();
 
         # check if test job show on AdminGenericAgent
         $Self->True(
-            index( $Selenium->get_page_source(), $RandomID ) > -1,
-            "$RandomID job found on page",
+            index( $Selenium->get_page_source(), $GenericAgentJob ) > -1,
+            "$GenericAgentJob job found on page",
+        );
+
+        # verify filter will show no result for invalid input
+        my $InvalidName = 'Invalid' . $RandomID;
+        $Selenium->find_element( "#FilterGenericAgentJobs", 'css' )->send_keys($InvalidName);
+        sleep 1;
+
+        my $CSSDisplay = $Selenium->execute_script(
+            "return \$('table tbody tr td:contains($GenericAgentJob)').parent().css('display')"
+        );
+
+        $Self->Is(
+            $CSSDisplay,
+            'none',
+            "Generic Agent job $GenericAgentJob is not found in the table"
+        );
+
+        # verify filter show correct result for valid input
+        $Selenium->find_element( "#FilterGenericAgentJobs", 'css' )->clear();
+        $Selenium->find_element( "#FilterGenericAgentJobs", 'css' )->send_keys($GenericAgentJob);
+        sleep 1;
+
+        $CSSDisplay = $Selenium->execute_script(
+            "return \$('table tbody tr td:contains($GenericAgentJob)').parent().css('display')"
+        );
+
+        $Self->Is(
+            $CSSDisplay,
+            'table-row',
+            "Generic Agent job $GenericAgentJob is found in the table"
         );
 
         # edit test job to delete test ticket
-        $Selenium->find_element( $RandomID, 'link_text' )->click();
+        $Selenium->find_element( $GenericAgentJob, 'link_text' )->VerifiedClick();
+
+        # check breadcrumb on Edit job screen
+        $Count = 1;
+        for my $BreadcrumbText ( 'Generic Agent', 'Edit job: ' . $GenericAgentJob ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
 
         # toggle Execute Ticket Commands widget
-        $Selenium->find_element("//a[contains(\@aria-controls, \'Core_UI_AutogeneratedID_5')]")->click();
+        $Selenium->execute_script('$(".WidgetSimple.Collapsed .WidgetAction.Toggle a").click();');
+
+        # check if the checkbox from dynamicfield is selected
+        $Self->Is(
+            $Selenium->find_element( "#DynamicField_${CheckboxDynamicFieldName}Used1", 'css' )->is_selected(),
+            1,
+            "$CheckboxDynamicFieldName Used1 is selected",
+        );
+
         $Selenium->execute_script("\$('#NewDelete').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Profile", 'css' )->submit();
+        $Selenium->find_element( "#Profile", 'css' )->VerifiedSubmit();
 
         # run test job
-        $Selenium->find_element("//a[contains(\@href, \'Subaction=Run;Profile=$RandomID\' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=Run;Profile=$GenericAgentJob' )]")->VerifiedClick();
+
+        # verify there are no tickets found with enabled ExtendedSearchCondition
+        $Self->True(
+            index( $Selenium->get_page_source(), '0 Tickets affected! What do you want to do?' ) > -1,
+            "No tickets found on page with ExtendedSearchCondition enabled",
+        );
+
+        # disable extended condition search for generic agent ticket search
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::GenericAgentTicketSearch###ExtendedSearchCondition',
+            Value => 0,
+        );
+
+        # navigate to AgentGenericAgent screen again
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminGenericAgent");
+
+        # run test job
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=Run;Profile=$GenericAgentJob' )]")->VerifiedClick();
+
+        # check breadcrumb on Run job screen
+        $Count = 1;
+        for my $BreadcrumbText ( 'Generic Agent', 'Run job: ' . $GenericAgentJob ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
 
         # check if test job show expected result
+        for my $TicketNumber (@TicketNumbers) {
+
+            $Self->True(
+                index( $Selenium->get_page_source(), $TicketNumber ) > -1,
+                "$TicketNumber found on page",
+            );
+
+        }
+
+        # check if there is warning message:
+        # "Affected more tickets then how many will be executed on run job"
         $Self->True(
-            index( $Selenium->get_page_source(), $TicketNumber ) > -1,
-            "$TicketNumber found on page",
+            $Selenium->execute_script(
+                "return \$('p.Error:contains(tickets affected but only)').length"
+            ),
+            "RunLimit warning message shown",
         );
 
         # execute test job
-        $Selenium->find_element("//a[contains(\@href, \'Subaction=RunNow' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=RunNow' )]")->VerifiedClick();
+
+        # run test job again
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=Run;Profile=$GenericAgentJob' )]")->VerifiedClick();
+
+        # check if there is no warning message:
+        # "Affected more tickets than how many will be executed on run job"
+        $Self->False(
+            $Selenium->execute_script(
+                "return \$('p.Error:contains(tickets affected but only)').length"
+            ),
+            "There is no warning message",
+        );
+
+        # execute test job
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=RunNow' )]")->VerifiedClick();
 
         # set test job to invalid
-        $Selenium->find_element( $RandomID, 'link_text' )->click();
+        $Selenium->find_element( $GenericAgentJob, 'link_text' )->VerifiedClick();
+
         $Selenium->execute_script("\$('#Valid').val('0').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Profile", 'css' )->submit();
+        $Selenium->find_element( "#Profile", 'css' )->VerifiedSubmit();
 
         # check class of invalid generic job in the overview table
         $Self->True(
             $Selenium->execute_script(
-                "return \$('tr.Invalid td:contains($RandomID)').length"
+                "return \$('tr.Invalid td:contains($GenericAgentJob)').length"
             ),
             "There is a class 'Invalid' for test generic job",
         );
 
         # delete test job
-        $Selenium->find_element("//a[contains(\@href, \'Subaction=Delete;Profile=$RandomID\' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=Delete;Profile=$GenericAgentJob\' )]")
+            ->VerifiedClick();
 
-    }
+        # delete created test dynamic fields
+        my $Success;
+        for my $DynamicFieldDelete ( $DynamicFieldID, $CheckboxDynamicFieldID ) {
+            $Success = $DynamicFieldObject->DynamicFieldDelete(
+                ID     => $DynamicFieldDelete,
+                UserID => $UserID,
+            );
+            $Self->True(
+                $Success,
+                "Dynamic field - ID $DynamicFieldDelete - deleted",
+            );
+        }
+    },
 
 );
 

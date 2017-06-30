@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,17 +15,24 @@ use vars (qw($Self));
 use Kernel::System::PostMaster;
 
 # get needed objects
-my $ConfigObject            = $Kernel::OM->Get('Kernel::Config');
-my $TicketObject            = $Kernel::OM->Get('Kernel::System::Ticket');
-my $DynamicFieldObject      = $Kernel::OM->Get('Kernel::System::DynamicField');
-my $DynamicFieldValueObject = $Kernel::OM->Get('Kernel::System::DynamicFieldValue');
+my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-my %Jobs = %{ $ConfigObject->Get('PostMaster::PreFilterModule') };
-my @TicketIDs;
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# define needed variable
+my $RandomID = $Helper->GetRandomID();
+my %Jobs     = %{ $ConfigObject->Get('PostMaster::PreFilterModule') };
 
 # create a dynamic field
-my $FieldName = 'ExternalTNRecognition' . int rand 1000;
-my $FieldID   = $DynamicFieldObject->DynamicFieldAdd(
+my $FieldName = 'ExternalTNRecognition' . $RandomID;
+my $FieldID   = $Kernel::OM->Get('Kernel::System::DynamicField')->DynamicFieldAdd(
     Name       => $FieldName,
     Label      => $FieldName . "_test",
     FieldOrder => 9991,
@@ -44,7 +51,7 @@ $Self->True(
     "DynamicFieldAdd() successful for Field $FieldName",
 );
 
-my $ExternalTicketID = '13579' . rand(10000);
+my $ExternalTicketID = '13579' . $RandomID;
 
 # filter test
 my @Tests = (
@@ -57,16 +64,16 @@ Subject: An incident subject Incident-' . $ExternalTicketID . '
 Some Content in Body',
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => 'externalsystem@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => 'externalsystem@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -81,16 +88,16 @@ Some Content in Body',
             "DynamicField_$FieldName" => $ExternalTicketID,
         },
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -103,16 +110,16 @@ Subject: An incident subject Incident-' . $ExternalTicketID . '7
 Some Content in Body',
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -125,16 +132,16 @@ Subject: An incident subject Incident-' . $ExternalTicketID . '
 Some Content in Body',
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '0',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '0',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -147,16 +154,16 @@ Subject: An incident subject Incident-' . $ExternalTicketID . '
 Some Content in Body',
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Report-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Report-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -171,16 +178,16 @@ Some Content in Body',
             "DynamicField_$FieldName" => $ExternalTicketID,
         },
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 2,
     },
@@ -193,16 +200,16 @@ Subject: An incident subject
 Some Content in Body Incident-' . $ExternalTicketID . '7',
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 2,
     },
@@ -215,16 +222,16 @@ Subject: An incident subject
 Some Content in Body Incident-' . $ExternalTicketID,
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '0',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '0',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -237,16 +244,16 @@ Subject: An incident subject
 Some Content in Body Incident-' . $ExternalTicketID,
         Check     => {},
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Report-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Report-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 1,
     },
@@ -261,16 +268,41 @@ Some Content in Body Incident-' . $ExternalTicketID,
             "DynamicField_$FieldName" => $ExternalTicketID,
         },
         JobConfig => {
-            ArticleType       => 'note-report',
-            DynamicFieldName  => $FieldName,
-            FromAddressRegExp => '\\s*@example.com',
-            Module            => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
-            Name              => 'Some Description',
-            NumberRegExp      => '\\s*Incident-(\\d.*)\\s*',
-            SearchInBody      => '1',
-            SearchInSubject   => '1',
-            SenderType        => 'system',
-            TicketStateTypes  => 'new;open',
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident-(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
+        },
+        NewTicket => 2,
+    },
+    {
+        Name =>
+            '#7 - Body Test Success with Complex TicketNumber / Regex; special characters must be escaped in the regex',
+        Email => 'From: Sender <sender@example.com>
+To: Some Name <recipient@example.com>
+Subject: An incident subject
+
+Some Content in Body Incident#/' . $ExternalTicketID,
+        Check => {
+            "DynamicField_$FieldName" => $ExternalTicketID,
+        },
+        JobConfig => {
+            DynamicFieldName     => $FieldName,
+            FromAddressRegExp    => '\\s*@example.com',
+            Module               => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Name                 => 'Some Description',
+            NumberRegExp         => '\\s*Incident\#\/(\\d.*)\\s*',
+            SearchInBody         => '1',
+            SearchInSubject      => '1',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 1,
+            TicketStateTypes     => 'new;open',
         },
         NewTicket => 2,
     },
@@ -322,42 +354,6 @@ for my $Test (@Tests) {
             "#Filter Run() - $Key",
         );
     }
-
-    # remember TicketID
-    push @TicketIDs, $Return[1];
-}
-
-# cleanup the system
-# delete all dynamic field field values
-my $ValuesDeleteSuccess = $DynamicFieldValueObject->AllValuesDelete(
-    FieldID => $FieldID,
-    UserID  => 1,
-);
-$Self->True(
-    $ValuesDeleteSuccess,
-    "Deleted values for dynamic field with id $FieldID.",
-);
-
-# delete dynamic field
-my $FieldDelete = $DynamicFieldObject->DynamicFieldDelete(
-    ID     => $FieldID,
-    UserID => 1,
-);
-$Self->True(
-    $FieldDelete,
-    "Deleted dynamic field with id $FieldID.",
-);
-
-# delete tickets
-for my $TicketID (@TicketIDs) {
-    my $Delete = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-    $Self->True(
-        $Delete || 0,
-        "#Filter TicketDelete()",
-    );
 }
 
 # set back values for prefilter config
@@ -365,5 +361,7 @@ $ConfigObject->Set(
     Key   => 'PostMaster::PreFilterModule',
     Value => \%Jobs,
 );
+
+# cleanup is done by RestoreDatabase.
 
 1;

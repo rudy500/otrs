@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -41,15 +41,17 @@ sub Pre {
     ${ $Param{Data} } =~ s{
         ( > | < | &gt; | &lt; | )  # $1 greater-than and less-than sign
 
-        (                                              #2
+        (                                            # $2
             (?:                                      # http or only www
-                (?: (?: http s? | ftp ) :\/\/) |        # http://,https:// and ftp://
-                (?: (?: \w*www | ftp ) \. \w+ )                 # www.something and ftp.something
+                (?: (?: http s? | ftp ) :\/\/) |     # http://, https:// and ftp://
+                (?: [a-z0-9\-]* \.?                  # allow for sub-domain or prefixes bug#12472
+                    (?: www | ftp ) \. \w+           # www.something and ftp.something
+                )
             )
-            .*?               # this part should be better defined!
+            .*?                           # this part should be better defined!
         )
-        (                               # $3
-            [\?,;!\.\)\]] (?: \s | $ )    # \)\s this construct is because of bug#2450 and bug#7288
+        (                                 # $3
+            [\?,;!\.] (?: \s | $ )        # this construct was root cause of bug#2450 and bug#7288
             | \s
             | \"
             | &quot;
@@ -59,7 +61,7 @@ sub Pre {
             | <                           # "
             | &gt;                        # "
             | &lt;                        # "
-            | $                           # bug# 2715
+            | $                           # bug#2715
         )        }
     {
         my $Start = $1;
@@ -70,14 +72,6 @@ sub Pre {
         }
         else {
             $Counter++;
-            if ( $Link !~ m{^ ( http | https | ftp ) : \/ \/ }xi ) {
-                if ($Link =~ m{^ ftp }smx ) {
-                    $Link = 'ftp://' . $Link;
-                }
-                else {
-                    $Link = 'http://' . $Link;
-                }
-            }
             my $Length = length $Link ;
             $Length = $Length < 75 ? $Length : 75;
             my $String = '#' x $Length;
@@ -106,9 +100,18 @@ sub Post {
         for my $Key ( sort keys %{ $Self->{LinkHash} } ) {
             my $LinkSmall = $Self->{LinkHash}->{$Key};
             $LinkSmall =~ s/^(.{75}).*$/$1\[\.\.\]/gs;
-            $Self->{LinkHash}->{$Key} =~ s/ //g;
+            my $Link = $Self->{LinkHash}->{$Key};
+            if ( $Link !~ m{^ ( http | https | ftp ) : \/ \/ }xi ) {
+                if ( $Link =~ m{^ ftp }smx ) {
+                    $Link = 'ftp://' . $Link;
+                }
+                else {
+                    $Link = 'http://' . $Link;
+                }
+            }
+            $Link =~ s/ //g;
             ${ $Param{Data} }
-                =~ s/\Q$Key\E/<a href=\"$Self->{LinkHash}->{$Key}\" target=\"_blank\" title=\"$Self->{LinkHash}->{$Key}\">$LinkSmall<\/a>/g;
+                =~ s/\Q$Key\E/<a href=\"$Link\" target=\"_blank\" title=\"$Link\">$LinkSmall<\/a>/g;
         }
     }
 

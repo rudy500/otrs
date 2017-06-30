@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AdminTemplateAttachment;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -135,7 +137,20 @@ sub Run {
             );
         }
 
-        return $LayoutObject->Redirect( OP => "Action=$Self->{Action}" );
+        # if the user would like to continue editing the template-attachment relation just redirect to the edit screen
+        # otherwise return to relations overview
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
+            return $LayoutObject->Redirect(
+                OP => "Action=$Self->{Action};Subaction=Attachment;ID=$AttachmentID;Notification=Update"
+            );
+        }
+        else {
+            return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+        }
     }
 
     # ------------------------------------------------------------ #
@@ -168,7 +183,20 @@ sub Run {
             );
         }
 
-        return $LayoutObject->Redirect( OP => "Action=$Self->{Action}" );
+        # if the user would like to continue editing the template-attachment relation just redirect to the edit screen
+        # otherwise return to relations overview
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
+            return $LayoutObject->Redirect(
+                OP => "Action=$Self->{Action};Subaction=Template;ID=$TemplateID;Notification=Update"
+            );
+        }
+        else {
+            return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+        }
     }
 
     # ------------------------------------------------------------ #
@@ -189,12 +217,25 @@ sub _Change {
     my $NeType = $Type eq 'Attachment' ? 'Template' : 'Attachment';
 
     my %VisibleType = (
-        Template   => 'Template',
-        Attachment => 'Attachment',
+        Template   => Translatable('Template'),
+        Attachment => Translatable('Attachment'),
     );
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    $LayoutObject->Block( Name => 'Overview' );
+
+    my $BreadcrumbTitle = $LayoutObject->{LanguageObject}->Translate('Change Attachment Relations for Template');
+
+    if ( $VisibleType{$Type} eq 'Attachment' ) {
+        $BreadcrumbTitle = $LayoutObject->{LanguageObject}->Translate('Change Template Relations for Attachment');
+    }
+
+    $LayoutObject->Block(
+        Name => 'Overview',
+        Data => {
+            Name            => $Param{Name},
+            BreadcrumbTitle => $BreadcrumbTitle,
+        },
+    );
     $LayoutObject->Block( Name => 'ActionList' );
     $LayoutObject->Block( Name => 'ActionOverview' );
     $LayoutObject->Block( Name => 'Filter' );
@@ -203,14 +244,13 @@ sub _Change {
         Name => 'Change',
         Data => {
             %Param,
-            ActionHome    => 'Admin' . $Type,
-            NeType        => $NeType,
-            VisibleType   => $VisibleType{$Type},
-            VisibleNeType => $VisibleType{$NeType},
+            ActionHome      => 'Admin' . $Type,
+            NeType          => $NeType,
+            VisibleType     => $VisibleType{$Type},
+            VisibleNeType   => $VisibleType{$NeType},
+            BreadcrumbTitle => $BreadcrumbTitle,
         },
     );
-
-    $LayoutObject->Block( Name => "ChangeHeader$VisibleType{$NeType}" );
 
     # check if there are attachments/templates
     if ( !%Data ) {

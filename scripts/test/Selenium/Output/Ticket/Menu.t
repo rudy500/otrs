@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,30 +13,17 @@ use utf8;
 use vars (qw($Self));
 
 # get selenium object
-$Kernel::OM->ObjectParamAdd(
-    'Kernel::System::UnitTest::Selenium' => {
-        Verbose => 1,
-        }
-);
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-                }
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
 
         # enable ticket responsible and watch feature
         for my $SysConfigResWatch (qw( Responsible Watcher )) {
-            $SysConfigObject->ConfigItemUpdate(
+            $Helper->ConfigSettingChange(
                 Valid => 1,
                 Key   => "Ticket::$SysConfigResWatch",
                 Value => 1
@@ -60,14 +47,14 @@ $Selenium->RunTest(
             {
                 SysConfigItem => {
                     Active      => "AgentTicketMove",
-                    Description => "Mark as Spam!",
-                    Link        => "Action=AgentTicketMove;TicketID=[% Data.TicketID %];DestQueue=Delete",
+                    Description => "Mark this ticket as junk!",
+                    Link        => "Action=AgentTicketMove;TicketID=[% Data.TicketID %];DestQueue=Junk",
                     Module      => "Kernel::Output::HTML::TicketMenu::Generic",
                     Name        => "Spam",
                     PopupType   => "",
                     Target      => "",
                 },
-                Key => "Ticket::Frontend::MenuModule###470-Spam",
+                Key => "Ticket::Frontend::MenuModule###470-Junk",
             },
             {
                 SysConfigItem => {
@@ -85,7 +72,7 @@ $Selenium->RunTest(
                 SysConfigItem => {
                     Active      => "AgentTicketMove",
                     Description => "Mark as Spam!",
-                    Link        => "Action=AgentTicketMove;TicketID=[% Data.TicketID %];DestQueue=Delete",
+                    Link        => "Action=AgentTicketMove;TicketID=[% Data.TicketID %];DestQueue=Junk",
                     Module      => "Kernel::Output::HTML::TicketMenu::Generic",
                     Name        => "Spam",
                     PopupType   => "",
@@ -97,18 +84,18 @@ $Selenium->RunTest(
 
         # enable delete and spam menu in sysconfig
         for my $SysConfigItem (@TicketMenu) {
-            $Kernel::OM->Get('Kernel::Config')->Set(
+            $Helper->ConfigSettingChange(
                 Key   => $SysConfigItem->{Key},
                 Value => $SysConfigItem->{SysConfigItem},
             );
-            $SysConfigObject->ConfigItemUpdate(
+            $Helper->ConfigSettingChange(
                 Valid => 1,
                 Key   => $SysConfigItem->{Key},
                 Value => $SysConfigItem->{SysConfigItem},
             );
         }
 
-        # create and log in test user
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -134,16 +121,21 @@ $Selenium->RunTest(
             Lock         => 'unlock',
             Priority     => '3 normal',
             State        => 'new',
-            CustomerID   => '123465',
+            CustomerID   => 'TestCustomer',
             CustomerUser => 'customer@example.com',
             OwnerID      => $TestUserID,
             UserID       => $TestUserID,
         );
 
+        $Self->True(
+            $TicketID,
+            "TicketID $TicketID - created"
+        );
+
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         # go to raw queue view with focus on created test ticket
-        $Selenium->get(
+        $Selenium->VerifiedGet(
             "${ScriptAlias}index.pl?Action=AgentTicketQueue;Filter=Unlocked;OrderBy=Down;QueueID=2;SortBy=Age;View=Preview;"
         );
 
@@ -179,20 +171,37 @@ $Selenium->RunTest(
             },
             {
                 Name   => "Spam",
-                Action => "AgentTicketMove;TicketID=$TicketID;DestQueue=Delete",
+                Action => "AgentTicketMove;TicketID=$TicketID;DestQueue=Junk",
             },
         );
 
         # check ticket pre menu modules
         for my $MenuModulePre (@PreMenuModule) {
+
+            my $NameForID;
+            if ( $MenuModulePre->{Name} eq 'Move' ) {
+                $NameForID = 'DestQueueID';
+            }
+            else {
+                $NameForID = $MenuModulePre->{Name};
+                $NameForID =~ s/ /-/g if ( $NameForID =~ m/ / );
+            }
+
+            # check pre menu module link
             $Self->True(
                 $Selenium->find_element("//a[contains(\@href, \'Action=$MenuModulePre->{Action}' )]"),
-                "Ticket pre menu $MenuModulePre->{Name} - found"
+                "Ticket pre menu $MenuModulePre->{Name} is found"
+            );
+
+            # check pre menu module name
+            $Self->True(
+                $Selenium->find_element( "#$NameForID$TicketID", 'css' ),
+                "Ticket menu name $MenuModulePre->{Name} is found"
             );
         }
 
         # go to test created ticket zoom
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
 
         # create menu module test params
         my @MenuModule = (
@@ -274,15 +283,49 @@ $Selenium->RunTest(
             },
             {
                 Name   => "Spam",
-                Action => "AgentTicketMove;TicketID=$TicketID;DestQueue=Delete",
+                Action => "AgentTicketMove;TicketID=$TicketID;DestQueue=Junk",
+            },
+            {
+                Name => "People",
+                Type => "Cluster",
+            },
+            {
+                Name => "Communication",
+                Type => "Cluster",
+            },
+            {
+                Name => "Miscellaneous",
+                Type => "Cluster",
             },
         );
 
         # check ticket menu modules
         for my $ZoomMenuModule (@MenuModule) {
+
+            my $NameForID = $ZoomMenuModule->{Name};
+            $NameForID =~ s/ /-/g if ( $NameForID =~ m/ / );
+
+            if ( defined $ZoomMenuModule->{Type} && $ZoomMenuModule->{Type} eq 'Cluster' ) {
+
+                # check menu module link
+                $Self->True(
+                    $Selenium->find_element( "li ul#nav-$NameForID-container", 'css' ),
+                    "Ticket menu link $ZoomMenuModule->{Name} is found"
+                );
+            }
+            else {
+
+                # check menu module link
+                $Self->True(
+                    $Selenium->find_element("//a[contains(\@href, \'Action=$ZoomMenuModule->{Action}' )]"),
+                    "Ticket menu link $ZoomMenuModule->{Name} is found"
+                );
+            }
+
+            # check menu module name
             $Self->True(
-                $Selenium->find_element("//a[contains(\@href, \'Action=$ZoomMenuModule->{Action}' )]"),
-                "Ticket menu $ZoomMenuModule->{Name} - found"
+                $Selenium->find_element( "li#nav-$NameForID", 'css' ),
+                "Ticket menu name $ZoomMenuModule->{Name} is found"
             );
         }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ package Kernel::Modules::AgentDashboardCommon;
 use strict;
 use warnings;
 
+use Kernel::Language qw(Translatable);
 use Kernel::System::VariableCheck qw(:all);
 
 our $ObjectManagerDisabled = 1;
@@ -38,6 +39,11 @@ sub Run {
         $MainMenuConfigKey = 'AgentCustomerInformationCenter::MainMenu';
         $UserSettingsKey   = 'UserCustomerInformationCenter';
     }
+    elsif ( $Self->{Action} eq 'AgentCustomerUserInformationCenter' ) {
+        $BackendConfigKey  = 'AgentCustomerUserInformationCenter::Backend';
+        $MainMenuConfigKey = 'AgentCustomerUserInformationCenter::MainMenu';
+        $UserSettingsKey   = 'UserCustomerUserInformationCenter';
+    }
 
     # get needed objects
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -47,12 +53,13 @@ sub Run {
     my $Config = $ConfigObject->Get($BackendConfigKey);
     if ( !$Config ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'No such config for ' . $BackendConfigKey,
+            Message => $LayoutObject->{LanguageObject}->Translate( 'No such config for %s', $BackendConfigKey ),
         );
     }
 
     # Get all configured statistics from the system that should be shown as a dashboard widget
     #   and register them dynamically in the configuration.
+    my @StatsIDs;
     if ( $Self->{Action} eq 'AgentDashboard' ) {
 
         my $StatsHash = $Kernel::OM->Get('Kernel::System::Stats')->StatsListGet(
@@ -78,9 +85,9 @@ sub Run {
                 # replace all line breaks with spaces (otherwise Translate() will not work correctly)
                 $StatsHash->{$StatID}->{Description} =~ s{\r?\n|\r}{ }msxg;
 
-                my $Description = $LayoutObject->{LanguageObject}->Get( $StatsHash->{$StatID}->{Description} );
+                my $Description = $LayoutObject->{LanguageObject}->Translate( $StatsHash->{$StatID}->{Description} );
 
-                my $Title = $LayoutObject->{LanguageObject}->Get( $StatsHash->{$StatID}->{Title} );
+                my $Title = $LayoutObject->{LanguageObject}->Translate( $StatsHash->{$StatID}->{Title} );
                 $Title = $LayoutObject->{LanguageObject}->Translate('Statistic') . ': '
                     . $Title . ' ('
                     . $ConfigObject->Get('Stats::StatsHook')
@@ -95,7 +102,14 @@ sub Run {
                     'Description' => $Description,
                     'Group'       => $StatsPermissionGroups,
                 };
+                push @StatsIDs, $StatID;
             }
+
+            # send data to JS
+            $LayoutObject->AddJSData(
+                Key   => 'DashboardStatsIDs',
+                Value => \@StatsIDs
+            );
         }
     }
 
@@ -109,12 +123,33 @@ sub Run {
         # check CustomerID presence for all subactions that need it
         if ( $Self->{Subaction} ne 'UpdatePosition' ) {
             if ( !$Self->{CustomerID} ) {
+
+                $LayoutObject->AddJSOnDocumentComplete(
+                    Code => 'Core.Agent.CustomerInformationCenterSearch.OpenSearchDialog();'
+                );
+
                 my $Output = $LayoutObject->Header();
                 $Output .= $LayoutObject->NavigationBar();
-                $Output .= $LayoutObject->Output(
-                    TemplateFile => 'AgentCustomerInformationCenterBlank',
-                    Data         => \%Param,
+                $Output .= $LayoutObject->Footer();
+                return $Output;
+            }
+        }
+    }
+    elsif ( $Self->{Action} eq 'AgentCustomerUserInformationCenter' ) {
+
+        $Self->{CustomerUserID} = $ParamObject->GetParam( Param => 'CustomerUserID' );
+
+        # check CustomerUserID presence for all subactions that need it
+        if ( $Self->{Subaction} ne 'UpdatePosition' ) {
+
+            if ( !$Self->{CustomerUserID} ) {
+
+                $LayoutObject->AddJSOnDocumentComplete(
+                    Code => 'Core.Agent.CustomerUserInformationCenterSearch.OpenSearchDialog();'
                 );
+
+                my $Output = $LayoutObject->Header();
+                $Output .= $LayoutObject->NavigationBar();
                 $Output .= $LayoutObject->Footer();
                 return $Output;
             }
@@ -135,7 +170,7 @@ sub Run {
         my $Name = $ParamObject->GetParam( Param => 'Name' );
         my $Key = $UserSettingsKey . $Name;
 
-        # update ssession
+        # update session
         $SessionObject->UpdateSessionID(
             SessionID => $Self->{SessionID},
             Key       => $Key,
@@ -154,6 +189,9 @@ sub Run {
         my $URL = "Action=$Self->{Action}";
         if ( $Self->{CustomerID} ) {
             $URL .= ";CustomerID=" . $LayoutObject->LinkEncode( $Self->{CustomerID} );
+        }
+        if ( $Self->{CustomerUserID} ) {
+            $URL .= ";CustomerUserID=" . $LayoutObject->LinkEncode( $Self->{CustomerUserID} );
         }
 
         return $LayoutObject->Redirect(
@@ -177,7 +215,7 @@ sub Run {
         );
         if ( !@PreferencesOnly ) {
             $LayoutObject->FatalError(
-                Message => "No preferences for $Name!",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'No preferences for %s!', $Name ),
             );
         }
 
@@ -190,7 +228,7 @@ sub Run {
             # update runtime vars
             $LayoutObject->{ $Param->{Name} } = $Value;
 
-            # update ssession
+            # update session
             $SessionObject->UpdateSessionID(
                 SessionID => $Self->{SessionID},
                 Key       => $Param->{Name},
@@ -215,7 +253,7 @@ sub Run {
         );
         if ( !%ElementReload ) {
             $LayoutObject->FatalError(
-                Message => "Can't get element data of $Name!",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Can\'t get element data of %s!', $Name ),
             );
         }
         return $LayoutObject->Attachment(
@@ -243,7 +281,7 @@ sub Run {
             }
             my $Key = $UserSettingsKey . $Name;
 
-            # update ssession
+            # update session
             $SessionObject->UpdateSessionID(
                 SessionID => $Self->{SessionID},
                 Key       => $Key,
@@ -263,6 +301,9 @@ sub Run {
         my $URL = "Action=$Self->{Action}";
         if ( $Self->{CustomerID} ) {
             $URL .= ";CustomerID=" . $LayoutObject->LinkEncode( $Self->{CustomerID} );
+        }
+        if ( $Self->{CustomerUserID} ) {
+            $URL .= ";CustomerUserID=" . $LayoutObject->LinkEncode( $Self->{CustomerUserID} );
         }
 
         return $LayoutObject->Redirect(
@@ -286,7 +327,7 @@ sub Run {
             $Data .= $Backend . ';';
         }
 
-        # update ssession
+        # update session
         $SessionObject->UpdateSessionID(
             SessionID => $Self->{SessionID},
             Key       => $Key,
@@ -331,9 +372,11 @@ sub Run {
 
             if ( $ColumnName eq 'CustomerID' ) {
                 push @{ $ColumnFilter{$ColumnName} }, $FilterValue;
+                push @{ $ColumnFilter{ $ColumnName . 'Raw' } }, $FilterValue;
             }
             elsif ( $ColumnName eq 'CustomerUserID' ) {
-                push @{ $ColumnFilter{CustomerUserLogin} }, $FilterValue;
+                push @{ $ColumnFilter{CustomerUserLogin} },    $FilterValue;
+                push @{ $ColumnFilter{CustomerUserLoginRaw} }, $FilterValue;
             }
             else {
                 push @{ $ColumnFilter{ $ColumnName . 'IDs' } }, $FilterValue;
@@ -384,7 +427,7 @@ sub Run {
 
         if ( !%Element ) {
             $LayoutObject->FatalError(
-                Message => "Can't get element data of $Name!",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Can\'t get element data of %s!', $Name ),
             );
         }
         return $LayoutObject->Attachment(
@@ -415,7 +458,7 @@ sub Run {
 
         if ( !$FilterContent ) {
             $LayoutObject->FatalError(
-                Message => "Can't get filter content data of $Name!",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Can\'t get filter content data of %s!', $Name ),
             );
         }
 
@@ -452,12 +495,26 @@ sub Run {
             $ContentBlockData{CustomerIDTitle} = "$CustomerCompanyData{CustomerCompanyName} ($Self->{CustomerID})";
         }
     }
+    elsif ( $Self->{Action} eq 'AgentCustomerUserInformationCenter' ) {
+
+        my %CustomerUserData = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserDataGet(
+            User => $Self->{CustomerUserID},
+        );
+
+        $ContentBlockData{CustomerUserID} = $Self->{CustomerUserID};
+
+        # H1 title
+        $ContentBlockData{CustomerUserIDTitle} = "\"$CustomerUserData{UserFullname}\" <$CustomerUserData{UserEmail}>";
+
+    }
 
     # show dashboard
     $LayoutObject->Block(
         Name => 'Content',
         Data => \%ContentBlockData,
     );
+
+    my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
 
     # get shown backends
     my %Backends;
@@ -470,8 +527,12 @@ sub Run {
             my @Groups = split /;/, $Config->{$Name}->{Group};
             GROUP:
             for my $Group (@Groups) {
-                my $Permission = 'UserIsGroupRo[' . $Group . ']';
-                if ( defined $Self->{$Permission} && $Self->{$Permission} eq 'Yes' ) {
+                my $HasPermission = $GroupObject->PermissionCheck(
+                    UserID    => $Self->{UserID},
+                    GroupName => $Group,
+                    Type      => 'ro',
+                );
+                if ($HasPermission) {
                     $PermissionOK = 1;
                     last GROUP;
                 }
@@ -518,7 +579,11 @@ sub Run {
         push @Order, $Name;
     }
 
+    # get default columns
+    my $Columns = $Self->{Config}->{DefaultColumns} || $ConfigObject->Get('DefaultOverviewColumns') || {};
+
     # try every backend to load and execute it
+    my @ContainerNames;
     NAME:
     for my $Name (@Order) {
 
@@ -534,17 +599,57 @@ sub Run {
         my $NameForm = $Name;
         $NameForm =~ s{-}{}g;
 
+        my %JSData = (
+            Name     => $Name,
+            NameForm => $NameForm,
+        );
+
+        push @ContainerNames, \%JSData;
+
         # rendering
         $LayoutObject->Block(
             Name => $Element{Config}->{Block},
             Data => {
                 %{ $Element{Config} },
-                Name       => $Name,
-                NameForm   => $NameForm,
-                Content    => ${ $Element{Content} },
-                CustomerID => $Self->{CustomerID} || '',
+                Name           => $Name,
+                NameForm       => $NameForm,
+                Content        => ${ $Element{Content} },
+                CustomerID     => $Self->{CustomerID} || '',
+                CustomerUserID => $Self->{CustomerUserID} || '',
             },
         );
+
+        # show refresh link if refreshing is available
+        if ( $Element{Config}->{CanRefresh} ) {
+
+            my $NameHTML = $Name;
+            $NameHTML =~ s{-}{_}xmsg;
+
+            # send data to JS
+            $LayoutObject->AddJSData(
+                Key   => 'CanRefresh-' . $Name,
+                Value => {
+                    Name     => $Name,
+                    NameHTML => $NameHTML,
+                    }
+            );
+
+            $LayoutObject->Block(
+                Name => $Element{Config}->{Block} . 'Refresh',
+                Data => {
+                    %{ $Element{Config} },
+                    Name     => $Name,
+                    NameHTML => $NameHTML,
+                },
+            );
+        }
+
+        # if column is not a default column, add it for translation
+        for my $Column ( sort keys %{ $Element{Config}->{DefaultColumns} } ) {
+            if ( !defined $Columns->{$Column} ) {
+                $Columns->{$Column} = $Element{Config}->{DefaultColumns}->{$Column}
+            }
+        }
 
         # show settings link if preferences are available
         if ( $Element{Preferences} && @{ $Element{Preferences} } ) {
@@ -578,6 +683,7 @@ sub Run {
                         Name        => $Param->{Name},
                         SelectedID  => $Param->{SelectedID},
                         Translation => $Param->{Translation},
+                        Class       => 'Modernize',
                     );
                 }
                 $LayoutObject->Block(
@@ -605,6 +711,12 @@ sub Run {
         }
     }
 
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'ContainerNames',
+        Value => \@ContainerNames,
+    );
+
     # build main menu
     my $MainMenuConfig = $ConfigObject->Get($MainMenuConfigKey);
     if ( IsHashRefWithData($MainMenuConfig) ) {
@@ -616,14 +728,14 @@ sub Run {
                 Name => 'MainMenuItem',
                 Data => {
                     %{ $MainMenuConfig->{$MainMenuItem} },
-                    CustomerID => $Self->{CustomerID},
+                    CustomerID     => $Self->{CustomerID},
+                    CustomerUserID => $Self->{CustomerUserID},
                 },
             );
         }
     }
 
     # add translations for the allocation lists for regular columns
-    my $Columns = $Self->{Config}->{DefaultColumns} || $ConfigObject->Get('DefaultOverviewColumns') || {};
     if ( $Columns && IsHashRefWithData($Columns) ) {
 
         COLUMN:
@@ -634,31 +746,33 @@ sub Run {
 
             my $TranslatedWord = $Column;
             if ( $Column eq 'EscalationTime' ) {
-                $TranslatedWord = 'Service Time';
+                $TranslatedWord = Translatable('Service Time');
             }
             elsif ( $Column eq 'EscalationResponseTime' ) {
-                $TranslatedWord = 'First Response Time';
+                $TranslatedWord = Translatable('First Response Time');
             }
             elsif ( $Column eq 'EscalationSolutionTime' ) {
-                $TranslatedWord = 'Solution Time';
+                $TranslatedWord = Translatable('Solution Time');
             }
             elsif ( $Column eq 'EscalationUpdateTime' ) {
-                $TranslatedWord = 'Update Time';
+                $TranslatedWord = Translatable('Update Time');
             }
             elsif ( $Column eq 'PendingTime' ) {
-                $TranslatedWord = 'Pending till';
+                $TranslatedWord = Translatable('Pending till');
+            }
+            elsif ( $Column eq 'CustomerCompanyName' ) {
+                $TranslatedWord = Translatable('Customer Company Name');
+            }
+            elsif ( $Column eq 'CustomerUserID' ) {
+                $TranslatedWord = Translatable('Customer User ID');
             }
 
-            $LayoutObject->Block(
-                Name => 'ColumnTranslation',
-                Data => {
-                    ColumnName      => $Column,
-                    TranslateString => $TranslatedWord,
-                },
+            # send data to JS
+            $LayoutObject->AddJSData(
+                Key   => 'Column' . $Column,
+                Value => $LayoutObject->{LanguageObject}->Translate($TranslatedWord),
             );
-            $LayoutObject->Block(
-                Name => 'ColumnTranslationSeparator',
-            );
+
         }
     }
 
@@ -679,19 +793,11 @@ sub Run {
 
             $Counter++;
 
-            $LayoutObject->Block(
-                Name => 'ColumnTranslation',
-                Data => {
-                    ColumnName      => 'DynamicField_' . $DynamicField->{Name},
-                    TranslateString => $DynamicField->{Label},
-                },
+            # send data to JS
+            $LayoutObject->AddJSData(
+                Key   => 'ColumnDynamicField_' . $DynamicField->{Name},
+                Value => $LayoutObject->{LanguageObject}->Translate( $DynamicField->{Label} ),
             );
-
-            if ( $Counter < scalar @{$ColumnsDynamicField} ) {
-                $LayoutObject->Block(
-                    Name => 'ColumnTranslationSeparator',
-                );
-            }
         }
     }
 
@@ -717,14 +823,20 @@ sub _Element {
     my $GetColumnFilter       = $Param{GetColumnFilter};
     my $GetColumnFilterSelect = $Param{GetColumnFilterSelect};
 
+    my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
+
     # check permissions
     if ( $Configs->{$Name}->{Group} ) {
         my $PermissionOK = 0;
         my @Groups = split /;/, $Configs->{$Name}->{Group};
         GROUP:
         for my $Group (@Groups) {
-            my $Permission = 'UserIsGroupRo[' . $Group . ']';
-            if ( defined $Self->{$Permission} && $Self->{$Permission} eq 'Yes' ) {
+            my $HasPermission = $GroupObject->PermissionCheck(
+                UserID    => $Self->{UserID},
+                GroupName => $Group,
+                Type      => 'ro',
+            );
+            if ($HasPermission) {
                 $PermissionOK = 1;
                 last GROUP;
             }
@@ -743,12 +855,12 @@ sub _Element {
         Config                => $Configs->{$Name},
         Name                  => $Name,
         CustomerID            => $Self->{CustomerID} || '',
+        CustomerUserID        => $Self->{CustomerUserID} || '',
         SortBy                => $SortBy,
         OrderBy               => $OrderBy,
         ColumnFilter          => $ColumnFilter,
         GetColumnFilter       => $GetColumnFilter,
         GetColumnFilterSelect => $GetColumnFilterSelect,
-
     );
 
     # get module config
@@ -766,10 +878,11 @@ sub _Element {
 
     if ( $Param{FilterContentOnly} ) {
         my $FilterContent = $Object->FilterContent(
-            FilterColumn => $Param{FilterColumn},
-            Config       => $Configs->{$Name},
-            Name         => $Name,
-            CustomerID   => $Self->{CustomerID} || '',
+            FilterColumn   => $Param{FilterColumn},
+            Config         => $Configs->{$Name},
+            Name           => $Name,
+            CustomerID     => $Self->{CustomerID} || '',
+            CustomerUserID => $Self->{CustomerUserID} || '',
         );
         return $FilterContent;
     }
@@ -795,16 +908,17 @@ sub _Element {
 
     # check backends cache (html page cache)
     my $Content;
-    my $CacheKey = $Config{CacheKey};
-    $Self->{CacheObject} = $Kernel::OM->Get('Kernel::System::Cache');
+    my $CacheKey    = $Config{CacheKey};
+    my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
 
     if ( !$CacheKey ) {
         $CacheKey = $Name . '-'
-            . ( $Self->{CustomerID} || '' ) . '-'
+            . ( $Self->{CustomerID}     || '' ) . '-'
+            . ( $Self->{CustomerUserID} || '' ) . '-'
             . $LayoutObject->{UserLanguage};
     }
     if ( $Config{CacheTTL} ) {
-        $Content = $Self->{CacheObject}->Get(
+        $Content = $CacheObject->Get(
             Type => 'Dashboard',
             Key  => $CacheKey,
         );
@@ -815,8 +929,9 @@ sub _Element {
     if ( !defined $Content || $SortBy ) {
         $CacheUsed = 0;
         $Content   = $Object->Run(
-            AJAX       => $Param{AJAX},
-            CustomerID => $Self->{CustomerID} || '',
+            AJAX           => $Param{AJAX},
+            CustomerID     => $Self->{CustomerID} || '',
+            CustomerUserID => $Self->{CustomerUserID} || '',
         );
     }
 
@@ -825,7 +940,7 @@ sub _Element {
 
     # set cache (html page cache)
     if ( !$CacheUsed && $Config{CacheTTL} ) {
-        $Self->{CacheObject}->Set(
+        $CacheObject->Set(
             Type  => 'Dashboard',
             Key   => $CacheKey,
             Value => $Content,

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -21,6 +21,8 @@ our $ObjectManagerDisabled = 1;
 sub new {
     my ( $Type, %Param ) = @_;
 
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
     # allocate new hash for object
     my $Self = {};
     bless( $Self, $Type );
@@ -28,13 +30,15 @@ sub new {
     for my $NeededData (qw( UserID Subaction AccessRo SessionID ))
     {
         if ( !$Param{$NeededData} ) {
-            $Kernel::OM->Get('Kernel::Output::HTML::Layout')->FatalError( Message => "Got no $NeededData!" );
+            $LayoutObject->FatalError(
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Parameter %s is missing.', $NeededData ),
+            );
         }
         $Self->{$NeededData} = $Param{$NeededData};
     }
 
     # AccessRw controls the adding/editing of statistics.
-    for my $Param (qw( AccessRw RequestedURL LastStatsOverview)) {
+    for my $Param (qw( AccessRw RequestedURL )) {
         if ( $Param{$Param} ) {
             $Self->{$Param} = $Param{$Param};
         }
@@ -46,6 +50,17 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    # set breadcrumbpath for overview screen and it will be used as base for other screens
+    @{ $Self->{BreadcrumbPath} } = (
+        {
+            Name =>
+                $LayoutObject->{LanguageObject}->Translate('Statistics Overview'),
+            Link => 'AgentStatistics;Subaction=Overview',
+        }
+    );
+
     my $Subaction = $Self->{Subaction};
 
     my %RoSubactions = (
@@ -56,7 +71,7 @@ sub Run {
 
     if ( $RoSubactions{$Subaction} ) {
         if ( !$Self->{AccessRo} ) {
-            return $Kernel::OM->Get('Kernel::Output::HTML::Layout')->NoPermission( WithHeader => 'yes' );
+            return $LayoutObject->NoPermission( WithHeader => 'yes' );
         }
         my $Method = $RoSubactions{$Subaction};
         return $Self->$Method();
@@ -77,14 +92,16 @@ sub Run {
 
     if ( $RwSubactions{$Subaction} ) {
         if ( !$Self->{AccessRw} ) {
-            return $Kernel::OM->Get('Kernel::Output::HTML::Layout')->NoPermission( WithHeader => 'yes' );
+            return $LayoutObject->NoPermission( WithHeader => 'yes' );
         }
         my $Method = $RwSubactions{$Subaction};
         return $Self->$Method();
     }
 
     # No (known) subaction?
-    return $Kernel::OM->Get('Kernel::Output::HTML::Layout')->ErrorScreen( Message => 'Invalid Subaction.' );
+    return $LayoutObject->ErrorScreen(
+        Message => Translatable('Invalid Subaction.'),
+    );
 }
 
 sub OverviewScreen {
@@ -94,27 +111,12 @@ sub OverviewScreen {
     my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    $Kernel::OM->Get('Kernel::System::AuthSession')->UpdateSessionID(
-        SessionID => $Self->{SessionID},
-        Key       => 'LastStatsOverview',
-        Value     => $Self->{RequestedURL},
-        StoreData => 1,
-    );
-
     # Get Params
     $Param{SearchPageShown} = $ConfigObject->Get('Stats::SearchPageShown') || 50;
     $Param{SearchLimit}     = $ConfigObject->Get('Stats::SearchLimit')     || 1000;
     $Param{OrderBy}   = $ParamObject->GetParam( Param => 'OrderBy' )   || 'ID';
     $Param{Direction} = $ParamObject->GetParam( Param => 'Direction' ) || 'ASC';
     $Param{StartHit} = int( $ParamObject->GetParam( Param => 'StartHit' ) || 1 );
-
-    # store last screen
-    $Kernel::OM->Get('Kernel::System::AuthSession')->UpdateSessionID(
-        SessionID => $Self->{SessionID},
-        Key       => 'LastStatsOverview',
-        Value     => $Self->{RequestedURL},
-        StoreData => 1,
-    );
 
     # get all Stats from the db
     my $Result = $Kernel::OM->Get('Kernel::System::Stats')->GetStatsList(
@@ -185,11 +187,13 @@ sub OverviewScreen {
     # build output
     my $Output = $LayoutObject->Header( Title => 'Overview' );
     $Output .= $LayoutObject->NavigationBar();
+
     $Output .= $LayoutObject->Output(
         Data => {
             %Pagination,
             %Param,
-            AccessRw => $Self->{AccessRw},
+            AccessRw       => $Self->{AccessRw},
+            BreadcrumbPath => $Self->{BreadcrumbPath},
         },
         TemplateFile => 'AgentStatisticsOverview',
     );
@@ -210,6 +214,7 @@ sub ImportScreen {
         TemplateFile => 'AgentStatisticsImport',
         Data         => {
             %Errors,
+            BreadcrumbPath => $Self->{BreadcrumbPath},
         },
     );
     $Output .= $LayoutObject->Footer();
@@ -271,7 +276,9 @@ sub ExportAction {
 
     my $StatID = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'StatID' );
     if ( !$StatID ) {
-        return $LayoutObject->ErrorScreen( Message => 'Export: Need StatID!' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('Export: Need StatID!'),
+        );
     }
 
     my $ExportFile = $Kernel::OM->Get('Kernel::System::Stats')->Export(
@@ -294,7 +301,9 @@ sub DeleteAction {
 
     my $StatID = $ParamObject->GetParam( Param => 'StatID' );
     if ( !$StatID ) {
-        return $LayoutObject->ErrorScreen( Message => 'Delete: Get no StatID!' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('Delete: Get no StatID!'),
+        );
     }
 
     # challenge token check for write action
@@ -303,7 +312,7 @@ sub DeleteAction {
         StatID => $StatID,
         UserID => $Self->{UserID},
     );
-    return $LayoutObject->Redirect( OP => $Self->{LastStatsOverview}  );
+    return $LayoutObject->Redirect( OP => "Action=AgentStatistics;Subaction=Overview" );
 }
 
 sub EditScreen {
@@ -316,7 +325,7 @@ sub EditScreen {
     # get param
     if ( !( $Param{StatID} = $ParamObject->GetParam( Param => 'StatID' ) ) ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Need StatID!',
+            Message => Translatable('Need StatID!'),
         );
     }
 
@@ -333,10 +342,6 @@ sub EditScreen {
         );
 
     if ( $Stat->{StatType} eq 'dynamic' ) {
-        $Frontend{PreviewWidget} = $Kernel::OM->Get('Kernel::Output::HTML::Statistics::View')->PreviewWidget(
-            Stat   => $Stat,
-            UserID => $Self->{UserID},
-        );
         $Frontend{XAxisWidget} = $Kernel::OM->Get('Kernel::Output::HTML::Statistics::View')->XAxisWidget(
             Stat   => $Stat,
             UserID => $Self->{UserID},
@@ -349,15 +354,21 @@ sub EditScreen {
             Stat   => $Stat,
             UserID => $Self->{UserID},
         );
+        $Frontend{PreviewWidget} = $Kernel::OM->Get('Kernel::Output::HTML::Statistics::View')->PreviewWidget(
+            Stat   => $Stat,
+            UserID => $Self->{UserID},
+        );
     }
 
     my $Output = $LayoutObject->Header( Title => 'Edit' );
     $Output .= $LayoutObject->NavigationBar();
+
     $Output .= $LayoutObject->Output(
         TemplateFile => 'AgentStatisticsEdit',
         Data         => {
             %Frontend,
             %{$Stat},
+            BreadcrumbPath => $Self->{BreadcrumbPath},
         },
     );
     $Output .= $LayoutObject->Footer();
@@ -380,7 +391,7 @@ sub EditAction {
 
     if ( !$Stat ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Need StatID!',
+            Message => Translatable('Need StatID!'),
         );
     }
 
@@ -393,6 +404,10 @@ sub EditAction {
         if ( !length $Data{$Key} ) {    # Valid can be 0
             $Errors{ $Key . 'ServerError' } = 'ServerError';
         }
+    }
+
+    if ( length $ParamObject->GetParam( Param => 'TimeZone' ) ) {
+        $Data{TimeZone} = $ParamObject->GetParam( Param => 'TimeZone' );
     }
 
     for my $Key (qw(SumRow SumCol Cache ShowAsDashboardWidget)) {
@@ -537,8 +552,10 @@ sub EditAction {
                 my %TimeScaleLookup = map { $_ => 1 } sort keys %{$TimeScale};
 
                 # set the first allowed time scale value as default
-                if (   !$Data{UseAsValueSeries}[$Index]{SelectedValues}[0]
-                    || !exists $TimeScaleLookup{ $Data{UseAsValueSeries}[$Index]{SelectedValues}[0] } )
+                if (
+                    !$Data{UseAsValueSeries}[$Index]{SelectedValues}[0]
+                    || !exists $TimeScaleLookup{ $Data{UseAsValueSeries}[$Index]{SelectedValues}[0] }
+                    )
                 {
 
                     my @TimeScaleSorted
@@ -663,13 +680,12 @@ sub EditAction {
         UserID => $Self->{UserID},
     );
 
-    if ( $ParamObject->GetParam( Param => 'SaveAndFinish' ) ) {
-        return $LayoutObject->Redirect( OP => $Self->{LastStatsOverview} );
+    if ( $ParamObject->GetParam( Param => 'ReturnToStatisticOverview' ) ) {
+        return $LayoutObject->Redirect( OP => "Action=AgentStatistics;Subaction=Overview" );
     }
 
-    return $Self->EditScreen(
-        Errors   => \%Errors,
-        GetParam => \%Data,
+    return $LayoutObject->Redirect(
+        OP => "Action=AgentStatistics;Subaction=Edit;StatID=$Stat->{StatID}"
     );
 }
 
@@ -688,7 +704,9 @@ sub ViewScreen {
     # get StatID
     my $StatID = $ParamObject->GetParam( Param => 'StatID' );
     if ( !$StatID ) {
-        return $LayoutObject->ErrorScreen( Message => 'Need StatID!' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('Need StatID!'),
+        );
     }
 
     # get message if one available
@@ -700,7 +718,7 @@ sub ViewScreen {
     );
     if ( !IsHashRefWithData( $StatsList->{$StatID} ) ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Could not load stat.',
+            Message => Translatable('Could not load stat.'),
         );
     }
 
@@ -712,7 +730,7 @@ sub ViewScreen {
     # get param
     if ( !IsHashRefWithData($Stat) ) {
         return $LayoutObject->ErrorScreen(
-            Message => 'Could not load stat.',
+            Message => Translatable('Could not load stat.'),
         );
     }
 
@@ -725,6 +743,7 @@ sub ViewScreen {
 
     my $Output = $LayoutObject->Header( Title => 'View' );
     $Output .= $LayoutObject->NavigationBar();
+
     $Output .= $LayoutObject->Output(
         TemplateFile => 'AgentStatisticsView',
         Data         => {
@@ -732,6 +751,7 @@ sub ViewScreen {
             Errors   => \@Errors,
             %Frontend,
             %{$Stat},
+            BreadcrumbPath => $Self->{BreadcrumbPath},
         },
     );
     $Output .= $LayoutObject->Footer();
@@ -787,13 +807,16 @@ sub AddScreen {
     }
 
     # build output
-    my $Output = $LayoutObject->Header( Title => 'Add New Statistic' );
+    my $Output = $LayoutObject->Header(
+        Title => Translatable('Add New Statistic'),
+    );
     $Output .= $LayoutObject->NavigationBar();
     $Output .= $LayoutObject->Output(
         TemplateFile => 'AgentStatisticsAdd',
         Data         => {
             %Frontend,
             %Errors,
+            BreadcrumbPath => $Self->{BreadcrumbPath},
         },
     );
     $Output .= $LayoutObject->Footer();
@@ -815,6 +838,10 @@ sub AddAction {
         if ( !length $Data{$Key} ) {    # Valid can be 0
             $Errors{ $Key . 'ServerError' } = 'ServerError';
         }
+    }
+
+    if ( length $ParamObject->GetParam( Param => 'TimeZone' ) ) {
+        $Data{TimeZone} = $ParamObject->GetParam( Param => 'TimeZone' );
     }
 
     # This seems to be historical metadata that is needed for display.
@@ -856,7 +883,9 @@ sub AddAction {
         UserID => $Self->{UserID},
     );
     if ( !$Param{StatID} ) {
-        return $LayoutObject->ErrorScreen( Message => 'Could not create statistic.' );
+        return $LayoutObject->ErrorScreen(
+            Message => Translatable('Could not create statistic.'),
+        );
     }
     $Kernel::OM->Get('Kernel::System::Stats')->StatsUpdate(
         StatID => $Param{StatID},
@@ -884,9 +913,8 @@ sub RunAction {
     my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    # get params
-    for (qw(Format StatID ExchangeAxis Name Cached)) {
-        $Param{$_} = $ParamObject->GetParam( Param => $_ );
+    for my $Name (qw(Format StatID Name Cached)) {
+        $Param{$Name} = $ParamObject->GetParam( Param => $Name );
     }
     my @RequiredParams = (qw(Format StatID));
     if ( $Param{Cached} ) {
@@ -894,7 +922,9 @@ sub RunAction {
     }
     for my $Required (@RequiredParams) {
         if ( !$Param{$Required} ) {
-            return $LayoutObject->ErrorScreen( Message => "Run: Get no $Required!" );
+            return $LayoutObject->ErrorScreen(
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Run: Get no %s!', $Required ),
+            );
         }
     }
 
@@ -964,7 +994,7 @@ sub RunAction {
                 UserGetParam => $StatsSettings,
                 UserID       => $Self->{UserID},
             );
-            }
+        };
     }
 
     # called normally within the stats area - generate stats now and use provided configuraton
@@ -978,30 +1008,15 @@ sub RunAction {
         };
     }
 
-    # exchange axis if selected
-    if ( $Param{ExchangeAxis} ) {
-        my @NewStatArray;
-        my $Title = $StatArray[0][0];
-
-        shift(@StatArray);
-        for my $Key1 ( 0 .. $#StatArray ) {
-            for my $Key2 ( 0 .. $#{ $StatArray[0] } ) {
-                $NewStatArray[$Key2][$Key1] = $StatArray[$Key1][$Key2];
-            }
-        }
-        $NewStatArray[0][0] = '';
-        unshift( @NewStatArray, [$Title] );
-        @StatArray = @NewStatArray;
-    }
-
     return $Kernel::OM->Get('Kernel::Output::HTML::Statistics::View')->StatsResultRender(
         StatArray => \@StatArray,
         Stat      => $Stat,
+        TimeZone  => $GetParam{TimeZone},
         UserID    => $Self->{UserID},
         %Param
     );
 
-    return
+    return;
 }
 
 sub GeneralSpecificationsWidgetAJAX {

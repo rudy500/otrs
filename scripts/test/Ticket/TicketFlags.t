@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,11 +12,17 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-my $UserObject   = $Kernel::OM->Get('Kernel::System::User');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Internal' );
+
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # create a new ticket
 my $TicketID = $TicketObject->TicketCreate(
@@ -200,21 +206,11 @@ for my $SearchTest (@SearchTests) {
     );
 }
 
-# cleanup
-my $Delete = $TicketObject->TicketDelete(
-    UserID   => 1,
-    TicketID => $TicketID,
-);
-$Self->True(
-    $Delete,
-    "TicketDelete()",
-);
-
 # create 2 new users
 my @UserIDs;
 for ( 1 .. 2 ) {
-    my $UserLogin = $HelperObject->TestUserCreate();
-    my $UserID = $UserObject->UserLookup( UserLogin => $UserLogin );
+    my $UserLogin = $Helper->TestUserCreate();
+    my $UserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup( UserLogin => $UserLogin );
     push @UserIDs, $UserID;
 }
 
@@ -234,19 +230,18 @@ $Self->True(
     $TicketID,
     'TicketCreate()',
 );
-my @TicketIDs = ($TicketID);
 
 # create article
 my @ArticleIDs;
 for ( 1 .. 2 ) {
-    my $ArticleID = $TicketObject->ArticleCreate(
-        TicketID    => $TicketID,
-        ArticleType => 'note-internal',
-        SenderType  => 'agent',
-        From        => 'Some Agent <email@example.com>',
-        To          => 'Some Customer <customer@example.com>',
-        Subject     => 'Fax Agreement laalala',
-        Body        => 'the message text
+    my $ArticleID = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketID,
+        SenderType           => 'agent',
+        IsVisibleForCustomer => 0,
+        From                 => 'Some Agent <email@example.com>',
+        To                   => 'Some Customer <customer@example.com>',
+        Subject              => 'Fax Agreement laalala',
+        Body                 => 'the message text
 Perl modules provide a range of features to help you avoid reinventing the wheel, and can be downloaded from CPAN ( http://www.cpan.org/ ). A number of popular modules are included with the Perl distribution itself.',
         ContentType    => 'text/plain; charset=ISO-8859-15',
         HistoryType    => 'OwnerUpdate',
@@ -268,7 +263,7 @@ for my $UserID (@UserIDs) {
         "Initial FlagCheck (false) - TicketFlagGet() - TicketID($TicketID) - UserID($UserID)",
     );
     for my $ArticleID (@ArticleIDs) {
-        my %ArticleFlag = $TicketObject->ArticleFlagGet(
+        my %ArticleFlag = $ArticleObject->ArticleFlagGet(
             ArticleID => $ArticleID,
             UserID    => $UserID,
         );
@@ -281,7 +276,8 @@ for my $UserID (@UserIDs) {
 
 # update one article
 for my $UserID (@UserIDs) {
-    my $Success = $TicketObject->ArticleFlagSet(
+    my $Success = $ArticleObject->ArticleFlagSet(
+        TicketID  => $TicketID,
         ArticleID => $ArticleIDs[0],
         Key       => 'Seen',
         Value     => 1,
@@ -299,7 +295,7 @@ for my $UserID (@UserIDs) {
         $TicketFlag{Seen},
         "UpdateOne FlagCheck (false) TicketFlagGet() - TicketID($TicketID) - ArticleID($ArticleIDs[0]) - UserID($UserID)",
     );
-    my %ArticleFlag = $TicketObject->ArticleFlagGet(
+    my %ArticleFlag = $ArticleObject->ArticleFlagGet(
         ArticleID => $ArticleIDs[0],
         UserID    => $UserID,
     );
@@ -307,7 +303,7 @@ for my $UserID (@UserIDs) {
         $ArticleFlag{Seen},
         "UpdateOne FlagCheck (true) ArticleFlagGet() - TicketID($TicketID) - ArticleID($ArticleIDs[0]) - UserID($UserID)",
     );
-    %ArticleFlag = $TicketObject->ArticleFlagGet(
+    %ArticleFlag = $ArticleObject->ArticleFlagGet(
         ArticleID => $ArticleIDs[1],
         UserID    => $UserID,
     );
@@ -319,7 +315,8 @@ for my $UserID (@UserIDs) {
 
 # update second article
 for my $UserID (@UserIDs) {
-    my $Success = $TicketObject->ArticleFlagSet(
+    my $Success = $ArticleObject->ArticleFlagSet(
+        TicketID  => $TicketID,
         ArticleID => $ArticleIDs[1],
         Key       => 'Seen',
         Value     => 1,
@@ -338,7 +335,7 @@ for my $UserID (@UserIDs) {
         "UpdateTwo FlagCheck (true) TicketFlagGet() - TicketID($TicketID) - ArticleID($ArticleIDs[1]) - UserID($UserID)",
     );
     for my $ArticleID (@ArticleIDs) {
-        my %ArticleFlag = $TicketObject->ArticleFlagGet(
+        my %ArticleFlag = $ArticleObject->ArticleFlagGet(
             ArticleID => $ArticleID,
             UserID    => $UserID,
         );
@@ -457,35 +454,6 @@ for my $Test (@Tests) {
     $Self->Is( $Count, $Test->{Expected}, $Test->{Name} );
 }
 
-# delete tickets
-for my $TicketID (@TicketIDs) {
-    $Self->True(
-        $TicketObject->TicketDelete(
-            TicketID => $TicketID,
-            UserID   => 1,
-        ),
-        'TicketDelete()',
-    );
-}
-
-# set created users to invalid
-for my $UserID (@UserIDs) {
-
-    # get current user data
-    my %User = $UserObject->GetUserData(
-        UserID => $UserID,
-    );
-
-    # invalidate user
-    $UserObject->UserUpdate(
-        UserID        => $UserID,
-        UserFirstname => $User{UserFirstname},
-        UserLastname  => $User{UserLastname},
-        UserLogin     => $User{UserLogin},
-        UserEmail     => $User{UserEmail},
-        ValidID       => 2,
-        ChangeUserID  => 1,
-    );
-}
+# cleanup is done by RestoreDatabase.
 
 1;

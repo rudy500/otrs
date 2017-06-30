@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,42 +14,24 @@ use vars (qw($Self));
 
 local $ENV{TZ} = 'UTC';
 
-use Kernel::System::ObjectManager;
-local $Kernel::OM = Kernel::System::ObjectManager->new(
-    'Kernel::Output::HTML::Layout' => {
-        Lang => 'en',
-    },
-    'Kernel::System::Auth::TwoFactor::GoogleAuthenticator' => {
-        Count => 10,
-    },
-    'Kernel::System::CustomerAuth::TwoFactor::GoogleAuthenticator' => {
-        Count => 10,
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 0,
     },
 );
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-# get helper object
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
+# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 $ConfigObject->Set(
-    Key   => 'TimeZone',
-    Value => 0,
-);
-$ConfigObject->Set(
-    Key   => 'TimeZoneUser',
-    Value => 0,
-);
-$ConfigObject->Set(
-    Key   => 'TimeZoneUserBrowserAutoOffset',
-    Value => 0,
+    Key   => 'OTRSTimeZone',
+    Value => 'UTC',
 );
 
 # set fixed time to have predetermined verifiable results
-$HelperObject->FixedTimeSet(0);
-
-# get time object
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+$Helper->FixedTimeSet(0);
 
 # configure auth backend to db
 $ConfigObject->Set(
@@ -72,8 +54,8 @@ $ConfigObject->Set(
     Value => 0,
 );
 
-my $UserRand1     = 'example-user' . int rand 1000000;
-my $CustomerRand1 = 'example-customer' . int rand 1000000;
+my $UserRand     = 'example-user' . $Helper->GetRandomID();
+my $CustomerRand = 'example-customer' . $Helper->GetRandomID();
 
 my $UserObject         = $Kernel::OM->Get('Kernel::System::User');
 my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
@@ -82,18 +64,19 @@ my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
 my $TestUserID = $UserObject->UserAdd(
     UserFirstname => 'Firstname Test1',
     UserLastname  => 'Lastname Test1',
-    UserLogin     => $UserRand1,
-    UserEmail     => $UserRand1 . '@example.com',
+    UserLogin     => $UserRand,
+    UserEmail     => $UserRand . '@example.com',
     ValidID       => 1,
     ChangeUserID  => 1,
 ) || die "Could not create test user";
+
 my $TestCustomerUserID = $CustomerUserObject->CustomerUserAdd(
     Source         => 'CustomerUser',
     UserFirstname  => 'Firstname Test',
     UserLastname   => 'Lastname Test',
-    UserCustomerID => $CustomerRand1,
-    UserLogin      => $CustomerRand1,
-    UserEmail      => $CustomerRand1 . '@example.com',
+    UserCustomerID => $CustomerRand,
+    UserLogin      => $CustomerRand,
+    UserEmail      => $CustomerRand . '@example.com',
     UserPassword   => 'some_pass',
     ValidID        => 1,
     UserID         => 1,
@@ -104,7 +87,7 @@ my %CurrentConfig = (
     'SecretPreferencesKey' => 'UnitTestUserGoogleAuthenticatorSecretKey',
     'AllowEmptySecret'     => 0,
     'AllowPreviousToken'   => 0,
-    'TimeZone'             => 0,
+    'TimeZone'             => 'UTC',
     'Secret'               => '',
     'Time'                 => 0,
 );
@@ -119,7 +102,15 @@ for my $ConfigKey ( sort keys %CurrentConfig ) {
     );
 }
 
-# create google authenticator object
+# create Google authenticator object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::Auth::TwoFactor::GoogleAuthenticator' => {
+        Count => 10,
+    },
+    'Kernel::System::CustomerAuth::TwoFactor::GoogleAuthenticator' => {
+        Count => 10,
+    },
+);
 my $AuthTwoFactorObject         = $Kernel::OM->Get('Kernel::System::Auth::TwoFactor::GoogleAuthenticator');
 my $CustomerAuthTwoFactorObject = $Kernel::OM->Get('Kernel::System::CustomerAuth::TwoFactor::GoogleAuthenticator');
 
@@ -186,12 +177,12 @@ my @Tests = (
         FixedTimeSet       => 60,
     },
     {
-        Name               => 'Valid token for different time zone',
+        Name               => 'Valid token for different time zone (time zone actually must not matter)',
         ExpectedAuthResult => 1,
         Secret             => 'UNITTESTUNITTEST',
-        TwoFactorToken     => '281099',
+        TwoFactorToken     => '761321',
         FixedTimeSet       => 0,
-        TimeZone           => 1,
+        TimeZone           => 'Europe/Berlin',
     },
 );
 
@@ -208,21 +199,16 @@ for my $Test (@Tests) {
         $CustomerUserObject->SetPreferences(
             Key    => 'UnitTestUserGoogleAuthenticatorSecretKey',
             Value  => $CurrentConfig{Secret},
-            UserID => $CustomerRand1,
+            UserID => $CustomerRand,
         );
     }
 
     # update time zone if necessary
-    if ( ( $Test->{TimeZone} || '0' ) ne $CurrentConfig{TimeZone} ) {
-        $CurrentConfig{TimeZone} = $Test->{TimeZone} || '0';
+    if ( ( $Test->{TimeZone} || 'UTC' ) ne $CurrentConfig{TimeZone} ) {
+        $CurrentConfig{TimeZone} = $Test->{TimeZone} || 'UTC';
         $ConfigObject->Set(
-            Key   => 'TimeZone',
+            Key   => 'OTRSTimeZone',
             Value => $CurrentConfig{TimeZone},
-        );
-
-        # a different timezone config requires a new time object
-        $Kernel::OM->ObjectsDiscard(
-            Objects => ['Kernel::System::Time'],
         );
     }
 
@@ -244,12 +230,12 @@ for my $Test (@Tests) {
     # update time if necessary
     if ( ( $Test->{FixedTimeSet} || 0 ) ne $CurrentConfig{Time} ) {
         $CurrentConfig{Time} = $Test->{FixedTimeSet} || 0;
-        $HelperObject->FixedTimeSet( $CurrentConfig{Time} );
+        $Helper->FixedTimeSet( $CurrentConfig{Time} );
     }
 
     # test agent auth
     my $AuthResult = $AuthTwoFactorObject->Auth(
-        User           => $UserRand1,
+        User           => $UserRand,
         UserID         => $TestUserID,
         TwoFactorToken => $Test->{TwoFactorToken},
     );
@@ -261,7 +247,7 @@ for my $Test (@Tests) {
 
     # test customer auth
     my $CustomerAuthResult = $CustomerAuthTwoFactorObject->Auth(
-        User           => $CustomerRand1,
+        User           => $CustomerRand,
         TwoFactorToken => $Test->{TwoFactorToken},
     );
     $Self->Is(
@@ -271,25 +257,6 @@ for my $Test (@Tests) {
     );
 }
 
-$TestUserID = $UserObject->UserUpdate(
-    UserID        => $TestUserID,
-    UserFirstname => 'Firstname Test1',
-    UserLastname  => 'Lastname Test1',
-    UserLogin     => $UserRand1,
-    UserEmail     => $UserRand1 . '@example.com',
-    ValidID       => 2,
-    ChangeUserID  => 1,
-) || die "Could not invalidate test user";
-$TestCustomerUserID = $CustomerUserObject->CustomerUserUpdate(
-    Source         => 'CustomerUser',
-    UserFirstname  => 'Firstname Test',
-    UserLastname   => 'Lastname Test',
-    UserCustomerID => $CustomerRand1,
-    UserLogin      => $CustomerRand1,
-    UserEmail      => $CustomerRand1 . '@example.com',
-    ValidID        => 2,
-    UserID         => 1,
-    ID             => $CustomerRand1,
-) || die "Could not invalidate test customer";
+# cleanup is done by RestoreDatabase
 
 1;

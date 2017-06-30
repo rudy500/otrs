@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,24 +8,17 @@
 
 package Kernel::Output::HTML::Notification::AgentOTRSBusiness;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 use utf8;
 
 our @ObjectDependencies = (
-    'Kernel::System::OTRSBusiness',
     'Kernel::Output::HTML::Layout',
+    'Kernel::System::Group',
+    'Kernel::System::OTRSBusiness',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -43,15 +36,10 @@ sub Run {
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
-    # ----------------------------------------
-    # check if OTRS Business Solution™ is available, but not installed
-    # ----------------------------------------
-    if (
-        $Param{Type} eq 'Admin'
-        && !$IsInstalled
-        && $OTRSBusinessObject->OTRSBusinessIsAvailableOffline()
-        )
-    {
+    #
+    # check if OTRS Business Solution™ is not installed
+    #
+    if ( $Param{Type} eq 'Admin' && !$IsInstalled ) {
         my $Text = $LayoutObject->{LanguageObject}->Translate(
             '%s Upgrade to %s now! %s',
             '<a href="'
@@ -71,20 +59,31 @@ sub Run {
     # all following checks require OTRS Business Solution™ to be installed
     return '' if !$IsInstalled;
 
-    # ----------------------------------------
+    #
     # check entitlement status
-    # ----------------------------------------
+    #
     my $EntitlementStatus = $OTRSBusinessObject->OTRSBusinessEntitlementStatus(
         CallCloudService => 0,
     );
 
-    if ( $EntitlementStatus eq 'forbidden' ) {
+    if ( $EntitlementStatus eq 'warning-error' || $EntitlementStatus eq 'forbidden' ) {
 
         my $Text = $LayoutObject->{LanguageObject}->Translate(
             'This system uses the %s without a proper license! Please make contact with %s to renew or activate your contract!',
             $OTRSBusinessLabel,
             'sales@otrs.com',
         );
+
+        # Redirect to error screen because of unauthorized usage.
+        if ( $EntitlementStatus eq 'forbidden' ) {
+            $Text .= '
+<script>
+if (!window.location.search.match(/^[?]Action=(AgentOTRSBusiness|Admin.*)/)) {
+    window.location.search = "Action=AgentOTRSBusiness;Subaction=BlockScreen";
+}
+</script>'
+        }
+
         return $LayoutObject->Notify(
             Data     => $Text,
             Priority => 'Error',
@@ -99,18 +98,20 @@ sub Run {
         );
     }
 
-    # all following notifications should only be visible for admins
-    if (
-        !defined $LayoutObject->{"UserIsGroup[$Group]"}
-        || $LayoutObject->{"UserIsGroup[$Group]"} ne 'Yes'
-        )
-    {
+    my $HasPermission = $Kernel::OM->Get('Kernel::System::Group')->PermissionCheck(
+        UserID    => $Self->{UserID},
+        GroupName => $Group,
+        Type      => 'rw',
+    );
+
+    # all following notifications should only be visible for administrators
+    if ( !$HasPermission ) {
         return '';
     }
 
-    # ----------------------------------------
+    #
     # check contract expiry
-    # ----------------------------------------
+    #
     my $ExpiryDate = $OTRSBusinessObject->OTRSBusinessContractExpiryDateCheck();
 
     if ($ExpiryDate) {
@@ -126,9 +127,9 @@ sub Run {
         );
     }
 
-    # ----------------------------------------
+    #
     # check for available updates
-    # ----------------------------------------
+    #
     my %UpdatesAvailable = $OTRSBusinessObject->OTRSBusinessVersionCheckOffline();
 
     if ( $UpdatesAvailable{OTRSBusinessUpdateAvailable} ) {

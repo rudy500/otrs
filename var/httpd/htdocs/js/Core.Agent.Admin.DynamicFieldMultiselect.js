@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -107,7 +107,7 @@ Core.Agent.Admin.DynamicFieldMultiselect = (function (TargetNS) {
             // add event handler to remove button
             if($(this).hasClass('RemoveButton')) {
                 // bind click function to remove button
-                $(this).bind('click', function () {
+                $(this).on('click', function () {
                     TargetNS.RemoveValue($(this).attr('id'));
                     return false;
                 });
@@ -125,8 +125,8 @@ Core.Agent.Admin.DynamicFieldMultiselect = (function (TargetNS) {
         // set new value for KeyName
         $('#ValueCounter').val(ValueCounter);
 
-        $('.DefaultValueKeyItem,.DefaultValueItem').bind('keyup', function () {
-            Core.Agent.Admin.DynamicFieldMultiselect.RecreateDefaultValueList();
+        $('.DefaultValueKeyItem,.DefaultValueItem').on('keyup', function () {
+            TargetNS.RecreateDefaultValueList();
         });
 
         return false;
@@ -203,6 +203,41 @@ Core.Agent.Admin.DynamicFieldMultiselect = (function (TargetNS) {
 
         return false;
     };
+
+    /**
+     * @name Init
+     * @memberof Core.Agent.Admin.DynamicFieldMultiselect
+     * @function
+     * @description
+     *       Initialize module functionality
+     */
+    TargetNS.Init = function () {
+        $('.ShowWarning').on('change keyup', function () {
+            $('p.Warning').removeClass('Hidden');
+        });
+
+        //bind click function to add button
+        $('#AddValue').on('click', function () {
+            TargetNS.AddValue(
+                $(this).closest('fieldset').find('.ValueInsert')
+            );
+            return false;
+        });
+
+        //bind click function to remove button
+        $('.ValueRemove').on('click', function () {
+            TargetNS.RemoveValue($(this).attr('id'));
+            return false;
+        });
+
+        $('.DefaultValueKeyItem,.DefaultValueItem').on('keyup', function () {
+            TargetNS.RecreateDefaultValueList();
+        });
+
+        Core.Agent.Admin.DynamicField.ValidationInit();
+    };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.Agent.Admin.DynamicFieldMultiselect || {}));

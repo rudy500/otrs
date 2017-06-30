@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,19 +10,18 @@ use strict;
 use warnings;
 use utf8;
 
-our $ObjectManagerDisabled = 1;
-
 use vars (qw($Self));
 
 # get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -33,36 +32,68 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
-
-        # Make sure the cache is correct.
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Group' );
-
-        # create test group
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminGroup");
-
-        my $RandomID = $Helper->GetRandomID();
-
-        # click 'add group' linK
-        $Selenium->find_element("//button[\@value='Add'][\@type='submit']")->click();
-        $Selenium->find_element( "#GroupName", 'css' )->send_keys($RandomID);
-        $Selenium->execute_script("\$('#ValidID').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#GroupName", 'css' )->submit();
-
-        # give full read and write access to the tickets in test group for test user
+        # get test user ID
         my $UserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        $Selenium->find_element("//input[\@value='$UserID'][\@name='rw']")->click();
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+
+        # make sure the cache is correct
+        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Group' );
+
+        # create test group
+        my $GroupName = 'group' . $Helper->GetRandomID();
+        my $GroupID   = $Kernel::OM->Get('Kernel::System::Group')->GroupAdd(
+            Name    => $GroupName,
+            Comment => 'Selenium test group',
+            ValidID => 1,
+            UserID  => 1,
+        );
+        $Self->True(
+            $GroupID,
+            "Created Group - $GroupName",
+        );
+
+        # navigate to AdminUserGroup screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminUserGroup");
 
         # check overview AdminUserGroup
         $Selenium->find_element( "#Users",  'css' );
         $Selenium->find_element( "#Groups", 'css' );
-        my $FullTestUserLogin = "$TestUserLogin ($TestUserLogin $TestUserLogin)";
+
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
+
+        # click on created test group
+        $Selenium->find_element( $GroupName, 'link_text' )->VerifiedClick();
+
+        # check breadcrumb on change screen
+        my $Count = 1;
+        for my $BreadcrumbText (
+            'Manage Agent-Group Relations',
+            'Change Agent Relations for Group \'' . $GroupName . '\''
+            )
+        {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
+        # give full read and write access to the tickets in test group for test user
+        $Selenium->find_element("//input[\@value='$UserID'][\@name='rw']")->VerifiedClick();
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
         # test filter for Users
+        my $FullTestUserLogin = "$TestUserLogin ($TestUserLogin $TestUserLogin)";
         $Selenium->find_element( "#FilterUsers", 'css' )->send_keys($FullTestUserLogin);
         sleep 1;
         $Self->True(
@@ -71,11 +102,11 @@ $Selenium->RunTest(
         );
 
         # test filter for groups
-        $Selenium->find_element( "#FilterGroups", 'css' )->send_keys($RandomID);
+        $Selenium->find_element( "#FilterGroups", 'css' )->send_keys($GroupName);
         sleep 1;
         $Self->True(
-            $Selenium->find_element( "$RandomID", 'link_text' )->is_displayed(),
-            "$RandomID group found on page",
+            $Selenium->find_element( "$GroupName", 'link_text' )->is_displayed(),
+            "$GroupName group found on page",
         );
 
         # clear test filter for Users and Groups
@@ -84,97 +115,141 @@ $Selenium->RunTest(
         sleep 1;
 
         # edit test group permission for test agent
-        $Selenium->find_element( $RandomID, 'link_text' )->click();
+        $Selenium->find_element( $GroupName, 'link_text' )->VerifiedClick();
 
-        $Selenium->find_element("//input[\@value='$UserID'][\@name='rw']")->click();
-        $Selenium->find_element("//input[\@value='$UserID'][\@name='ro']")->click();
-        $Selenium->find_element("//input[\@value='$UserID'][\@name='note']")->click();
-        $Selenium->find_element("//input[\@value='$UserID'][\@name='owner']")->click();
+        my %TestFirst = (
+            'ro'        => 1,
+            'move_into' => 1,
+            'create'    => 1,
+            'note'      => 1,
+            'owner'     => 1,
+            'priority'  => 1,
+            'rw'        => 1,
+        );
 
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        my %TestSecond = (
+            'ro'        => 0,
+            'move_into' => 1,
+            'create'    => 1,
+            'note'      => 0,
+            'owner'     => 0,
+            'priority'  => 1,
+            'rw'        => 0,
+        );
+
+        my %TestThird = (
+            'ro'        => 1,
+            'move_into' => 1,
+            'create'    => 1,
+            'note'      => 1,
+            'owner'     => 0,
+            'priority'  => 0,
+            'rw'        => 0,
+        );
+
+        # check permissions
+        for my $Permission ( sort keys %TestFirst ) {
+            $Self->True(
+                $Selenium->find_element("//input[\@value='$UserID'][\@name='$Permission']"),
+                "$Permission permission for user $TestUserLogin in group $GroupName is enabled",
+            );
+        }
+
+        # set permissions
+        for my $Permission (qw(rw ro note owner)) {
+            $Selenium->find_element("//input[\@value='$UserID'][\@name='$Permission']")->VerifiedClick();
+        }
+
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
         # check edited test group permissions
-        $Selenium->find_element( $RandomID, 'link_text' )->click();
+        $Selenium->find_element( $GroupName, 'link_text' )->VerifiedClick();
 
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$UserID'][\@name='move_into']")->is_selected(),
-            1,
-            "move_into permission for group $RandomID is enabled",
+        # check permissions
+        for my $Permission ( sort keys %TestSecond ) {
+            my $Enabled = $TestSecond{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$UserID'][\@name='$Permission']")->is_selected(),
+                $TestSecond{$Permission},
+                "$Permission permission for user $TestUserLogin in group $GroupName is $Enabled",
+            );
+        }
+
+        # test checked and unchecked values while filter by user is used
+        # test filter with "WrongFilterGroup" to uncheck all values
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+        $Selenium->find_element( "#Filter", 'css' )->send_keys("WrongFilterGroup");
+        sleep 1;
+
+        # test if no data is matches
+        $Self->True(
+            $Selenium->find_element( ".FilterMessage.Hidden>td", 'css' )->is_displayed(),
+            "'No data matches' is displayed'"
         );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$UserID'][\@name='create']")->is_selected(),
-            1,
-            "create permission for group $RandomID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$UserID'][\@name='rw']")->is_selected(),
-            0,
-            "rw permission for group $RandomID is disabled",
-        );
+        $Selenium->find_element( "#Filter", 'css' )->clear();
+
+        # check group relations for user after using filter by group
+        # check permissions
+        for my $Permission ( sort keys %TestSecond ) {
+            my $Enabled = $TestSecond{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$UserID'][\@name='$Permission']")->is_selected(),
+                $TestSecond{$Permission},
+                "$Permission permission for user $TestUserLogin in group $GroupName is $Enabled",
+            );
+        }
 
         # go back to AdminUserGroup screen
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminUserGroup");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminUserGroup");
 
-        # edit test agent permission for test group
-        my $TestGroupID = $Kernel::OM->Get('Kernel::System::Group')->GroupLookup(
-            Group => $RandomID,
-        );
+        # edit test group permission for test agent
+        $Selenium->find_element( $FullTestUserLogin, 'link_text' )->VerifiedClick();
 
-        $Selenium->find_element( $FullTestUserLogin, 'link_text' )->click();
-        $Selenium->find_element("//input[\@value='$TestGroupID'][\@name='ro']")->click();
-        $Selenium->find_element("//input[\@value='$TestGroupID'][\@name='note']")->click();
+        # set permissions
+        for my $Permission (qw(ro note priority)) {
+            $Selenium->find_element("//input[\@value='$GroupID'][\@name='$Permission']")->VerifiedClick();
+        }
 
-        $Selenium->find_element("//button[\@value='Submit'][\@type='submit']")->click();
+        $Selenium->find_element("//button[\@value='Save'][\@type='submit']")->VerifiedClick();
 
         # check edited test agent permissions
-        $Selenium->find_element( $FullTestUserLogin, 'link_text' )->click();
+        $Selenium->find_element( $FullTestUserLogin, 'link_text' )->VerifiedClick();
 
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$TestGroupID'][\@name='ro']")->is_selected(),
-            1,
-            "ro permission for group $TestGroupID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$TestGroupID'][\@name='note']")->is_selected(),
-            1,
-            "note permission for group $TestGroupID is enabled",
-        );
-        $Self->Is(
-            $Selenium->find_element("//input[\@value='$TestGroupID'][\@name='rw']")->is_selected(),
-            0,
-            "rw permission for group $TestGroupID is disabled",
-        );
-
-        # Since there are no tickets that rely on our test group, we can remove them again
-        # from the DB.
-        if ($RandomID) {
-            my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-            my $GroupID  = $Kernel::OM->Get('Kernel::System::Group')->GroupLookup(
-                Group => $RandomID,
+        for my $Permission ( sort keys %TestThird ) {
+            my $Enabled = $TestThird{$Permission} ? 'enabled' : 'disabled';
+            $Self->Is(
+                $Selenium->find_element("//input[\@value='$GroupID'][\@name='$Permission']")->is_selected(),
+                $TestThird{$Permission},
+                "$Permission permission for user $TestUserLogin in group $GroupName is $Enabled",
             );
+        }
 
-            my $Success = $DBObject->Do(
+        # since there are no tickets that rely on our test group, we can remove them again
+        # from the DB
+        if ($GroupName) {
+            my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+            my $Success  = $DBObject->Do(
                 SQL => "DELETE FROM group_user WHERE group_id = $GroupID",
             );
             if ($Success) {
                 $Self->True(
                     $Success,
-                    "GroupUserDelete - $RandomID",
+                    "GroupUserDelete - $GroupName",
                 );
             }
 
-            $RandomID = $DBObject->Quote($RandomID);
-            $Success  = $DBObject->Do(
+            $GroupName = $DBObject->Quote($GroupName);
+            $Success   = $DBObject->Do(
                 SQL  => "DELETE FROM groups WHERE name = ?",
-                Bind => [ \$RandomID ],
+                Bind => [ \$GroupName ],
             );
             $Self->True(
                 $Success,
-                "GroupDelete - $RandomID",
+                "GroupDelete - $GroupName",
             );
         }
 
-        # Make sure the cache is correct.
+        # make sure the cache is correct
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Group' );
 
     }

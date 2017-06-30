@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::DynamicField::Driver::Base);
+use parent qw(Kernel::System::DynamicField::Driver::Base);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -28,7 +28,7 @@ our @ObjectDependencies = (
 
 Kernel::System::DynamicField::Driver::Checkbox
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 DynamicFields Checkbox Driver delegate
 
@@ -37,9 +37,7 @@ DynamicFields Checkbox Driver delegate
 This module implements the public interface of L<Kernel::System::DynamicField::Backend>.
 Please look there for a detailed reference of the functions.
 
-=over 4
-
-=item new()
+=head2 new()
 
 usually, you want to create an instance of this
 by using Kernel::System::DynamicField::Backend->new();
@@ -182,19 +180,30 @@ sub SearchSQLGet {
         return;
     }
 
-    if ( $Param{Operator} eq 'Equals' ) {
-        my $SQL = " $Param{TableAlias}.value_int = ";
-        $SQL
-            .= $Kernel::OM->Get('Kernel::System::DB')->Quote( $Param{SearchTerm}, 'Integer' ) . ' ';
-        return $SQL;
-    }
-
-    $Kernel::OM->Get('Kernel::System::Log')->Log(
-        'Priority' => 'error',
-        'Message'  => "Unsupported Operator $Param{Operator}",
+    my %Operators = (
+        Equals => '=',
     );
 
-    return;
+    if ( $Param{Operator} eq 'Empty' ) {
+        if ( $Param{SearchTerm} ) {
+            return " $Param{TableAlias}.value_int IS NULL ";
+        }
+        else {
+            return " $Param{TableAlias}.value_int IS NOT NULL ";
+        }
+    }
+    elsif ( !$Operators{ $Param{Operator} } ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            'Priority' => 'error',
+            'Message'  => "Unsupported Operator $Param{Operator}",
+        );
+        return;
+    }
+
+    my $SQL = " $Param{TableAlias}.value_int $Operators{ $Param{Operator} } ";
+    $SQL
+        .= $Kernel::OM->Get('Kernel::System::DB')->Quote( $Param{SearchTerm}, 'Integer' ) . ' ';
+    return $SQL;
 }
 
 sub SearchSQLOrderFieldGet {
@@ -219,7 +228,7 @@ sub EditFieldRender {
     }
     $Value = $Param{Value} // $Value;
 
-    # extract the dynamic field value form the web request
+    # extract the dynamic field value from the web request
     my $FieldValue = $Self->EditFieldValueGet(
         ReturnValueStructure => 1,
         %Param,
@@ -228,15 +237,18 @@ sub EditFieldRender {
     # set values from ParamObject if present
     if ( defined $FieldValue && IsHashRefWithData($FieldValue) ) {
         if (
-            !defined $FieldValue->{FieldValue} &&
-            defined $FieldValue->{UsedValue}   && $FieldValue->{UsedValue} eq '1'
+            !defined $FieldValue->{FieldValue}
+            && defined $FieldValue->{UsedValue}
+            && $FieldValue->{UsedValue} eq '1'
             )
         {
             $Value = '0';
         }
         elsif (
-            defined $FieldValue->{FieldValue} && $FieldValue->{FieldValue} eq '1' &&
-            defined $FieldValue->{UsedValue} && $FieldValue->{UsedValue} eq '1'
+            defined $FieldValue->{FieldValue}
+            && $FieldValue->{FieldValue} eq '1'
+            && defined $FieldValue->{UsedValue}
+            && $FieldValue->{UsedValue} eq '1'
             )
         {
             $Value = '1';
@@ -282,9 +294,12 @@ EOF
 
         my $FieldNameUsed0 = $FieldNameUsed . '0';
         my $FieldNameUsed1 = $FieldNameUsed . '1';
+        my $TranslatedDesc = $Param{LayoutObject}->{LanguageObject}->Translate(
+            'Ignore this field.',
+        );
         $HTMLString = <<"EOF";
 <input type="radio" id="$FieldNameUsed0" name="$FieldNameUsed" value="" $FieldUsedChecked0 />
-Ignore this field.
+$TranslatedDesc
 <div class="clear"></div>
 <input type="radio" id="$FieldNameUsed1" name="$FieldNameUsed" value="1" $FieldUsedChecked1 />
 EOF
@@ -352,8 +367,13 @@ sub EditFieldValueGet {
     my %Data;
 
     # check if there is a Template and retrieve the dynamic field value from there
-    if ( IsHashRefWithData( $Param{Template} ) ) {
-
+    if (
+        IsHashRefWithData( $Param{Template} ) && (
+            defined $Param{Template}->{$FieldName}
+            || defined $Param{Template}->{ $FieldName . 'Used' }
+        )
+        )
+    {
         # get dynamic field value form Template
         $Data{FieldValue} = $Param{Template}->{$FieldName};
 
@@ -517,7 +537,7 @@ sub SearchFieldRender {
     }
 
     # check and set class if necessary
-    my $FieldClass = 'DynamicFieldDropdown';
+    my $FieldClass = 'DynamicFieldDropdown Modernize';
 
     my $HTMLString = $Param{LayoutObject}->BuildSelection(
         Data => {
@@ -839,8 +859,6 @@ sub ColumnFilterValuesGet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,11 +18,21 @@ use Kernel::System::PostMaster;
 use Kernel::System::VariableCheck qw(:all);
 
 # get needed objects
-my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
-my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-my $MainObject      = $Kernel::OM->Get('Kernel::System::Main');
-my $TicketObject    = $Kernel::OM->Get('Kernel::System::Ticket');
-my $HelperObject    = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $HTMLUtilsObject      = $Kernel::OM->Get('Kernel::System::HTMLUtils');
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Email');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # set config
 $ConfigObject->Set(
@@ -160,7 +170,7 @@ for my $Count ( 1 .. 2 ) {
     );
 }
 
-# tests for handling encrypted emails
+# tests for handling signed / encrypted emails
 my @Tests = (
     {
         Name           => 'Encrypted Body, Plain Attachments',
@@ -180,12 +190,22 @@ my @Tests = (
         ArticleSubject => 'PGP Test 2013-07-02-1977-3',
         ArticleBody    => "This is only a test.\n",
     },
+    {
+        Name               => 'Signed 7bit (Short lines)',
+        EmailFile          => '/scripts/test/sample/PGP/Signed_PGP_Test_7bit.eml',
+        CheckSignatureOnly => 1,
+    },
+    {
+        Name               => 'Signed Quoted-Printable (Long Lines)',
+        EmailFile          => '/scripts/test/sample/PGP/Signed_PGP_Test_QuotedPrintable.eml',
+        CheckSignatureOnly => 1,
+    },
 );
 
 # to store added tickets into the system (will be deleted later)
 my @AddedTickets;
 
-# lookp table to get a better idea of postmaster result
+# lookup table to get a better idea of postmaster result
 my %PostMasterReturnLookup = (
     0 => 'error (also false)',
     1 => 'new ticket created',
@@ -195,6 +215,7 @@ my %PostMasterReturnLookup = (
     5 => 'ignored (because of X-OTRS-Ignore header)',
 );
 
+TEST:
 for my $Test (@Tests) {
 
     # read email content (from a file)
@@ -232,32 +253,62 @@ for my $Test (@Tests) {
         push @AddedTickets, $TicketID;
 
         # get ticket articles
-        my @ArticleIDs = $TicketObject->ArticleIndex(
-            TicketID => $TicketID,
+        my @Articles = $ArticleObject->ArticleList(
+            TicketID  => $TicketID,
+            OnlyFirst => 1,
         );
 
         # use the first result (it should be only 1)
-        my %RawArticle = $TicketObject->ArticleGet(
-            ArticleID     => $ArticleIDs[0],
-            DynamicFields => 0,
-            UserID        => 1,
-        );
+        my %RawArticle;
+        if ( scalar @Articles ) {
+            %RawArticle = %{ $Articles[0] };
+        }
 
-        # use ArticleCheck::PGP to decript the article
+        # use ArticleCheck::PGP to decrypt the article
         my $CheckObject = Kernel::Output::HTML::ArticleCheck::PGP->new(
-            ArticleID => $ArticleIDs[0],
+            ArticleID => $Articles[0]->{ArticleID},
             UserID    => 1,
         );
-        my @CheckResult = $CheckObject->Check( Article => \%RawArticle );
+
+        my %Article = $ArticleBackendObject->ArticleGet(
+            TicketID  => $RawArticle{TicketID},
+            ArticleID => $RawArticle{ArticleID},
+            UserID    => 1,
+        );
+
+        my @CheckResult = $CheckObject->Check( Article => \%Article );
 
         # sanity destroy object
         $CheckObject = undef;
 
+        if ( $Test->{CheckSignatureOnly} ) {
+
+            RESULTITEM:
+            for my $ResultItem (@CheckResult) {
+
+                next RESULTITEM if $ResultItem->{Key} ne 'Signed';
+
+                $Self->True(
+                    $ResultItem->{SignatureFound},
+                    "$Test->{Name} - Signature found with true",
+                );
+
+                $Self->True(
+                    $ResultItem->{Successful},
+                    "$Test->{Name} - Signature verify with true",
+                );
+
+                last RESULTITEM;
+            }
+
+            next TEST;
+        }
+
         # check actual contents (subject and body)
-        my %Article = $TicketObject->ArticleGet(
-            ArticleID     => $ArticleIDs[0],
-            DynamicFields => 0,
-            UserID        => 1,
+        %Article = $ArticleBackendObject->ArticleGet(
+            TicketID  => $RawArticle{TicketID},
+            ArticleID => $RawArticle{ArticleID},
+            UserID    => 1,
         );
 
         $Self->Is(
@@ -273,11 +324,12 @@ for my $Test (@Tests) {
         );
 
         # get the list of attachments
-        my %AtmIndex = $TicketObject->ArticleAttachmentIndex(
-            ArticleID                  => $ArticleIDs[0],
-            Article                    => \%Article,
-            StripPlainBodyAsAttachment => 1,
-            UserID                     => 1,
+        my %AtmIndex = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID        => $Articles[0]->{ArticleID},
+            UserID           => 1,
+            ExcludePlainText => 1,
+            ExcludeHTMLBody  => 1,
+            ExcludeInline    => 1,
         );
 
         FILEID:
@@ -287,8 +339,8 @@ for my $Test (@Tests) {
             next FILEID if $AtmIndex{$FileID}->{Filename} =~ m{\A file-\d+ \z}msx;
 
             # get the attachment from the article (it should be already decrypted)
-            my %Attachment = $TicketObject->ArticleAttachment(
-                ArticleID => $ArticleIDs[0],
+            my %Attachment = $ArticleBackendObject->ArticleAttachment(
+                ArticleID => $Articles[0]->{ArticleID},
                 FileID    => $FileID,
                 UserID    => 1,
             );
@@ -429,7 +481,7 @@ my @TestVariations;
 
 for my $Test (@Tests) {
     push @TestVariations, {
-        Name        => $Test->{Name} . " sign only (Detached)",
+        Name        => $Test->{Name} . " (old API) sign only (Detached)",
         ArticleData => {
             %{ $Test->{ArticleData} },
             From => 'unittest@example.org',
@@ -445,7 +497,7 @@ for my $Test (@Tests) {
     };
 
     push @TestVariations, {
-        Name        => $Test->{Name} . " crypt only (Detached)",
+        Name        => $Test->{Name} . " (old API) crypt only (Detached)",
         ArticleData => {
             %{ $Test->{ArticleData} },
             From  => 'unittest2@example.org',
@@ -461,7 +513,7 @@ for my $Test (@Tests) {
     };
 
     push @TestVariations, {
-        Name        => $Test->{Name} . " sign and crypt (Detached)",
+        Name        => $Test->{Name} . " (old API) sign and crypt (Detached)",
         ArticleData => {
             %{ $Test->{ArticleData} },
             From => 'unittest2@example.org',
@@ -484,6 +536,109 @@ for my $Test (@Tests) {
     # TODO: currently inline signatures tests does not work as OTRS does not save the signature
     #    in the Article{Body}, the body remains intact after sending the email, only the email has
     #    the signature
+
+    # here starts the tests for new API
+
+    push @TestVariations, {
+        Name        => $Test->{Name} . " sign only (Detached)",
+        ArticleData => {
+            %{ $Test->{ArticleData} },
+            From          => 'unittest@example.org',
+            To            => 'unittest@example.org',
+            EmailSecurity => {
+                Backend => 'PGP',
+                Method  => 'Detached',
+                SignKey => $Check{1}->{KeyPrivate},
+            },
+        },
+        VerifySignature  => 1,
+        VerifyDecryption => 0,
+    };
+
+    push @TestVariations, {
+        Name        => $Test->{Name} . " crypt only (Detached)",
+        ArticleData => {
+            %{ $Test->{ArticleData} },
+            From          => 'unittest2@example.org',
+            To            => 'unittest2@example.org',
+            EmailSecurity => {
+                Backend     => 'PGP',
+                Method      => 'Detached',
+                EncryptKeys => [ $Check{2}->{Key} ],
+            },
+        },
+        VerifySignature  => 0,
+        VerifyDecryption => 1,
+    };
+
+    push @TestVariations, {
+        Name        => $Test->{Name} . " sign and crypt (Detached)",
+        ArticleData => {
+            %{ $Test->{ArticleData} },
+            From          => 'unittest2@example.org',
+            To            => 'unittest2@example.org',
+            EmailSecurity => {
+                Backend     => 'PGP',
+                Method      => 'Detached',
+                SignKey     => $Check{2}->{KeyPrivate},
+                EncryptKeys => [ $Check{2}->{Key} ],
+            },
+        },
+        VerifySignature  => 1,
+        VerifyDecryption => 1,
+    };
+
+    # start tests with 2 recipients
+
+    push @TestVariations, {
+        Name        => $Test->{Name} . " sign only (Detached)",
+        ArticleData => {
+            %{ $Test->{ArticleData} },
+            From          => 'unittest@example.org',
+            To            => 'unittest@example.org, unittest2@example.org',
+            EmailSecurity => {
+                Backend => 'PGP',
+                Method  => 'Detached',
+                SignKey => $Check{1}->{KeyPrivate},
+            },
+        },
+        VerifySignature  => 1,
+        VerifyDecryption => 0,
+    };
+
+    push @TestVariations, {
+        Name        => $Test->{Name} . " crypt only (Detached)",
+        ArticleData => {
+            %{ $Test->{ArticleData} },
+            From          => 'unittest2@example.org',
+            To            => 'unittest@example.org, unittest2@example.org',
+            EmailSecurity => {
+                Backend     => 'PGP',
+                Method      => 'Detached',
+                EncryptKeys => [ $Check{1}->{Key}, $Check{2}->{Key} ],
+            },
+        },
+        VerifySignature  => 0,
+        VerifyDecryption => 1,
+    };
+
+    push @TestVariations, {
+        Name        => $Test->{Name} . " sign and crypt (Detached)",
+        ArticleData => {
+            %{ $Test->{ArticleData} },
+            From          => 'unittest2@example.org',
+            To            => 'unittest@example.org, unittest2@example.org',
+            EmailSecurity => {
+                Backend     => 'PGP',
+                Method      => 'Detached',
+                SignKey     => $Check{2}->{KeyPrivate},
+                EncryptKeys => [ $Check{1}->{Key}, $Check{2}->{Key} ],
+            },
+        },
+        VerifySignature  => 1,
+        VerifyDecryption => 1,
+    };
+
 }
 
 my $TicketID = $TicketObject->TicketCreate(
@@ -503,20 +658,24 @@ $Self->True(
     'TicketCreate()',
 );
 
+my $TicketNumber = $TicketObject->TicketNumberLookup(
+    TicketID => $TicketID,
+);
+
 push @AddedTickets, $TicketID;
 
 for my $Test (@TestVariations) {
 
-    my $ArticleID = $TicketObject->ArticleSend(
+    my $ArticleID = $ArticleBackendObject->ArticleSend(
         %{ $Test->{ArticleData} },
-        TicketID       => $TicketID,
-        ArticleType    => 'email-external',
-        SenderType     => 'customer',
-        HistoryType    => 'AddNote',
-        HistoryComment => 'note',
-        Subject        => 'Unittest data',
-        Charset        => 'utf-8',
-        UserID         => 1,
+        TicketID             => $TicketID,
+        SenderType           => 'customer',
+        IsVisibleForCustomer => 1,
+        HistoryType          => 'AddNote',
+        HistoryComment       => 'note',
+        Subject              => 'Unittest data',
+        Charset              => 'utf-8',
+        UserID               => 1,
     );
 
     $Self->True(
@@ -524,20 +683,53 @@ for my $Test (@TestVariations) {
         "$Test->{Name} - ArticleSend()",
     );
 
-    my %Article = $TicketObject->ArticleGet(
-        TicketID  => $TicketID,
-        ArticleID => $ArticleID,
-    );
-
-    my $CheckObject = Kernel::Output::HTML::ArticleCheck::PGP->new(
+    # Read generated email and use it to create yet another article.
+    # This is necessary because otherwise reading the existing article will result in using the internal body
+    #   which doesn't contain signatures etc.
+    my $Email = $ArticleBackendObject->ArticlePlain(
         ArticleID => $ArticleID,
         UserID    => 1,
     );
 
-    my @CheckResult = $CheckObject->Check( Article => \%Article );
+    # Add ticket number to subject (to ensure mail will be attached to original ticket)
+    my @FollowUp;
+    for my $Line ( split "\n", $Email ) {
+        if ( $Line =~ /^Subject:/ ) {
+            $Line = 'Subject: ' . $TicketObject->TicketSubjectBuild(
+                TicketNumber => $TicketNumber,
+                Subject      => $Line,
+            );
+        }
+        push @FollowUp, $Line;
+    }
+    my $NewEmail = join "\n", @FollowUp;
 
-    #use Data::Dumper;
-    #print STDERR "Dump: " . Dumper(\@CheckResult) . "\n";
+    my $PostMasterObject = Kernel::System::PostMaster->new(
+        Email => \$NewEmail,
+    );
+    my @Return = $PostMasterObject->Run();
+    $Self->IsDeeply(
+        \@Return,
+        [ 2, $TicketID ],
+        "$Test->{Name} - PostMaster()",
+    );
+
+    my @Articles = $ArticleObject->ArticleList(
+        TicketID => $TicketID,
+        OnlyLast => 1,
+    );
+    my %Article = $ArticleBackendObject->ArticleGet(
+        TicketID  => $TicketID,
+        ArticleID => $Articles[0]->{ArticleID},
+        UserID    => 1,
+    );
+
+    my $CheckObject = Kernel::Output::HTML::ArticleCheck::PGP->new(
+        ArticleID => $Article{ArticleID},
+        UserID    => 1,
+    );
+
+    my @CheckResult = $CheckObject->Check( Article => \%Article );
 
     if ( $Test->{VerifySignature} ) {
         my $SignatureVerified =
@@ -561,9 +753,10 @@ for my $Test (@TestVariations) {
         );
     }
 
-    my %FinalArticleData = $TicketObject->ArticleGet(
+    my %FinalArticleData = $ArticleBackendObject->ArticleGet(
         TicketID  => $TicketID,
-        ArticleID => $ArticleID,
+        ArticleID => $Article{ArticleID},
+        UserID    => 1,
     );
 
     my $TestBody = $Test->{ArticleData}->{Body};
@@ -583,11 +776,9 @@ for my $Test (@TestVariations) {
 
     if ( defined $Test->{ArticleData}->{Attachment} ) {
         my $Found;
-        my %Index = $TicketObject->ArticleAttachmentIndex(
-            ArticleID                  => $ArticleID,
-            UserID                     => 1,
-            Article                    => \%FinalArticleData,
-            StripPlainBodyAsAttachment => 0,
+        my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID => $Article{ArticleID},
+            UserID    => 1,
         );
 
         TESTATTACHMENT:
@@ -626,21 +817,6 @@ for my $Test (@TestVariations) {
     }
 }
 
-# delete the tickets
-for my $TicketID (@AddedTickets) {
-
-    my $TicketDelete = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $TicketDelete,
-        "TicketDelete() successful for Ticket ID $TicketID",
-    );
-}
-
 # delete PGP keys
 for my $Count ( 1 .. 2 ) {
     my @Keys = $PGPObject->KeySearch(
@@ -674,5 +850,7 @@ for my $Count ( 1 .. 2 ) {
         "Key:$Count - KeySearch()",
     );
 }
+
+# cleanup is done by RestoreDatabase.
 
 1;

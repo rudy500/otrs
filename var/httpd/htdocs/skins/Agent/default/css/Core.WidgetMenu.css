@@ -221,6 +221,7 @@ ul.ContextFunctions li:last-child:hover > a {
     line-height: 18px;
     font-size: 11px;
     display: inline-block;
+    z-index: 19;
 }
 
 .Actions li:after {
@@ -229,6 +230,14 @@ ul.ContextFunctions li:last-child:hover > a {
     display: block;
     float: right;
     margin: 5px 3px;
+}
+
+.Actions li.Hidden {
+    display: none;
+}
+
+.Actions li.Hidden ~ li#BulkAction {
+    margin-left: 5px;
 }
 
 .Actions li:last-child:after {
@@ -309,7 +318,7 @@ ul.ContextFunctions li:last-child:hover > a {
 }
 
 .Actions form {
-    padding: 4px 4px;
+    padding: 4px 4px 4px 0;
     display: inline-block;
 }
 

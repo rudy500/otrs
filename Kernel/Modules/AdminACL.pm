@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,6 +14,7 @@ use warnings;
 our $ObjectManagerDisabled = 1;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -34,8 +35,9 @@ sub Run {
 
     my $ACLID = $ParamObject->GetParam( Param => 'ID' ) || '';
 
-    my $SynchronizeMessage
-        = 'ACL information from database is not in sync with the system configuration, please deploy all ACLs.';
+    my $SynchronizeMessage = Translatable(
+        'ACL information from database is not in sync with the system configuration, please deploy all ACLs.'
+    );
 
     my $SynchronizedMessageVisible = 0;
 
@@ -78,8 +80,9 @@ sub Run {
 
         if ( !$ACLImport->{Success} ) {
             my $Message = $ACLImport->{Message}
-                || 'ACLs could not be Imported due to a unknown error,'
-                . ' please check OTRS logs for more information';
+                || Translatable(
+                'ACLs could not be Imported due to a unknown error, please check OTRS logs for more information'
+                );
             return $LayoutObject->ErrorScreen(
                 Message => $Message,
             );
@@ -87,22 +90,27 @@ sub Run {
 
         if ( $ACLImport->{AddedACLs} ) {
             push @{ $Param{NotifyData} }, {
-                Info => 'The following ACLs have been added successfully: '
-                    . $ACLImport->{AddedACLs},
+                Info => $LayoutObject->{LanguageObject}->Translate(
+                    'The following ACLs have been added successfully: %s',
+                    $ACLImport->{AddedACLs}
+                ),
             };
         }
         if ( $ACLImport->{UpdatedACLs} ) {
             push @{ $Param{NotifyData} }, {
-                Info => 'The following ACLs have been updated successfully: '
-                    . $ACLImport->{UpdatedACLs},
+                Info => $LayoutObject->{LanguageObject}->Translate(
+                    'The following ACLs have been updated successfully: %s',
+                    $ACLImport->{UpdatedACLs}
+                ),
             };
         }
         if ( $ACLImport->{ACLErrors} ) {
             push @{ $Param{NotifyData} }, {
                 Priority => 'Error',
-                Info     => 'There where errors adding/updating the following ACLs: '
-                    . $ACLImport->{ACLErrors}
-                    . '. Please check the log file for more information.',
+                Info     => $LayoutObject->{LanguageObject}->Translate(
+                    'There where errors adding/updating the following ACLs: %s. Please check the log file for more information.',
+                    $ACLImport->{ACLErrors}
+                ),
             };
         }
 
@@ -163,14 +171,14 @@ sub Run {
 
             # add server error error class
             $Error{NameServerError}        = 'ServerError';
-            $Error{NameServerErrorMessage} = 'This field is required';
+            $Error{NameServerErrorMessage} = Translatable('This field is required');
         }
 
         if ( !$GetParam->{ValidID} ) {
 
             # add server error error class
             $Error{ValidIDServerError}        = 'ServerError';
-            $Error{ValidIDServerErrorMessage} = 'This field is required';
+            $Error{ValidIDServerErrorMessage} = Translatable('This field is required');
         }
 
         # if there is an error return to edit screen
@@ -196,7 +204,7 @@ sub Run {
         # show error if can't create
         if ( !$ACLID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error creating the ACL",
+                Message => Translatable('There was an error creating the ACL'),
             );
         }
 
@@ -212,7 +220,7 @@ sub Run {
         # check for ACLID
         if ( !$ACLID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need ACLID!",
+                Message => Translatable('Need ACLID!'),
             );
         }
 
@@ -225,7 +233,7 @@ sub Run {
         # check for valid ACL data
         if ( !IsHashRefWithData($ACLData) ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Could not get data for ACLID $ACLID",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Could not get data for ACLID %s', $ACLID ),
             );
         }
 
@@ -280,14 +288,14 @@ sub Run {
 
             # add server error error class
             $Error{NameServerError}        = 'ServerError';
-            $Error{NameServerErrorMessage} = 'This field is required';
+            $Error{NameServerErrorMessage} = Translatable('This field is required');
         }
 
         if ( !$GetParam->{ValidID} ) {
 
             # add server error error class
             $Error{ValidIDServerError}        = 'ServerError';
-            $Error{ValidIDServerErrorMessage} = 'This field is required';
+            $Error{ValidIDServerErrorMessage} = Translatable('This field is required');
         }
 
         # if there is an error return to edit screen
@@ -316,11 +324,15 @@ sub Run {
         # show error if can't update
         if ( !$Success ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error updating the ACL",
+                Message => Translatable('There was an error updating the ACL'),
             );
         }
 
-        if ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' ) {
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
 
             # if the user would like to continue editing the ACL, just redirect to the edit screen
             return $LayoutObject->Redirect(
@@ -359,7 +371,7 @@ sub Run {
 
                 # show error if can't set state
                 return $LayoutObject->ErrorScreen(
-                    Message => "There was an error setting the entity sync status.",
+                    Message => Translatable('There was an error setting the entity sync status.'),
                 );
             }
         }
@@ -367,7 +379,7 @@ sub Run {
 
             # show error if can't synch
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error synchronizing the ACLs.",
+                Message => Translatable('There was an error synchronizing the ACLs.'),
             );
         }
     }
@@ -398,7 +410,8 @@ sub Run {
             );
 
             if ( !$Success ) {
-                $DeleteResult{Message} = 'ACL $ACLID could not be deleted';
+                $DeleteResult{Message}
+                    = $LayoutObject->{LanguageObject}->Translate( 'ACL %s could not be deleted', $ACLID );
             }
 
             # build JSON output
@@ -446,7 +459,8 @@ sub Run {
 
             if ( !$ACLSingleData || !IsHashRefWithData($ACLSingleData) ) {
                 return $LayoutObject->ErrorScreen(
-                    Message => "There was an error getting data for ACL with ID " . $ACLID,
+                    Message => $LayoutObject->{LanguageObject}
+                        ->Translate( 'There was an error getting data for ACL with ID %s', $ACLID ),
                 );
             }
 
@@ -518,7 +532,7 @@ sub Run {
         # show error if can't create
         if ( !$ACLID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error creating the ACL",
+                Message => Translatable('There was an error creating the ACL'),
             );
         }
 
@@ -543,6 +557,18 @@ sub _ShowOverview {
     my $ACLObject    = $Kernel::OM->Get('Kernel::System::ACL::DB::ACL');
     my $Output       = $LayoutObject->Header();
     $Output .= $LayoutObject->NavigationBar();
+
+    if ( $Self->{UserID} == 1 ) {
+
+        # show error notfy, don't work with user id 1
+        $Output .= $LayoutObject->Notify(
+            Priority => 'Error',
+            Data =>
+                Translatable(
+                "Please note that ACL restrictions will be ignored for the Superuser account (UserID 1)."
+                ),
+        );
+    }
 
     # show notifications if any
     if ( $Param{NotifyData} ) {
@@ -703,12 +729,12 @@ sub _ShowEdit {
 
     $Param{ACLKeysLevel4Prefixes} = $LayoutObject->BuildSelection(
         Data => {
-            ''            => 'Exact match',
-            '[Not]'       => 'Negated Exact match',
-            '[RegExp]'    => 'Regex',
-            '[regexp]'    => 'Regex (ignore case)',
-            '[NotRegExp]' => 'Negated Regex',
-            '[Notregexp]' => 'Negated Regex (ignore case)',
+            ''            => Translatable('Exact match'),
+            '[Not]'       => Translatable('Negated exact match'),
+            '[RegExp]'    => Translatable('Regular expression'),
+            '[regexp]'    => Translatable('Regular expression (ignore case)'),
+            '[NotRegExp]' => Translatable('Negated regular expression'),
+            '[Notregexp]' => Translatable('Negated regular expression (ignore case)'),
         },
         Name           => 'ItemPrefix',
         Class          => 'ItemPrefix',
@@ -773,6 +799,22 @@ sub _ShowEdit {
         }
     }
 
+    # create data for JS
+    my @ACLEditPossibleActionsList;
+    for my $Item (@PossibleActionsList) {
+        my %ACLEdit = (
+            label => $Item,
+            value => $Item
+        );
+        push @ACLEditPossibleActionsList, \%ACLEdit;
+    }
+
+    # set ACL data
+    $LayoutObject->AddJSData(
+        Key   => 'PossibleActionsList',
+        Value => \@ACLEditPossibleActionsList,
+    );
+
     $Output .= $LayoutObject->Output(
         TemplateFile => "AdminACL$Param{Action}",
         Data         => {
@@ -797,8 +839,8 @@ sub _GetParams {
         qw( Name EntityID Comment Description StopAfterMatch ValidID ConfigMatch ConfigChange )
         )
     {
-        $GetParam->{$ParamName}
-            = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $ParamName ) || '';
+        $GetParam->{$ParamName} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $ParamName )
+            || '';
     }
 
     if ( $GetParam->{ConfigMatch} ) {

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,25 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Ticket Notification Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Ticket Notification Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% SWITCH Data.Action %]
+        [% CASE 'Add' %]
+            [% BreadcrumbPath.push({ Name => Translate("Add Notification"),}) %]
+        [% CASE 'Change' %]
+            [% USE EditTitle = String(Translate("Edit Notification")) %]
+            [% BreadcrumbPath.push({ Name => EditTitle.append( ': ', Data.Name ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
 [% RenderBlockStart("ActionList") %]
         <div class="WidgetSimple">
@@ -37,6 +56,18 @@
             </div>
         </div>
 [% RenderBlockEnd("ActionList") %]
+
+[% RenderBlockStart("Filter") %]
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterNotifications">[% Translate("Filter for Notifications") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterNotifications" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterNotifications" value="" title="[% Translate("Filter for notifications") | html %]">
+            </div>
+        </div>
+[% RenderBlockEnd("Filter") %]
+
 [% RenderBlockStart("ActionImport") %]
         <div class="WidgetSimple">
             <div class="Header">
@@ -79,7 +110,7 @@
                 <h2>[% Translate("List") | html %]</h2>
             </div>
             <div class="Content">
-                <table class="DataTable">
+                <table class="DataTable" id="Notifications">
                     <thead>
                         <tr>
                             <th class="W20pc">[% Translate("Name") | html %]</th>
@@ -102,7 +133,7 @@
 [% RenderBlockEnd("NoDataFoundMsg") %]
 [% RenderBlockStart("OverviewResultRow") %]
                         <tr [% IF Data.ValidID != 1%]class="Invalid"[% END %]>
-                            <td><a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Change;ID=[% Data.ID | uri %]">[% Data.Name | html %]</a></td>
+                            <td><a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Change;ID=[% Data.ID | uri %]">[% Translate(Data.Name) | html %]</a></td>
                             <td title="[% Data.Comment | html %]">[% Data.Comment | truncate(26) | html %]</td>
                             <td>[% Translate(Data.Valid) | html %]</td>
                             <td>[% Data.ChangeTime | Localize("TimeShort") %]</td>
@@ -116,28 +147,13 @@
                             </td>
                         </tr>
 [% RenderBlockEnd("OverviewResultRow") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="8">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
-
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('.NotificationDelete').bind('click', function (Event) {
-
-    if (window.confirm([% Translate("Do you really want to delete this notification?") | JSON %])) {
-        window.location = $(this).attr('href');
-    }
-
-    // don't interfere with MasterAction
-    Event.stopPropagation();
-    Event.preventDefault();
-    return false;
-});
-//]]></script>
-[% END %]
-
 
 [% RenderBlockEnd("OverviewResult") %]
 
@@ -146,18 +162,20 @@ $('.NotificationDelete').bind('click', function (Event) {
         <form action="[% Env("CGIHandle") %]" method="post" class="Validate" name="compose" id="NotificationEvent">
             <div class="WidgetSimple">
                 <div class="Header">
-[% RenderBlockStart("HeaderAdd") %]
+                [% IF Data.Action == 'Add' %]
                     <h2>[% Translate("Add Notification") | html %]</h2>
-[% RenderBlockEnd("HeaderAdd") %]
-[% RenderBlockStart("HeaderEdit") %]
+                [% ELSE %]
                     <h2>[% Translate("Edit Notification") | html %]</h2>
-[% RenderBlockEnd("HeaderEdit") %]
+                [% END %]
                 </div>
                 <div class="Content">
 
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="[% Data.Action | uri %]Action"/>
                     <input type="hidden" name="ID" value="[% Data.ID | html %]"/>
+                    [% IF Data.Action == 'Change' %]
+                        <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
+                    [% END %]
                     <fieldset class="TableLike">
 
                         <label for="Name" class="Mandatory">
@@ -182,7 +200,7 @@ $('.NotificationDelete').bind('click', function (Event) {
 
                         <label for="VisibleForAgent">[% Translate("Show in agent preferences") | html %]: </label>
                         <div class="Field">
-                            <input type="checkbox" name="VisibleForAgent" id="VisibleForAgent" value="1" [% Data.VisibleForAgentChecked %] />
+                            [% Data.VisibleForAgentStrg %]
                         </div>
                         <div class="Clear"></div>
 
@@ -202,21 +220,6 @@ $('.NotificationDelete').bind('click', function (Event) {
                     </fieldset>
                 </div>
             </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    $('#VisibleForAgent').bind('click', function (Event) {
-        var TooltipObject = $('#VisibleForAgentTooltip');
-
-        if ($(this).prop('checked')) {
-            TooltipObject.removeAttr('readonly');
-            TooltipObject.prop('value','');
-        }
-        else {
-            TooltipObject.attr('readonly', 'readonly');
-        }
-    });
-//]]></script>
-[% END %]
             <div class="WidgetSimple SpacingTop">
                 <div class="Header">
                     <div class="WidgetAction Toggle">
@@ -305,13 +308,13 @@ $('.NotificationDelete').bind('click', function (Event) {
                         <div class="Clear"></div>
 [% RenderBlockEnd("OverviewUpdateService") %]
 
-                        <label for="CustomerID">[% Translate("CustomerID") | html %]: </label>
+                        <label for="CustomerID">[% Translate("Customer ID") | html %]: </label>
                         <div class="Field">
                             <input type="text" name="CustomerID" id="CustomerID" class="W75pc" value="[% Data.CustomerID | html %]"/>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="CustomerUserID">[% Translate("Customer") | html %]: </label>
+                        <label for="CustomerUserID">[% Translate("Customer User ID") | html %]: </label>
                         <div class="Field">
                             <input type="text" name="CustomerUserID" id="CustomerUserID" class="W75pc" value="[% Data.CustomerUserID | html %]"/>
                         </div>
@@ -347,54 +350,43 @@ $('.NotificationDelete').bind('click', function (Event) {
                 <div class="Content">
                     <fieldset class="TableLike">
 
-                        <label for="ArticleTypeID">[% Translate("Article type") | html %]: </label>
-                        <div class="Field">
-                            [% Data.ArticleTypesStrg %]
-                            <p class="FieldExplanation">([% Translate("Only for ArticleCreate and ArticleSend event") | html %])</p>
-                            <div id="ArticleTypeIDServerError" class="TooltipErrorMessage">
-                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
-                            </div>
-                        </div>
-                        <div class="Clear"></div>
-
                         <label for="ArticleSenderTypeID">[% Translate("Article sender type") | html %]: </label>
                         <div class="Field">
                             [% Data.ArticleSenderTypesStrg %]
-                            <p class="FieldExplanation">([% Translate("Only for ArticleCreate and ArticleSend event") | html %])</p>
                             <div id="ArticleSenderTypeIDServerError" class="TooltipErrorMessage">
                                 <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="ArticleSubjectMatch">[% Translate("Subject match") | html %]: </label>
+                        <label for="ArticleIsVisibleForCustomer">[% Translate("Customer visibility") | html %]: </label>
                         <div class="Field">
-                            <input type="text" name="ArticleSubjectMatch" id="ArticleSubjectMatch" class="W75pc [% Data.ArticleSubjectMatchServerError %]" value="[% Data.ArticleSubjectMatch | html %]"/>
-                            <p class="FieldExplanation">([% Translate("Only for ArticleCreate and ArticleSend event") | html %])</p>
-                            <div id="ArticleSubjectMatchServerError" class="TooltipErrorMessage">
-                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
-                            </div>
+                            [% Data.ArticleCustomerVisibilityStrg %]
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="ArticleBodyMatch">
-                            [% Translate("Body match") | html %]:
-                        </label>
+                        <label for="ArticleCommunicationChannelID">[% Translate("Communication channel") | html %]: </label>
                         <div class="Field">
-                            <input type="text" name="ArticleBodyMatch" id="ArticleBodyMatch" class="W75pc [% Data.ArticleBodyMatchServerError %]" value="[% Data.ArticleBodyMatch | html %]"/>
-                            <p class="FieldExplanation">([% Translate("Only for ArticleCreate and ArticleSend event") | html %])</p>
-                            <div id="ArticleBodyMatchServerError" class="TooltipErrorMessage">
-                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
-                            </div>
+                            [% Data.ArticleCommunicationChannelStrg %]
                         </div>
                         <div class="Clear"></div>
 
                         <label for="ArticleAttachmentInclude">[% Translate("Include attachments to notification") | html %]: </label>
                         <div class="Field">
                             [% Data.ArticleAttachmentIncludeStrg %]
-                            <p class="FieldExplanation">([% Translate("Only for ArticleCreate and ArticleSend event") | html %])</p>
                         </div>
                         <div class="Clear"></div>
+
+[% RenderBlockStart("BackendArticleField") %]
+                        <label for="[% Data.Key %]">[% Data.Label %]:</label>
+                        <div class="Field">
+                            <input type="text" name="[% Data.Key %]" id="[% Data.Key %]" class="W75pc [% Data.Key %]ServerError" value="[% Data.Value | html %]"/>
+                            <div id="[% Data.Key %]ServerError" class="TooltipErrorMessage">
+                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
+                            </div>
+                        </div>
+                        <div class="Clear"></div>
+[% RenderBlockEnd("BackendArticleField") %]
 
                     </fieldset>
                 </div>
@@ -464,25 +456,33 @@ $('.NotificationDelete').bind('click', function (Event) {
                 <div class="Content TransportsContent">
                     <fieldset class="TableLike">
                         <p class="FieldExplanation">
-                            [% Translate("These are the possible methods that can be used to send this notification to each of the recipients. Note: Excluding Email, other methods might not reach all selected recipients, please take a look on the documentation of each merthod to get more information. Please select at least one method below.") | html %]
+                            [% Translate("These are the possible methods that can be used to send this notification to each of the recipients. Please select at least one method below.") | html %]
                         </p>
                     </fieldset>
 [% RenderBlockStart("TransportRow") %]
                     <fieldset class="TableLike FixedLabel SpacingTop">
                         <legend><span>[% Data.TransportName | html %]</span></legend>
 [% RenderBlockStart("TransportRowEnabled") %]
+                        <label for="Transport[% Data.Transport | html %]">
+                            [% Translate("Enable this notification method") | html %]:
+                        </label>
                         <div class="Field">
-                            [% Data.EventsStrg %]
                             <input type="checkbox" name="Transports" id="Transport[% Data.Transport | html %]" value="[% Data.Transport | html %]" class="Validate_OneChecked [% Data.TransportsServerError %]" title="[% Translate("Transport") %]: [% Translate(Data.Transport) %]" [% Data.TransportChecked %] />
-                            <label for="Transport[% Data.Transport | html %]">
-                                [% Translate("Enable this notification method") | html %]
-                            </label>
                             <div id="Transport[% Data.Transport | html %]Error" class="TooltipErrorMessage">
                                 <p>[% Translate("At least one method is needed per notification.") | html %]</p>
                             </div>
                             <div id="Transport[% Data.Transport | html %]ServerError" class="TooltipErrorMessage">
                                 <p>[% Translate("At least one method is needed per notification.") | html %]</p>
                             </div>
+                        </div>
+                        <div class="Clear"></div>
+
+                        <label for="AgentEnabledByDefault[% Data.Transport | html %]" class="AgentEnabledByDefault">
+                            [% Translate("Active by default in agent preferences") | html %]:
+                        </label>
+                        <div class="Field AgentEnabledByDefault">
+                            <input type="checkbox" name="AgentEnabledByDefault" id="AgentEnabledByDefault[% Data.Transport | html %]" value="[% Data.Transport | html %]"  title="" [% Data.AgentEnabledByDefaultChecked %] />
+                            <p class="FieldExplanation">[% Translate("This is the default value for assigned recipient agents who didn't make a choice for this notification in their preferences yet. If the box is enabled, the notification will be sent to such agents.") | html %]</p>
                         </div>
                         <div class="Clear"></div>
 
@@ -514,21 +514,6 @@ $('.NotificationDelete').bind('click', function (Event) {
                 </div>
             </div>
 
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.Form.Validate.AddMethod("Validate_OneChecked", function(Value, Element) {
-        if($(".Validate_OneChecked:checkbox:checked").length > 0){
-            return true;
-        }
-       return false;
-    });
-
-    Core.Form.Validate.AddRule("Validate_OneChecked", {
-        Validate_OneChecked: true
-    });
-//]]></script>
-[% END %]
-
             <div class="WidgetSimple SpacingTop">
                 <div class="Header">
                     <div class="WidgetAction Toggle">
@@ -540,18 +525,20 @@ $('.NotificationDelete').bind('click', function (Event) {
                 <div class="Content">
                     <div class ="NotificationLanguageContainer">
 
-[% RenderBlockStart("RichText") %]
-[% InsertTemplate("RichTextEditor.tt") %]
-[% RenderBlockEnd("RichText") %]
-
 [% RenderBlockStart("NotificationLanguage") %]
                         <div class="NotificationLanguage">
-                            <div class="WidgetSimple SpacingTop">
+                            <div class="WidgetSimple SpacingTop [% IF !Data.Language %] Collapsed [% END %] ">
                                 <div class="Header">
                                     <div class="WidgetAction Toggle">
                                         <a href="#" title="[% Translate("Toggle this widget") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
                                     </div>
-                                    <h2 class="Title">[% Translate(Data.Language) %]</h2>
+                                    <h2 class="Title">
+                                        [% IF Data.Language %]
+                                          [% Translate(Data.Language) %]
+                                        [% ELSE %]
+                                           <span class="Warning">'[% Data.LanguageID | html %]' &mdash; [% Translate("This language is not present or enabled on the system. This notification text could be deleted if it is not needed anymore.") | html %]</span>
+                                        [% END %]
+                                    </h2>
 [% RenderBlockStart("NotificationLanguageRemoveButton") %]
                                     <div class="AdditionalInformation">
                                         <a value="Remove Language" class="RemoveButton LanguageRemove" id="[% Data.LanguageID | html %]_Language_Remove" href="" name="Data.LanguageID_Language_Remove"><i class="fa fa-minus-square-o"></i><span class="InvisibleText">[% Translate("Remove Notification Language") | html %]</span></a>
@@ -658,16 +645,6 @@ $('.NotificationDelete').bind('click', function (Event) {
                 </div>
             </div>
 
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Agent.Admin.NotificationEvent.Init({
-    Localization: {
-        DeleteNotificationLanguageMsg: [% Translate("Do you really want to delete this notification language?") | JSON %]
-    }
-});
-//]]></script>
-[% END %]
-
             <div class="WidgetSimple SpacingTop">
                 <div class="Header">
                     <h2>[% Translate("Save Changes") | html %]</h2>
@@ -677,7 +654,13 @@ Core.Agent.Admin.NotificationEvent.Init({
                     <fieldset class="TableLike">
 
                         <div class="Field SpacingTop">
-                            <button class="Primary CallForAction" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                            [% IF Data.Action == 'Change' %]
+                                <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                                [% Translate("or") | html %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            [% ELSE %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% END %]
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                         </div>
@@ -717,8 +700,7 @@ Core.Agent.Admin.NotificationEvent.Init({
                     <dt><code>&lt;OTRS_AGENT_*&gt;</code></dt>
                     <dd>
                         [% Translate("To get the article attribute") | html %]
-                        ([% Translate(" e. g.") | html %] <code>&lt;OTRS_AGENT_From&gt;, &lt;OTRS_AGENT_To&gt;, &lt;OTRS_AGENT_Cc&gt;,
-                        &lt;OTRS_AGENT_Subject&gt;, &lt;OTRS_AGENT_Body&gt;</code>).
+                        ([% Translate(" e. g.") | html %] <code>&lt;OTRS_AGENT_From&gt;, &lt;OTRS_AGENT_To&gt;, &lt;OTRS_AGENT_Cc&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_CUSTOMER_SUBJECT[20]&gt;</code></dt>
@@ -733,63 +715,63 @@ Core.Agent.Admin.NotificationEvent.Init({
 
                     <dt><code>&lt;OTRS_CUSTOMER_REALNAME&gt;</code></dt>
                     <dd>
-                        [% Translate("To get the realname of the sender (if given).") | html %]
+                        [% Translate("To get the name of the ticket's customer user (if given).") | html %]
                     </dd>
 
                     <dt><code>&lt;OTRS_CUSTOMER_*&gt;</code></dt>
                     <dd>
                         [% Translate("To get the article attribute") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_CUSTOMER_From&gt;, &lt;OTRS_CUSTOMER_To&gt;,
-                        &lt;OTRS_CUSTOMER_Cc&gt;, &lt;OTRS_CUSTOMER_Subject&gt; and &lt;OTRS_CUSTOMER_Body&gt;</code>).
+                        &lt;OTRS_CUSTOMER_Cc&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_CUSTOMER_DATA_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Options of the current customer user data") | html %]
+                        [% Translate("Attributes of the current customer user data") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_CUSTOMER_DATA_UserFirstname&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_OWNER_*&gt;</code> [% Translate("or") | html %] <code>&lt;OTRS_TICKET_OWNER_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Ticket owner options") | html %]
+                        [% Translate("Attributes of the current ticket owner user data") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_OWNER_UserFirstname&gt;</code> [% Translate("or") | html %] <code>&lt;OTRS_TICKET_OWNER_UserFirstname&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_RESPONSIBLE_*&gt;</code> [% Translate("or") | html %] <code>&lt;OTRS_TICKET_RESPONSIBLE_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Ticket responsible options") | html %]
+                        [% Translate("Attributes of the current ticket responsible user data") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_RESPONSIBLE_UserFirstname&gt;</code> [% Translate("or") | html %] <code>&lt;OTRS_TICKET_RESPONSIBLE_UserFirstname&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_CURRENT_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Options of the current user who requested this action") | html %]
+                        [% Translate("Attributes of the current agent user who requested this action") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_CURRENT_UserFirstname&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_*&gt;</code> [% Translate("or") | html %] <code>&lt;OTRS_NOTIFICATION_RECIPIENT_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Options of the recipient user for the notification") | html %]
+                        [% Translate("Attributes of the recipient user for the notification") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_UserFullname&gt;</code> [% Translate("or") | html %] <code>&lt;OTRS_NOTIFICATION_RECIPIENT_UserFullname&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_TICKET_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Options of the ticket data") | html %]
+                        [% Translate("Attributes of the ticket data") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_TICKET_TicketNumber&gt;, &lt;OTRS_TICKET_TicketID&gt;,
                         &lt;OTRS_TICKET_Queue&gt;, &lt;OTRS_TICKET_State&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_TICKET_DynamicField_*&gt;</code></dt>
                     <dd>
-                        [% Translate("Options of ticket dynamic fields internal key values") | html %]
+                        [% Translate("Ticket dynamic fields internal key values") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_TICKET_DynamicField_TestField&gt;,
                         &lt;OTRS_TICKET_DynamicField_TicketFreeText1&gt;</code>).
                     </dd>
 
                     <dt><code>&lt;OTRS_TICKET_DynamicField_*_Value&gt;</code></dt>
                     <dd>
-                        [% Translate("Options of ticket dynamic fields display values, useful for Dropdown and Multiselect fields") | html %]
+                        [% Translate("Ticket dynamic fields display values, useful for Dropdown and Multiselect fields") | html %]
                         ([% Translate(" e. g.") | html %] <code>&lt;OTRS_TICKET_DynamicField_TestField_Value&gt;,
                         &lt;OTRS_TICKET_DynamicField_TicketFreeText1_Value&gt;</code>).
                     </dd>
@@ -802,14 +784,14 @@ Core.Agent.Admin.NotificationEvent.Init({
                 </dl>
 
                 <p class="SpacingTop">
-                    [% Translate("Example response") | html %]:
+                    [% Translate("Example notification") | html %]:
                 </p>
                 <label for="SubjectExample">[% Translate("Subject") | html %]</label>:
-                <input type="text" name="SubjectExample" id="SubjectExample" value="Ticket Created: &lt;OTRS_TICKET_Title&gt;" size="80" maxlength="80"/>
+                <input type="text" name="SubjectExample" id="SubjectExample" value="Ticket Created: &lt;OTRS_TICKET_Title&gt;" size="80" maxlength="80" readonly />
                 <br/>
                 <label for="ResponseExample">[% Translate("Text") | html %]</label>:
                 <br/>
-                <textarea rows="12" cols="70" name="ResponseExample" id="ResponseExample">
+                <textarea rows="12" cols="70" name="ResponseExample" id="ResponseExample" readonly>
 Hi &lt;OTRS_NOTIFICATION_RECIPIENT_UserFirstname&gt;,
 
 ticket [&lt;OTRS_CONFIG_TicketHook&gt;&lt;OTRS_TICKET_TicketNumber&gt;] has been created in queue &lt;OTRS_TICKET_Queue&gt;.

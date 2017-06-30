@@ -1,26 +1,33 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
 
 use vars (qw($Self));
 
-my $RandomName = $Kernel::OM->Get('Kernel::System::UnitTest::Helper')->GetRandomID();
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $WebService = 'webservice' . $Helper->GetRandomID();
 
 # get web service object
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
 # create a base web service
 my $WebServiceID = $WebserviceObject->WebserviceAdd(
-    Name   => $RandomName,
+    Name   => $WebService,
     Config => {
         Debugger => {
             DebugThreshold => 'debug',
@@ -35,9 +42,8 @@ my $WebServiceID = $WebserviceObject->WebserviceAdd(
     UserID  => 1,
 );
 
-my $Home = $Kernel::OM->Get('Kernel::Config')->Get('Home');
-
-my $TargetPath = "$Home/var/tmp/$RandomName.yaml";
+my $Home       = $Kernel::OM->Get('Kernel::Config')->Get('Home');
+my $TargetPath = "$Home/var/tmp/$WebService.yaml";
 
 # test cases
 my @Tests = (
@@ -63,7 +69,7 @@ my @Tests = (
     },
     {
         Name     => 'Wrong webservice-id',
-        Options  => [ '--webservice-id', $RandomName, '--target-path', $TargetPath ],
+        Options  => [ '--webservice-id', $WebService, '--target-path', $TargetPath ],
         ExitCode => 1,
     },
     {
@@ -91,7 +97,7 @@ for my $Test (@Tests) {
     if ( !$Test->{ExitCode} ) {
 
         my $WebService = $WebserviceObject->WebserviceGet(
-            Name => $RandomName,
+            Name => $WebService,
         );
 
         my $ContentSCALARRef = $MainObject->FileRead(
@@ -113,25 +119,16 @@ for my $Test (@Tests) {
     }
 }
 
-if ($WebServiceID) {
-    my $Success = $WebserviceObject->WebserviceDelete(
-        ID     => $WebServiceID,
-        UserID => 1,
-    );
+if ( -e $TargetPath ) {
+
+    my $Success = unlink $TargetPath;
 
     $Self->True(
         $Success,
-        "WebserviceDelete() for web service: $RandomName with true",
+        "Deleted temporary file $TargetPath with true",
     );
-
-    if ( -e $TargetPath ) {
-
-        my $Success = unlink $TargetPath;
-
-        $Self->True(
-            $Success,
-            "Deleted temporary file $TargetPath with true",
-        );
-    }
 }
+
+# cleanup is done by RestoreDatabase
+
 1;

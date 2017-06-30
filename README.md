@@ -1,13 +1,15 @@
+[![Build Status](https://travis-ci.org/OTRS/otrs.svg?branch=master)](https://travis-ci.org/OTRS/otrs)
+
 What is OTRS?
 =============
-OTRS is an Open source Ticket Request System with many features to manage
-customer telephone calls and e-mails. It is distributed under the GNU
-AFFERO General Public License (AGPL) and tested on Linux, Solaris, AIX,
-FreeBSD, OpenBSD and Mac OS 10.x. Do you receive many e-mails and
-want to answer them with a team of agents? You're going to love OTRS!
+OTRS (the former Open Ticket Request System now stands for Open Technology
+ – Real Service) is an open source ticket request system with many features
+to manage customer telephone calls and e-mails. It is distributed under the
+GNU AFFERO General Public License (AGPL) and tested on various Linux platforms.
+Do you receive many e-mails and want to answer them with a team of agents? You're going to love OTRS!
 
 You can find a list of features in the
-[online documentation](http://otrs.github.io/doc/manual/admin/5.0/en/html/otrs.html#features-of-otrs).
+[online documentation](http://otrs.github.io/doc/manual/admin/6.0/en/html/otrs.html#features-of-otrs).
 
 
 License
@@ -45,24 +47,24 @@ or benefit from an inhouse training that covers all the specific needs of your c
 Software requirements
 =====================
 Perl
-- Perl 5.10.0 or higher
+- Perl 5.16.0 or higher
 
 Webserver
-- Webserver with CGI support (CGI is not recommended)
 - Apache2 + mod_perl2 or higher (recommended)
+- Webserver with CGI support (CGI is not recommended)
 
 Databases
 - MySQL 5.0 or higher
 - MariaDB
-- PostgreSQL 8.4 or higher
+- PostgreSQL 9.2 or higher
 - Oracle 10g or higher
 
 Browsers
 - Use a modern web browser.
 - These browsers are not supported:
-  - Internet Explorer before version 10
-  - Firefox before version 10
-  - Safari before version 5
+  - Internet Explorer before version 11
+  - Firefox before version 31
+  - Safari before version 6
 
 
 Directories & Files
@@ -126,7 +128,8 @@ Directories & Files
     |           |--- /Queue.pm       (information about queues. e. g. response templates, ...)
     |           |--- /Ticket.pm      (ticket and article functions)
     |           |--- /User.pm        (user module)
-    |           |--- /Request.pm    (HTTP/CGI abstraction module)
+    |           |--- /Web/*.pm       (core interface modules)
+    |                 |--- /Request.pm    (HTTP/CGI abstraction module)
     |
     |  (data stuff)
     |--/var/

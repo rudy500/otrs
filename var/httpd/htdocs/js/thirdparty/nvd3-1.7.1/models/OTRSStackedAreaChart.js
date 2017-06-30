@@ -22,32 +22,53 @@ nv.models.OTRSstackedAreaChart = function() {
         , showXAxis = true
         , showYAxis = true
         , rightAlignYAxis = false
+// ---
+// OTRS
+// ---
+        , reduceXTicks = true
+        , staggerLabels = false
+// ---
         , useInteractiveGuideline = false
         , tooltips = true
         , tooltip = function(key, x, y, e, graph) {
             return '<h3>' + key + '</h3>' +
-                '<p>' +  y + ' on ' + x + '</p>'
+// ---
+// OTRS
+// ---
+//                '<p>' +  y + ' on ' + x + '</p>'
+                '<p>' +  y + ' - ' + x + '</p>'
+// ---
         }
         , x //can be accessed via chart.xScale()
         , y //can be accessed via chart.yScale()
         , yAxisTickFormat = d3.format(',.2f')
         , state = nv.utils.state()
         , defaultState = null
-        , noData = 'No Data Available.'
+// ---
+// OTRS
+// ---
+//        , noData = 'No Data Available.'
+        , noData = Core.Language.Translate('No Data Available.')
+// ---
         , dispatch = d3.dispatch('tooltipShow', 'tooltipHide', 'stateChange', 'changeState','renderEnd')
         , controlWidth = 250
 // ---
 // OTRS
 // ---
-//    , cData = ['Stacked','Stream','Expanded']
-        , cData = [ Core.Config.Get('Stacked') || 'Stacked', Core.Config.Get('Stream') || 'Stream', Core.Config.Get('Expanded') || 'Expanded' ]
+//        , cData = ['Stacked','Stream','Expanded']
+        , cData = [ Core.Language.Translate('Stacked'), Core.Language.Translate('Stream'), Core.Language.Translate('Expanded') ]
 // ---
         , controlLabels = {}
         , duration = 250
         ;
 
     state.style = stacked.style();
-    xAxis.orient('bottom').tickPadding(7);
+// ---
+// OTRS
+// ---
+//    xAxis.orient('bottom').tickPadding(7);
+    xAxis.orient('bottom').tickPadding(7).showMaxMin(false);
+// ---
     yAxis.orient((rightAlignYAxis) ? 'right' : 'left');
 
     controls.updateState(false);
@@ -186,20 +207,38 @@ nv.models.OTRSstackedAreaChart = function() {
             if (showControls) {
                 var controlsData = [
                     {
-                        key: controlLabels.stacked || 'Stacked',
-                        metaKey: 'Stacked',
+// ---
+// OTRS
+// ---
+//                        key: controlLabels.stacked || 'Stacked',
+//                        metaKey: 'Stacked',
+                        key: controlLabels.stacked || Core.Language.Translate('Stacked'),
+                        metaKey: Core.Language.Translate('Stacked'),
+// ---
                         disabled: stacked.style() != 'stack',
                         style: 'stack'
                     },
                     {
-                        key: controlLabels.stream || 'Stream',
-                        metaKey: 'Stream',
+// ---
+// OTRS
+// ---
+//                        key: controlLabels.stream || 'Stream',
+//                        metaKey: 'Stream',
+                        key: controlLabels.stream || Core.Language.Translate('Stream'),
+                        metaKey: Core.Language.Translate('Stream'),
+// ---
                         disabled: stacked.style() != 'stream',
                         style: 'stream'
                     },
                     {
-                        key: controlLabels.expanded || 'Expanded',
-                        metaKey: 'Expanded',
+// ---
+// OTRS
+// ---
+//                        key: controlLabels.expanded || 'Expanded',
+//                        metaKey: 'Expanded',
+                        key: controlLabels.expanded || Core.Language.Translate('Expanded'),
+                        metaKey: Core.Language.Translate('Expanded'),
+// ---
                         disabled: stacked.style() != 'expand',
                         style: 'expand'
                     },
@@ -273,6 +312,42 @@ nv.models.OTRSstackedAreaChart = function() {
                 g.select('.nv-x.nv-axis')
                     .transition().duration(0)
                     .call(xAxis);
+// ---
+// OTRS
+// ---
+                var xTicks = g.select('.nv-x.nv-axis > g').selectAll('g');
+
+                xTicks
+                    .selectAll('line, text')
+                    .style('opacity', 1)
+                if (staggerLabels) {
+                    var getTranslate = function(x,y) {
+                        return "translate(" + x + "," + y + ")";
+                    };
+
+                    var staggerUp = 5, staggerDown = 17;  //pixels to stagger by
+                    // Issue #140
+                    xTicks
+                        .selectAll("text")
+                        .attr('transform', function(d,i,j) {
+                            return  getTranslate(0, (j % 2 == 0 ? staggerUp : staggerDown));
+                        });
+
+                    var totalInBetweenTicks = d3.selectAll(".nv-x.nv-axis .nv-wrap g g text")[0].length;
+                    g.selectAll(".nv-x.nv-axis .nv-axisMaxMin text")
+                        .attr("transform", function(d,i) {
+                            return getTranslate(0, (i === 0 || totalInBetweenTicks % 2 !== 0) ? staggerDown : staggerUp);
+                        });
+                }
+
+                if (reduceXTicks)
+                    xTicks
+                        .filter(function(d,i) {
+                            return i % Math.ceil(data[0].values.length / (availableWidth / 100)) !== 0;
+                        })
+                        .selectAll('text, line')
+                        .style('opacity', 0);
+// ---
             }
 
             if (showYAxis) {
@@ -486,6 +561,12 @@ nv.models.OTRSstackedAreaChart = function() {
         noData:    {get: function(){return noData;}, set: function(_){noData=_;}},
         showControls:    {get: function(){return showControls;}, set: function(_){showControls=_;}},
         controlLabels:    {get: function(){return controlLabels;}, set: function(_){controlLabels=_;}},
+// ---
+// OTRS
+// ---
+        reduceXTicks:    {get: function(){return reduceXTicks;}, set: function(_){reduceXTicks=_;}},
+        staggerLabels:    {get: function(){return staggerLabels;}, set: function(_){staggerLabels=_;}},
+// ---
         yAxisTickFormat:    {get: function(){return yAxisTickFormat;}, set: function(_){yAxisTickFormat=_;}},
 
         // options that require extra logic in the setter

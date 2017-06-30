@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,10 +13,10 @@ use utf8;
 
 use vars (qw($Self));
 
+# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-my $Home = $Kernel::OM->Get('Kernel::Config')->Get('Home');
-
+my $Home   = $ConfigObject->Get('Home');
 my $Daemon = $Home . '/bin/otrs.Daemon.pl';
 
 # get current daemon status
@@ -37,59 +37,61 @@ if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
 # get needed objects
 my $TaskWorkerObject  = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker');
 my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+my $Helper            = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-# wait until task is executed
-ACTIVESLEEP:
-for my $Sec ( 1 .. 120 ) {
+my $RunTasks = sub {
 
-    # run the worker
-    $TaskWorkerObject->Run();
+    local $SIG{CHLD} = "IGNORE";
 
-    my @List = $SchedulerDBObject->TaskList();
+    # wait until task is executed
+    ACTIVESLEEP:
+    for my $Sec ( 1 .. 120 ) {
 
-    last ACTIVESLEEP if !scalar @List;
+        # run the worker
+        $TaskWorkerObject->Run();
+        $TaskWorkerObject->_WorkerPIDsCheck();
 
-    sleep 1;
+        my @List = $SchedulerDBObject->TaskList();
 
-    print "Waiting $Sec secs for scheduler tasks to be executed\n";
-}
+        last ACTIVESLEEP if !scalar @List;
 
-# get original cron settings
+        sleep 1;
+
+        print "Waiting $Sec secs for scheduler tasks to be executed\n";
+    }
+};
+
+$RunTasks->();
+
+# get original Cron settings
 my $OriginalSettings = $ConfigObject->Get('Daemon::SchedulerCronTaskManager::Task') || {};
 
-# remove all cron jobs from config
+# remove all Cron jobs from config
 $ConfigObject->Set(
     Key   => 'Daemon::SchedulerCronTaskManager::Task',
     Value => {},
 );
 
-# get helper object
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
 # freeze time
-$HelperObject->FixedTimeSet();
+$Helper->FixedTimeSet();
 
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-    SystemTime => $TimeObject->SystemTime(),
-);
-
-my $SecsDiff = $Sec - 60;
+my $CurSysDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
 # go back in time to have 0 seconds in the current minute
-$HelperObject->FixedTimeAddSeconds($SecsDiff);
+$Helper->FixedTimeAddSeconds( $CurSysDTObject->Get()->{Second} - 60 );
 
 # get random ID
-my $RandomID = $HelperObject->GetRandomID();
+my $RandomID = $Helper->GetRandomID();
 
 my @Tests = (
     {
         Name    => 'No Schedule',
         CronJob => {
-            Name => 'NoSchedue' . $RandomID,
+            Name => 'NoSchedule' . $RandomID,
             Data => {
-                TaskName => 'NoSchedue' . $RandomID,
-                Command  => 'df',
+                TaskName => 'NoSchedule' . $RandomID,
+                Module   => 'Admin::Package::List',
+                Function => 'run',
             },
         },
         TaskAdd => 0,
@@ -99,22 +101,24 @@ my @Tests = (
         CronJob => {
             Name => 'WrongSchedue' . $RandomID,
             Data => {
-                TaskName => 'NoSchedue' . $RandomID,
-                Command  => 'df',
+                TaskName => 'NoSchedule' . $RandomID,
+                Module   => 'Admin::Package::List',
+                Function => 'run',
                 Schedule => '\1 * * * *',
             },
         },
         TaskAdd => 0,
     },
 
-    # # Test block (this tests needs to be run together in the same order)
+    # Test block (this tests needs to be run together in the same order)
     {
         Name    => 'All Minutes',
         CronJob => {
             Name => 'CronAllMinutes' . $RandomID,
             Data => {
                 TaskName => 'CronAllMinutes' . $RandomID,
-                Command  => 'df',
+                Module   => 'Admin::Package::List',
+                Function => 'run',
                 Schedule => '* * * * *',
             },
         },
@@ -142,7 +146,7 @@ my @Tests = (
         SecondsAdd => 10,
     },
 
-    # # Test block end
+    # Test block end
 
 );
 
@@ -155,7 +159,7 @@ for my $Test (@Tests) {
 
     my $CronName;
 
-    # create a cron job if needed
+    # create a Cron job if needed
     if ( $Test->{CronJob} ) {
         my $CronAdd = $ConfigObject->Set(
             Key   => "Daemon::SchedulerCronTaskManager::Task###$Test->{CronJob}->{Name}",
@@ -175,25 +179,34 @@ for my $Test (@Tests) {
             "$Test->{Name} task manager Run() - with true (this will create the recurrent task but not execution)",
         );
 
-        my $StartSystemTime = $TimeObject->SystemTime();
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $StartSystemTime,
-        );
-        my $SecondsAdd = ( 60 - $Sec );
-        $HelperObject->FixedTimeAddSeconds($SecondsAdd);
-        my $EndSystemTime = $TimeObject->SystemTime();
-        print("  Added $SecondsAdd seconds to time (initial adjustment) form $StartSystemTime to $EndSystemTime\n");
+        my $StartSystemTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        my $SecondsAdd            = ( 60 - $StartSystemTimeObject->Get()->{Second} );
 
+        $Helper->FixedTimeAddSeconds($SecondsAdd);
+
+        my $EndSystemTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+        printf(
+            "Added %s seconds to time (initial adjustment) from %s to %s\n",
+            $SecondsAdd,
+            $StartSystemTimeObject->ToEpoch(),
+            $EndSystemTimeObject->ToEpoch(),
+        );
     }
 
     $CronName //= $Test->{CronName} || '';
 
     # add seconds if needed
     if ( $Test->{SecondsAdd} ) {
-        my $StartSystemTime = $TimeObject->SystemTime();
-        $HelperObject->FixedTimeAddSeconds( $Test->{SecondsAdd} );
-        my $EndSystemTime = $TimeObject->SystemTime();
-        print("  Added $Test->{SecondsAdd} seconds to time form $StartSystemTime to $EndSystemTime\n");
+        my $StartSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+        $Helper->FixedTimeAddSeconds( $Test->{SecondsAdd} );
+        my $EndSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+        printf(
+            "  Added %s seconds to time from %s to %s\n",
+            $Test->{SecondsAdd},
+            $StartSystemTime,
+            $EndSystemTime,
+        );
     }
 
     # cleanup Task Manager Cache
@@ -244,12 +257,15 @@ for my $Test (@Tests) {
             "$Test->{Name} - task manager creates one task",
         );
 
+        local $SIG{CHLD} = "IGNORE";
+
         # wait until task is executed
         ACTIVESLEEP:
         for my $Sec ( 1 .. 120 ) {
 
             # run the worker
             $TaskWorkerObject->Run();
+            $TaskWorkerObject->_WorkerPIDsCheck();
 
             @List = $SchedulerDBObject->TaskList(
                 Type => 'Cron',
@@ -287,7 +303,7 @@ for my $Test (@Tests) {
 
     next TESTCASE if $Test->{KeepCron};
 
-    # remove all cron jobs from config
+    # remove all Cron jobs from config
     my $CronDelete = $ConfigObject->Set(
         Key   => 'Daemon::SchedulerCronTaskManager::Task',
         Value => {},
@@ -335,13 +351,14 @@ my $CronAdd = $ConfigObject->Set(
     Key   => "Daemon::SchedulerCronTaskManager::Task###$CronName",
     Value => {
         TaskName => $CronName,
-        Command  => 'df',
+        Module   => 'Admin::Package::List',
+        Function => 'run',
         Schedule => '* * * * *',
     },
 );
 $Self->True(
     $CronAdd,
-    "Cron setting added - for cron job '$CronName' with true",
+    "Cron setting added - for Cron job '$CronName' with true",
 );
 
 my %TestJobNames = (
@@ -353,8 +370,6 @@ my %TestJobNames = (
 
 # get db object
 my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-
-my $SystemTime = $TimeObject->SystemTime();
 
 # add tasks
 for my $Name ( sort keys %TestJobNames ) {
@@ -452,5 +467,8 @@ $Self->True(
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     system("$Daemon start");
 }
+
+# cleanup cache
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
 
 1;

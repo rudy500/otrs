@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,22 +12,21 @@ use strict;
 use warnings;
 
 use Kernel::System::EmailParser;
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Crypt::SMIME',
     'Kernel::System::Log',
-    'Kernel::System::Ticket',
+    'Kernel::System::Ticket::Article',
 );
 
 sub new {
     my ( $Type, %Param ) = @_;
 
-    # allocate new hash for object
     my $Self = {};
     bless( $Self, $Type );
 
-    # get needed params
     for my $Needed (qw(UserID ArticleID)) {
         if ( $Param{$Needed} ) {
             $Self->{$Needed} = $Param{$Needed};
@@ -56,13 +55,11 @@ sub Check {
     return if !$ConfigObject->Get('SMIME');
 
     # check if article is an email
-    return if $Param{Article}->{ArticleType} !~ /email/i;
+    my $ArticleBackendObject
+        = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForArticle( %{ $Param{Article} // {} } );
+    return if $ArticleBackendObject->ChannelNameGet() ne 'Email';
 
-    my $StoreDecryptedData = $ConfigObject->Get('SMIME::StoreDecryptedData');
-
-    # get needed objects
     my $SMIMEObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
-    my $TicketObject = $Param{TicketObject} || $Kernel::OM->Get('Kernel::System::Ticket');
 
     # check inline smime
     if ( $Param{Article}->{Body} =~ /^-----BEGIN PKCS7-----/ ) {
@@ -78,8 +75,8 @@ sub Check {
             push(
                 @Return,
                 {
-                    Key   => 'Signed',
-                    Value => '"S/MIME SIGNED MESSAGE" header found, but invalid!',
+                    Key   => Translatable('Signed'),
+                    Value => Translatable('"S/MIME SIGNED MESSAGE" header found, but invalid!'),
                 }
             );
         }
@@ -89,7 +86,8 @@ sub Check {
     else {
 
         # get email from fs
-        my $Message = $TicketObject->ArticlePlain(
+        my $Message = $ArticleBackendObject->ArticlePlain(
+            TicketID  => $Param{Article}->{TicketID},
             ArticleID => $Self->{ArticleID},
             UserID    => $Self->{UserID},
         );
@@ -128,8 +126,8 @@ sub Check {
                 push(
                     @Return,
                     {
-                        Key        => 'Crypted',
-                        Value      => 'Ticket decrypted before',
+                        Key        => Translatable('Crypted'),
+                        Value      => Translatable('Ticket decrypted before'),
                         Successful => 1,
                     }
                 );
@@ -141,8 +139,8 @@ sub Check {
                 # return info
                 return (
                     {
-                        Key        => 'Crypted',
-                        Value      => 'Sent message crypted to recipient!',
+                        Key        => Translatable('Crypted'),
+                        Value      => Translatable('Sent message encrypted to recipient!'),
                         Successful => 1,
                     }
                 );
@@ -182,8 +180,8 @@ sub Check {
                 push(
                     @Return,
                     {
-                        Key   => 'Crypted',
-                        Value => 'Impossible to decrypt: private key for email was not found!',
+                        Key   => Translatable('Crypted'),
+                        Value => Translatable('Impossible to decrypt: private key for email was not found!'),
                     }
                 );
                 return @Return;
@@ -208,8 +206,8 @@ sub Check {
                 push(
                     @Return,
                     {
-                        Key   => 'Crypted',
-                        Value => $Decrypt{Message} || 'Successful decryption',
+                        Key   => Translatable('Crypted'),
+                        Value => $Decrypt{Message} || Translatable('Successful decryption'),
                         %Decrypt,
                     }
                 );
@@ -231,7 +229,7 @@ sub Check {
                     push(
                         @Return,
                         {
-                            Key   => 'Signed',
+                            Key   => Translatable('Signed'),
                             Value => $SignCheck{Message},
                             %SignCheck,
                         }
@@ -293,31 +291,28 @@ sub Check {
                         . ", but sender address $OrigSender: does not match certificate address!";
                 }
 
-                if ($StoreDecryptedData) {
+                # updated article body
+                $ArticleBackendObject->ArticleUpdate(
+                    TicketID  => $Param{Article}->{TicketID},
+                    ArticleID => $Self->{ArticleID},
+                    Key       => 'Body',
+                    Value     => $Body,
+                    UserID    => $Self->{UserID},
+                );
 
-                    # updated article body
-                    $TicketObject->ArticleUpdate(
-                        TicketID  => $Param{Article}->{TicketID},
+                # delete crypted attachments
+                $ArticleBackendObject->ArticleDeleteAttachment(
+                    ArticleID => $Self->{ArticleID},
+                    UserID    => $Self->{UserID},
+                );
+
+                # write attachments to the storage
+                for my $Attachment ( $ParserObject->GetAttachments() ) {
+                    $ArticleBackendObject->ArticleWriteAttachment(
+                        %{$Attachment},
                         ArticleID => $Self->{ArticleID},
-                        Key       => 'Body',
-                        Value     => $Body,
                         UserID    => $Self->{UserID},
                     );
-
-                    # delete crypted attachments
-                    $TicketObject->ArticleDeleteAttachment(
-                        ArticleID => $Self->{ArticleID},
-                        UserID    => $Self->{UserID},
-                    );
-
-                    # write attachments to the storage
-                    for my $Attachment ( $ParserObject->GetAttachments() ) {
-                        $TicketObject->ArticleWriteAttachment(
-                            %{$Attachment},
-                            ArticleID => $Self->{ArticleID},
-                            UserID    => $Self->{UserID},
-                        );
-                    }
                 }
 
                 return @Return;
@@ -326,7 +321,7 @@ sub Check {
                 push(
                     @Return,
                     {
-                        Key   => 'Crypted',
+                        Key   => Translatable('Crypted'),
                         Value => "$Decrypt{Message}",
                         %Decrypt,
                     }
@@ -340,19 +335,6 @@ sub Check {
             && $ContentType =~ /signed/i
             )
         {
-
-            # check if article is already verified
-            if ( $Param{Article}->{Body} ne '- no text message => see attachment -' ) {
-
-                # return result
-                push(
-                    @Return,
-                    {
-                        Key   => 'Signed',
-                        Value => 'Signature verified before!',
-                    }
-                );
-            }
 
             # check sign and get clear content
             %SignCheck = $SMIMEObject->Verify(
@@ -421,31 +403,28 @@ sub Check {
                         . ", but sender address $OrigSender: does not match certificate address!";
                 }
 
-                if ($StoreDecryptedData) {
+                # updated article body
+                $ArticleBackendObject->ArticleUpdate(
+                    TicketID  => $Param{Article}->{TicketID},
+                    ArticleID => $Self->{ArticleID},
+                    Key       => 'Body',
+                    Value     => $Body,
+                    UserID    => $Self->{UserID},
+                );
 
-                    # updated article body
-                    $TicketObject->ArticleUpdate(
-                        TicketID  => $Param{Article}->{TicketID},
+                # delete crypted attachments
+                $ArticleBackendObject->ArticleDeleteAttachment(
+                    ArticleID => $Self->{ArticleID},
+                    UserID    => $Self->{UserID},
+                );
+
+                # write attachments to the storage
+                for my $Attachment ( $ParserObject->GetAttachments() ) {
+                    $ArticleBackendObject->ArticleWriteAttachment(
+                        %{$Attachment},
                         ArticleID => $Self->{ArticleID},
-                        Key       => 'Body',
-                        Value     => $Body,
                         UserID    => $Self->{UserID},
                     );
-
-                    # delete crypted attachments
-                    $TicketObject->ArticleDeleteAttachment(
-                        ArticleID => $Self->{ArticleID},
-                        UserID    => $Self->{UserID},
-                    );
-
-                    # write attachments to the storage
-                    for my $Attachment ( $ParserObject->GetAttachments() ) {
-                        $TicketObject->ArticleWriteAttachment(
-                            %{$Attachment},
-                            ArticleID => $Self->{ArticleID},
-                            UserID    => $Self->{UserID},
-                        );
-                    }
                 }
             }
 
@@ -462,7 +441,7 @@ sub Check {
                 push(
                     @Return,
                     {
-                        Key   => 'Signed',
+                        Key   => Translatable('Signed'),
                         Value => $SignCheck{Message},
                         %SignCheck,
                     }
@@ -477,7 +456,7 @@ sub Check {
         push(
             @Return,
             {
-                Key   => 'Signed',
+                Key   => Translatable('Signed'),
                 Value => $SignCheck{Message},
                 %SignCheck,
             }

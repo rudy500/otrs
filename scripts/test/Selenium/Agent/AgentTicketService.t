@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,16 +18,18 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
+        # get needed objects
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+        # do not check email addresses
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
         );
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # enable ticket service feature
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 1
@@ -44,35 +46,52 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # get test user ID
-        my $TestUserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
-            UserLogin => $TestUserLogin,
-        );
+        # get service object
+        my $ServiceObject = $Kernel::OM->Get('Kernel::System::Service');
 
-        # add test customer for testing
-        my $TestCustomer = 'Customer' . $Helper->GetRandomID();
-        my $UserLogin    = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
-            Source         => 'CustomerUser',
-            UserFirstname  => $TestCustomer,
-            UserLastname   => $TestCustomer,
-            UserCustomerID => $TestCustomer,
-            UserLogin      => $TestCustomer,
-            UserEmail      => "$TestCustomer\@localhost.com",
-            ValidID        => 1,
-            UserID         => $TestUserID,
-        );
+        # create two test services
+        my @ServiceIDs;
+        my @ServiceNames;
+        for my $Service (qw(Parent Child)) {
+            my $ServiceName = $Service . 'Service' . $Helper->GetRandomID();
+            my $ServiceID   = $ServiceObject->ServiceAdd(
+                Name    => $ServiceName,
+                ValidID => 1,
+                Comment => 'Selenium Test',
+                UserID  => 1,
+            );
+            $Self->True(
+                $ServiceID,
+                "Service ID $ServiceID is created",
+            );
+            push @ServiceIDs,   $ServiceID;
+            push @ServiceNames, $ServiceName;
+        }
 
-        # create service for test
-        my $SrviceName = 'Service' . $Helper->GetRandomID();
-        my $ServiceID  = $Kernel::OM->Get('Kernel::System::Service')->ServiceAdd(
-            Name    => $SrviceName,
-            ValidID => 1,
-            Comment => 'Selenium Test',
-            UserID  => $TestUserID,
+        # update second service to be child of first one
+        my $Success = $ServiceObject->ServiceUpdate(
+            ServiceID => $ServiceIDs[1],
+            Name      => $ServiceNames[1],
+            ParentID  => $ServiceIDs[0],
+            ValidID   => 1,
+            UserID    => 1,
         );
         $Self->True(
-            $ServiceID,
-            "Service is created - $ServiceID",
+            $Success,
+            "Service ID $ServiceIDs[1] is now child service"
+        );
+
+        # update parent service to invalid status, bug #11816
+        # test if child service are visible when parent is invalid
+        $Success = $ServiceObject->ServiceUpdate(
+            ServiceID => $ServiceIDs[0],
+            Name      => $ServiceNames[0],
+            ValidID   => 2,
+            UserID    => 1,
+        );
+        $Self->True(
+            $Success,
+            "Parent Service ID $ServiceIDs[0] is invalid"
         );
 
         # get ticket object
@@ -80,66 +99,72 @@ $Selenium->RunTest(
 
         # create test tickets
         my @TicketIDs;
-        for my $Lock (qw( lock unlock)) {
+        for my $Lock (qw(lock unlock)) {
             my $TicketID = $TicketObject->TicketCreate(
                 Title         => 'Selenium Test Ticket',
                 Queue         => 'Raw',
                 Lock          => $Lock,
                 Priority      => '3 normal',
                 State         => 'open',
-                ServiceID     => $ServiceID,
-                CustomerID    => $TestCustomer,
-                CustomerUser  => "$TestCustomer\@localhost.com",
-                OwnerID       => $TestUserID,
-                UserID        => $TestUserID,
-                ResponsibleID => $TestUserID,
+                ServiceID     => $ServiceIDs[1],
+                CustomerID    => 'SeleniumCustomer',
+                CustomerUser  => 'SeleniumCustomer@localhost.com',
+                OwnerID       => 1,
+                UserID        => 1,
+                ResponsibleID => 1,
             );
-
             $Self->True(
                 $TicketID,
-                "Ticket is created - $TicketID",
+                "Ticket ID $TicketID is created",
             );
-
             push @TicketIDs, $TicketID;
-
         }
 
-        # go to AgentTicketService
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketService");
+        # get script alias
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+
+        # navigate to AgentTicketService screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketService");
 
         # verify that there are no tickets with My Service filter
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketService;ServiceID=0;\' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketService;ServiceID=0;\' )]")->VerifiedClick();
+
         $Self->True(
             index( $Selenium->get_page_source(), 'No ticket data found.' ) > -1,
             "No tickets found with My Service filter",
         );
 
-        # check for test service filter button
+        # check for parent test service filter button and click on it
         my $Element = $Selenium->find_element(
-            "//a[contains(\@href, \'Action=AgentTicketService;ServiceID=$ServiceID;\' )]"
+            "//a[contains(\@href, \'Action=AgentTicketService;ServiceID=$ServiceIDs[0];\' )]"
         );
         $Element->is_enabled();
         $Element->is_displayed();
-        $Element->click();
+        $Element->VerifiedClick();
+
+        # click on child service
+        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketService;ServiceID=$ServiceIDs[1];\' )]")
+            ->VerifiedClick();
 
         # check different views for filters
         for my $View (qw(Small Medium Preview)) {
 
             # go to default small view
-            $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketService;ServiceID=$ServiceID;View=Small");
+            $Selenium->VerifiedGet(
+                "${ScriptAlias}index.pl?Action=AgentTicketService;ServiceID=$ServiceIDs[1];View=Small"
+            );
 
-            # click on viewer controler
+            # click on viewer controller
             $Selenium->find_element(
-                "//a[contains(\@href, \'Filter=Unlocked;View=$View;ServiceID=$ServiceID;SortBy=Age;OrderBy=Up;View=Small;\' )]"
-            )->click();
+                "//a[contains(\@href, \'Filter=Unlocked;View=$View;ServiceID=$ServiceIDs[1];SortBy=Age;OrderBy=Up;View=Small;\' )]"
+            )->VerifiedClick();
 
             # verify that all expected tickets are present
             for my $TicketID (@TicketIDs) {
 
                 my %TicketData = $TicketObject->TicketGet(
                     TicketID => $TicketID,
-                    UserID   => $TestUserID,
+                    UserID   => 1,
                 );
 
                 # check for locked and unlocked tickets
@@ -147,8 +172,8 @@ $Selenium->RunTest(
 
                     # click on 'Available ticket' filter
                     $Selenium->find_element(
-                        "//a[contains(\@href, \'ServiceID=$ServiceID;SortBy=Age;OrderBy=Up;View=$View;Filter=Unlocked\' )]"
-                    )->click();
+                        "//a[contains(\@href, \'ServiceID=$ServiceIDs[1];SortBy=Age;OrderBy=Up;View=$View;Filter=Unlocked\' )]"
+                    )->VerifiedClick();
 
                     # check for unlocked tickets with 'Available tickets' filter on
                     $Self->True(
@@ -158,8 +183,8 @@ $Selenium->RunTest(
 
                     # click on 'All ticket' filter
                     $Selenium->find_element(
-                        "//a[contains(\@href, \'ServiceID=$ServiceID;SortBy=Age;OrderBy=Up;View=$View;Filter=All\' )]"
-                    )->click();
+                        "//a[contains(\@href, \'ServiceID=$ServiceIDs[1];SortBy=Age;OrderBy=Up;View=$View;Filter=All\' )]"
+                    )->VerifiedClick();
 
                     # check for unlocked tickets with 'All tickets' filter on
                     $Self->True(
@@ -171,8 +196,8 @@ $Selenium->RunTest(
 
                     # click on 'All ticket' filter
                     $Selenium->find_element(
-                        "//a[contains(\@href, \'ServiceID=$ServiceID;SortBy=Age;OrderBy=Up;View=$View;Filter=All\' )]"
-                    )->click();
+                        "//a[contains(\@href, \'ServiceID=$ServiceIDs[1];SortBy=Age;OrderBy=Up;View=$View;Filter=All\' )]"
+                    )->VerifiedClick();
 
                     # check for locked tickets with  'All ticket' filter
                     $Self->True(
@@ -182,8 +207,8 @@ $Selenium->RunTest(
 
                     # click on 'Available ticket' filter
                     $Selenium->find_element(
-                        "//a[contains(\@href, \'ServiceID=$ServiceID;SortBy=Age;OrderBy=Up;View=$View;Filter=Unlocked\' )]"
-                    )->click();
+                        "//a[contains(\@href, \'ServiceID=$ServiceIDs[1];SortBy=Age;OrderBy=Up;View=$View;Filter=Unlocked\' )]"
+                    )->VerifiedClick();
 
                     # check for locked tickets with 'Available tickets' filter on
                     $Self->True(
@@ -195,44 +220,31 @@ $Selenium->RunTest(
         }
 
         # delete created test tickets
-        my $Success;
         for my $TicketID (@TicketIDs) {
             $Success = $TicketObject->TicketDelete(
                 TicketID => $TicketID,
-                UserID   => $TestUserID,
+                UserID   => 1,
             );
             $Self->True(
                 $Success,
-                "Delete ticket - $TicketID"
+                "Ticket ID $TicketID is deleted"
             );
         }
 
-        # get DB object
-        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-
         # delete created test service
-        $Success = $DBObject->Do(
-            SQL => "DELETE FROM service WHERE id = $ServiceID",
-        );
-        $Self->True(
-            $Success,
-            "Delete service - $ServiceID",
-        );
+        for my $ServiceDelete (@ServiceIDs) {
+            $Success = $Kernel::OM->Get('Kernel::System::DB')->Do(
+                SQL => "DELETE FROM service WHERE id = $ServiceDelete",
+            );
+            $Self->True(
+                $Success,
+                "Service ID $ServiceDelete is deleted",
+            );
+        }
 
-        # delete created test customer user
-        $TestCustomer = $DBObject->Quote($TestCustomer);
-        $Success      = $DBObject->Do(
-            SQL  => "DELETE FROM customer_user WHERE login = ?",
-            Bind => [ \$TestCustomer ],
-        );
-        $Self->True(
-            $Success,
-            "Delete customer user - $TestCustomer",
-        );
-
-        # make sure the cache is correct.
+        # make sure the cache is correct
         for my $Cache (
-            qw (Ticket CustomerUser Service)
+            qw (Ticket Service)
             )
         {
             $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(

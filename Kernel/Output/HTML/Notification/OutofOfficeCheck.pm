@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,27 +8,15 @@
 
 package Kernel::Output::HTML::Notification::OutofOfficeCheck;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
 our @ObjectDependencies = (
     'Kernel::System::User',
-    'Kernel::System::Time',
     'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -36,22 +24,17 @@ sub Run {
     my %UserData = $Kernel::OM->Get('Kernel::System::User')->GetUserData( UserID => $Self->{UserID} );
     return '' if ( !$UserData{OutOfOffice} );
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-    my $Time = $TimeObject->SystemTime();
-
-    my $Start
-        = "$UserData{OutOfOfficeStartYear}-$UserData{OutOfOfficeStartMonth}-$UserData{OutOfOfficeStartDay} 00:00:00";
-
-    my $TimeStart = $TimeObject->TimeStamp2SystemTime(
-        String => $Start,
+    my $CurSystemDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $OOOStartDTObject  = $Self->_GetOutOfOfficeDateTimeObject(
+        UserData => \%UserData,
+        Type     => 'Start'
     );
-    my $End     = "$UserData{OutOfOfficeEndYear}-$UserData{OutOfOfficeEndMonth}-$UserData{OutOfOfficeEndDay} 23:59:59";
-    my $TimeEnd = $TimeObject->TimeStamp2SystemTime(
-        String => $End,
+    my $OOOEndDTObject = $Self->_GetOutOfOfficeDateTimeObject(
+        UserData => \%UserData,
+        Type     => 'End'
     );
-    if ( $TimeStart < $Time && $TimeEnd > $Time ) {
+
+    if ( $OOOStartDTObject < $CurSystemDTObject && $OOOEndDTObject > $CurSystemDTObject ) {
 
         # get layout object
         my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
@@ -64,9 +47,30 @@ sub Run {
                 ->Translate("You have Out of Office enabled, would you like to disable it?"),
         );
     }
-    else {
-        return '';
-    }
+
+    return '';
+}
+
+sub _GetOutOfOfficeDateTimeObject {
+    my ( $Self, %Param ) = @_;
+
+    my $Type     = $Param{Type};
+    my $UserData = $Param{UserData};
+
+    my $DTString = sprintf(
+        '%s-%s-%s %s',
+        $UserData->{"OutOfOffice${Type}Year"},
+        $UserData->{"OutOfOffice${Type}Month"},
+        $UserData->{"OutOfOffice${Type}Day"},
+        ( $Type eq 'End' ? '23:59:59' : '00:00:00' ),
+    );
+
+    return $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $DTString,
+        },
+    );
 }
 
 1;

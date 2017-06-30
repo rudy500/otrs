@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -123,10 +124,12 @@ sub Run {
 
         if ( $ColumnName eq 'CustomerID' ) {
             push @{ $ColumnFilter{$ColumnName} }, $FilterValue;
+            push @{ $ColumnFilter{ $ColumnName . 'Raw' } }, $FilterValue;
             $GetColumnFilter{$ColumnName} = $FilterValue;
         }
         elsif ( $ColumnName eq 'CustomerUserID' ) {
-            push @{ $ColumnFilter{CustomerUserLogin} }, $FilterValue;
+            push @{ $ColumnFilter{CustomerUserLogin} },    $FilterValue;
+            push @{ $ColumnFilter{CustomerUserLoginRaw} }, $FilterValue;
             $GetColumnFilter{$ColumnName} = $FilterValue;
         }
         else {
@@ -232,7 +235,7 @@ sub Run {
 
     my %Filters = (
         All => {
-            Name   => 'All tickets',
+            Name   => Translatable('All tickets'),
             Prio   => 1000,
             Search => {
                 StateIDs => \@ViewableStateIDs,
@@ -244,7 +247,7 @@ sub Run {
             },
         },
         Unlocked => {
-            Name   => 'Available tickets',
+            Name   => Translatable('Available tickets'),
             Prio   => 1001,
             Search => {
                 LockIDs  => \@ViewableLockIDs,
@@ -262,7 +265,9 @@ sub Run {
 
     # check if filter is valid
     if ( !$Filters{$Filter} ) {
-        $LayoutObject->FatalError( Message => "Invalid Filter: $Filter!" );
+        $LayoutObject->FatalError(
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Invalid Filter: %s!', $Filter ),
+        );
     }
 
     my $View = $ParamObject->GetParam( Param => 'View' ) || '';
@@ -342,7 +347,8 @@ sub Run {
 
         if ( !$FilterContent ) {
             $LayoutObject->FatalError(
-                Message => "Can't get filter content data of $HeaderColumn!",
+                Message => $LayoutObject->{LanguageObject}
+                    ->Translate( 'Can\'t get filter content data of %s!', $HeaderColumn ),
             );
         }
 
@@ -375,7 +381,7 @@ sub Run {
                 %{ $Filters{$FilterColumn}->{Search} },
                 %ColumnFilter,
                 Result => 'COUNT',
-            );
+            ) || 0;
         }
 
         if ( $FilterColumn eq $Filter ) {
@@ -482,7 +488,7 @@ sub Run {
         View   => $View,
 
         Bulk       => 1,
-        TitleName  => 'QueueView',
+        TitleName  => Translatable('QueueView'),
         TitleValue => $NavBar{SelectedQueue} . $SubQueueIndicatorTitle,
 
         Env        => $Self,
@@ -606,6 +612,7 @@ sub _MaskQueueView {
     }
 
     # build queue string
+    QUEUE:
     for my $QueueRef (@ListedQueues) {
         my $QueueStrg = '';
         my %Queue     = %$QueueRef;
@@ -621,6 +628,22 @@ sub _MaskQueueView {
         $Queue{MaxAge} = $Queue{MaxAge} / 60;
         $Queue{QueueID} = 0 if ( !$Queue{QueueID} );
 
+        # skip empty Queues (or only locked tickets)
+        if (
+            # only check when setting is set
+            $Config->{HideEmptyQueues}
+
+            # empty or locked only
+            && $Counter{ $Queue{Queue} } < 1
+
+            # always show 'my queues'
+            && $Queue{QueueID} != 0
+            )
+        {
+            # TODO: check what 'Ticket::ViewableLocks' affects
+            next QUEUE;
+        }
+
         my $View   = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'View' )   || '';
         my $Filter = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => 'Filter' ) || 'Unlocked';
 
@@ -634,16 +657,18 @@ sub _MaskQueueView {
         }
         $QueueStrg .= '" class="';
 
-        # should i highlight this queue
-        # the oldest queue
-        if ( $Queue{QueueID} == $QueueIDOfMaxAge && $Self->{Blink} ) {
-            $QueueStrg .= 'Oldest';
-        }
-        elsif ( $Queue{MaxAge} >= $Self->{HighlightAge2} ) {
-            $QueueStrg .= 'OlderLevel2';
-        }
-        elsif ( $Queue{MaxAge} >= $Self->{HighlightAge1} ) {
-            $QueueStrg .= 'OlderLevel1';
+        # Primary control is Visual Alarms and, if disabled, will turn off all highlights.
+        # Secondary control highlights individual queues depending on age.
+        if ( $Config->{VisualAlarms} ) {
+            if ( $Queue{QueueID} == $QueueIDOfMaxAge && $Self->{Blink} ) {
+                $QueueStrg .= 'Oldest';
+            }
+            elsif ( $Queue{MaxAge} >= $Self->{HighlightAge2} ) {
+                $QueueStrg .= 'OlderLevel2';
+            }
+            elsif ( $Queue{MaxAge} >= $Self->{HighlightAge1} ) {
+                $QueueStrg .= 'OlderLevel1';
+            }
         }
 
         # display the current and all its lower levels in bold

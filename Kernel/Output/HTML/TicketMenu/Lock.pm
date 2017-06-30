@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,8 +8,12 @@
 
 package Kernel::Output::HTML::TicketMenu::Lock;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
@@ -17,19 +21,6 @@ our @ObjectDependencies = (
     'Kernel::System::Ticket',
     'Kernel::System::Group',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -126,8 +117,8 @@ sub Run {
             %{ $Param{Config} },
             %{ $Param{Ticket} },
             %Param,
-            Name        => 'Unlock',
-            Description => 'Unlock to give it back to the queue',
+            Name        => Translatable('Unlock'),
+            Description => Translatable('Unlock to give it back to the queue'),
             Link =>
                 'Action=AgentTicketLock;Subaction=Unlock;TicketID=[% Data.TicketID | uri %];[% Env("ChallengeTokenParam") | html %]',
         };
@@ -138,8 +129,8 @@ sub Run {
         %{ $Param{Config} },
         %{ $Param{Ticket} },
         %Param,
-        Name        => 'Lock',
-        Description => 'Lock it to work on it',
+        Name        => Translatable('Lock'),
+        Description => Translatable('Lock it to work on it'),
         Link =>
             'Action=AgentTicketLock;Subaction=Lock;TicketID=[% Data.TicketID | uri %];[% Env("ChallengeTokenParam") | html %]',
     };

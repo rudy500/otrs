@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -33,33 +34,51 @@ $Selenium->RunTest(
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         # go to agent preferences
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentPreferences");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentPreferences;Subaction=Group;Group=UserProfile");
 
         # change test user password preference, input incorrect current password
         my $NewPw = "new" . $TestUserLogin;
         $Selenium->find_element( "#CurPw",  'css' )->send_keys("incorrect");
         $Selenium->find_element( "#NewPw",  'css' )->send_keys($NewPw);
         $Selenium->find_element( "#NewPw1", 'css' )->send_keys($NewPw);
-        $Selenium->find_element( "#CurPw",  'css' )->submit();
 
-        # check for incorrect password update preferences message on screen
-        my $IncorrectUpdateMessage = "The current password is not correct. Please try again!";
-        $Self->True(
-            index( $Selenium->get_page_source(), $IncorrectUpdateMessage ) > -1,
-            'Agent incorrect preferences password - update'
+        $Selenium->execute_script(
+            "\$('#NewPw1').closest('.WidgetSimple').find('.SettingUpdateBox').find('button').trigger('click');"
+        );
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return \$('#NewPw1').closest('.WidgetSimple').find('.WidgetMessage.Error:visible').length"
+        );
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('#NewPw1').closest('.WidgetSimple').find('.WidgetMessage.Error').text()"
+            ),
+            "The current password is not correct. Please try again!",
+            'Error message shows up correctly',
         );
 
         # change test user password preference, correct input
         $Selenium->find_element( "#CurPw",  'css' )->send_keys($TestUserLogin);
         $Selenium->find_element( "#NewPw",  'css' )->send_keys($NewPw);
         $Selenium->find_element( "#NewPw1", 'css' )->send_keys($NewPw);
-        $Selenium->find_element( "#CurPw",  'css' )->submit();
 
-        # check for correct password update preferences message on screen
-        my $UpdateMessage = "Preferences updated successfully!";
+        $Selenium->execute_script(
+            "\$('#NewPw1').closest('.WidgetSimple').find('.SettingUpdateBox').find('button').trigger('click');"
+        );
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return !\$('#NewPw1').closest('.WidgetSimple').hasClass('HasOverlay')"
+        );
+
+        # Verify password change is successful.
+        $Selenium->Login(
+            Type     => 'Agent',
+            User     => $TestUserLogin,
+            Password => $NewPw,
+        );
         $Self->True(
-            index( $Selenium->get_page_source(), $UpdateMessage ) > -1,
-            'Agent preference password - updated'
+            $Selenium->find_element( 'a#LogoutButton', 'css' ),
+            "Password change is successful"
         );
     }
 );

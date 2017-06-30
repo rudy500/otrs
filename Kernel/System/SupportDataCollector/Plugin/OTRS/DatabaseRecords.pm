@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,16 +11,17 @@ package Kernel::System::SupportDataCollector::Plugin::OTRS::DatabaseRecords;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::SupportDataCollector::PluginBase);
+use parent qw(Kernel::System::SupportDataCollector::PluginBase);
 
 use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
+    'Kernel::Config',
     'Kernel::System::DB',
 );
 
 sub GetDisplayPath {
-    return 'OTRS/Database Records';
+    return Translatable('OTRS') . '/' . Translatable('Database Records');
 }
 
 sub Run {
@@ -44,7 +45,7 @@ sub Run {
         },
         {
             SQL =>
-                "SELECT count(*) from article_attachment WHERE content_type NOT LIKE 'text/html%'",
+                "SELECT count(*) from article_data_mime_attachment WHERE content_type NOT LIKE 'text/html%'",
             Identifier => 'AttachmentCountDBNonHTML',
             Label      => Translatable("Attachments (DB, Without HTML)"),
         },
@@ -107,6 +108,17 @@ sub Run {
             Identifier => 'ProcessCount',
             Label      => Translatable("Processes"),
         },
+        {
+            SQL => "
+                SELECT count(*)
+                FROM dynamic_field df
+                    LEFT JOIN dynamic_field_value dfv ON df.id = dfv.field_id
+                    RIGHT JOIN ticket t ON t.id = dfv.object_id
+                WHERE df.name = '"
+                . $Kernel::OM->Get('Kernel::Config')->Get("Process::DynamicFieldProcessManagementProcessID") . "'",
+            Identifier => 'ProcessTickets',
+            Label      => Translatable("Process Tickets"),
+        },
     );
 
     # get database object
@@ -163,17 +175,5 @@ sub Run {
 
     return $Self->GetResults();
 }
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut
 
 1;

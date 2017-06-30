@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,20 +23,15 @@ our @ObjectDependencies = (
 
 Kernel::System::FetchMail - FetchMail wrapper functions
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Functions for email fetch.
 
-=over 4
 
-=cut
-
-=item new()
+=head2 new()
 
 create a FetchMail object. Do not use it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $FetchMailObject = $Kernel::OM->Get('Kernel::System::FetchMail');
 
 =cut
@@ -51,7 +46,7 @@ sub new {
     return $Self;
 }
 
-=item Fetch()
+=head2 Fetch()
 
 Retrieves messages from an email server using fetchmail backend.
 
@@ -354,8 +349,6 @@ sub Fetch {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

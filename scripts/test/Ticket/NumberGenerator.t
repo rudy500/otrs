@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,11 +12,11 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
+# get needed object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 # check all number generators
-for my $Backend (qw(AutoIncrement Date DateChecksum Random)) {
+for my $Backend (qw(AutoIncrement Date DateChecksum)) {
 
     # check subject formats
     for my $TicketSubjectFormat (qw(Left Right)) {
@@ -34,11 +34,6 @@ for my $Backend (qw(AutoIncrement Date DateChecksum Random)) {
         );
 
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-
-        $Self->True(
-            $TicketObject->isa( 'Kernel::System::Ticket::Number::' . $Backend ),
-            "TicketObject loaded the correct backend",
-        );
 
         for my $TicketHook ( 'Ticket#', 'Tickétø#', 'Reg$Ex*Special+Chars' ) {
 

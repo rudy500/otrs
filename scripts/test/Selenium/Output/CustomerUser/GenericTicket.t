@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,11 +19,6 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-                }
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # enable CustomerUserGenericTicket sysconfig
@@ -34,28 +29,21 @@ $Selenium->RunTest(
 
         for my $SysConfigChange (@CustomerSysConfig) {
 
-            # get sysconfig object
-            my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
             # get default sysconfig
             my $SysConfigName = 'Frontend::CustomerUser::Item###' . $SysConfigChange;
-            my %Config        = $SysConfigObject->ConfigItemGet(
+            my %Config        = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
                 Name    => $SysConfigName,
                 Default => 1,
             );
 
-            # set CustomerUserGenericTicket modules to valid
-            %Config = map { $_->{Key} => $_->{Content} }
-                grep { defined $_->{Key} } @{ $Config{Setting}->[1]->{Hash}->[1]->{Item} };
-
-            $SysConfigObject->ConfigItemUpdate(
+            $Helper->ConfigSettingChange(
                 Valid => 1,
                 Key   => $SysConfigName,
-                Value => \%Config,
+                Value => $Config{EffectiveValue},
             );
         }
 
-        # create and log in test user
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -73,7 +61,6 @@ $Selenium->RunTest(
 
         # create test customer user
         my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate(
-            Groups => [ 'admin', 'users' ],
         ) || die "Did not get test customer user";
 
         # get test customer user ID
@@ -82,24 +69,24 @@ $Selenium->RunTest(
         );
         my $CustomerID = $CustomerIDs[0];
 
-        # get ticket object
+        # get needed objects
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-        # create test data parameteres
+        # create test data parameters
         my %TicketData = (
             'Open' => {
                 TicketState   => 'open',
                 TicketCount   => '',
                 TicketNumbers => [],
                 TicketIDs     => [],
-                TicketLink    => 'StateType=Open',
+                TicketLink    => 'Open',
             },
             'Closed' => {
                 TicketState   => 'closed successful',
                 TicketCount   => '',
                 TicketNumbers => [],
                 TicketIDs     => [],
-                TicketLink    => 'StateType=Closed',
+                TicketLink    => 'Closed',
             },
         );
 
@@ -137,7 +124,15 @@ $Selenium->RunTest(
 
         # go to zoom view of created test ticket
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketData{Open}->{TicketIDs}->[0]");
+        $Selenium->VerifiedGet(
+            "${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketData{Open}->{TicketIDs}->[0]"
+        );
+
+        # wait until page has loaded, if necessary
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("body").length' );
+
+        # Wait until customer info widget has loaded, if necessary.
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".WidgetIsLoading").length === 0;' );
 
         # test CustomerUserGenericTicket module
         for my $TestLinks ( sort keys %TicketData ) {
@@ -151,12 +146,17 @@ $Selenium->RunTest(
 
             # click on link
             $Selenium->find_element(
-                "//a[contains(\@href, \'$TicketData{$TestLinks}->{TicketLink};CustomerUserLogin=$TestCustomerUserLogin' )]"
-            )->click();
+                "//a[contains(\@href, \'$TicketData{$TestLinks}->{TicketLink};CustomerUserLoginRaw=$TestCustomerUserLogin' )]"
+            )->VerifiedClick();
+
+            $Selenium->WaitFor( WindowCount => 2 );
 
             # link open in new window, switch to it
             my $Handles = $Selenium->get_window_handles();
             $Selenium->switch_to_window( $Handles->[1] );
+
+            # wait until page has loaded, if necessary
+            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("body").length' );
 
             # check for test ticket numbers on search screen
             for my $CheckTicketNumbers ( @{ $TicketData{$TestLinks}->{TicketNumbers} } ) {
@@ -166,8 +166,24 @@ $Selenium->RunTest(
                 );
             }
 
+            # click on 'Change search option'
+            $Selenium->find_element(
+                "//a[contains(\@href, \'AgentTicketSearch;Subaction=LoadProfile' )]"
+            )->VerifiedClick();
+
+            # link open in new window switch to it
+            $Handles = $Selenium->get_window_handles();
+            $Selenium->switch_to_window( $Handles->[2] );
+
+            # wait until search dialog has been loaded
+            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#SearchFormSubmit").length' );
+
+            # verify state search attributes are shown in search screen, see bug #10853
+            $Selenium->find_element( "#StateIDs", 'css' );
+
             # close current window and return to original
             $Selenium->close();
+            $Selenium->WaitFor( WindowCount => 1 );
             $Selenium->switch_to_window( $Handles->[0] );
         }
 
@@ -182,7 +198,7 @@ $Selenium->RunTest(
 
                 $Self->True(
                     $Success,
-                    "Delete ticket - $TicketID"
+                    "Delete ticket - $TicketID",
                 );
             }
         }

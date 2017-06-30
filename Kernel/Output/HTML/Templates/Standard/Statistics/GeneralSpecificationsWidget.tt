@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -34,7 +34,7 @@
 
 [% IF !Data.StatID %]
     <input type="hidden" name="StatisticPreselection" value="[% Data.StatisticPreselection | html %]" />
-    <label class="Mandatory" for="Description">
+    <label class="Mandatory" for="ObjectModule">
         <span class="Marker">*</span>
         [% Translate("Object type") | html %]:
     </label>
@@ -72,13 +72,30 @@
     </div>
     <div class="Clear"></div>
 
+[% IF Data.SelectTimeZone %]
+    <label class="Mandatory" for="TimeZone">
+        <span class="Marker">*</span>
+        [% Translate("Time Zone") | html %]:
+    </label>
+    <div class="Value">
+        [% Data.SelectTimeZone %]
+        <p class="FieldExplanation">
+            [% Translate('The selected time periods in the statistic are time zone neutral.') | html %]
+        </p>
+        <div id="TimeZoneError" class="TooltipErrorMessage">
+            <p>[% Translate("This field is required.") | html %]</p>
+        </div>
+    </div>
+    <div class="Clear"></div>
+[% END %]
+
     <label for="SumRow">
         [% Translate("Create summation row") | html %]:
     </label>
     <div class="Value">
         [% Data.SelectSumRow %]
         <p class="FieldExplanation">
-            [% Translate('Generate an additional row containing sums for all data columns.') | html %]
+            [% Translate('Generate an additional row containing sums for all data rows.') | html %]
         </p>
     </div>
     <div class="Clear"></div>
@@ -89,21 +106,23 @@
     <div class="Value">
         [% Data.SelectSumCol %]
         <p class="FieldExplanation">
-            [% Translate('Generate an additional column containing sums for all data rows.') | html %]
+            [% Translate('Generate an additional column containing sums for all data columns.') | html %]
         </p>
     </div>
     <div class="Clear"></div>
 
+[% IF Data.StatID %]
     <label for="Cache">
         [% Translate("Cache results") | html %]:
     </label>
     <div class="Value">
         [% Data.SelectCache %]
         <p class="FieldExplanation">
-            [% Translate("Stores statistics result data in a cache to be used in subsequent views with the same configuration.") | html %]
+            [% Translate("Stores statistics result data in a cache to be used in subsequent views with the same configuration (requires at least one selected time field).") | html %]
         </p>
     </div>
     <div class="Clear"></div>
+[% END %]
 
 [% IF Data.StatID %]
     <label for="ShowAsDashboardWidget">

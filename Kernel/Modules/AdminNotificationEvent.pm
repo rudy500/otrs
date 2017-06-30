@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -51,6 +51,11 @@ sub Run {
     my $NotificationEventObject = $Kernel::OM->Get('Kernel::System::NotificationEvent');
     my $BackendObject           = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
     my $MainObject              = $Kernel::OM->Get('Kernel::System::Main');
+    my $Notification            = $ParamObject->GetParam( Param => 'Notification' );
+
+    # get the search article fields to retrieve values for
+    my %ArticleSearchableFields = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleSearchableFieldsList();
+    my @ArticleSearchableFieldsKeys = sort keys %ArticleSearchableFields;
 
     # get registered transport layers
     my %RegisteredTransports = %{ $Kernel::OM->Get('Kernel::Config')->Get('Notification::Transport') || {} };
@@ -70,6 +75,8 @@ sub Run {
 
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Notification updated!') )
+            if ( $Notification && $Notification eq 'Update' );
         $Self->_Edit(
             %Data,
             Action             => 'Change',
@@ -95,19 +102,23 @@ sub Run {
 
         my %GetParam;
         for my $Parameter (
-            qw(ID Name Comment ValidID Events ArticleSubjectMatch ArticleBodyMatch ArticleTypeID ArticleSenderTypeID Transports)
+            @ArticleSearchableFieldsKeys,
+            qw(ID Name Comment ValidID Events IsVisibleForCustomer
+            ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID
+            Transports)
             )
         {
             $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter ) || '';
         }
         PARAMETER:
         for my $Parameter (
+            @ArticleSearchableFieldsKeys,
             qw(Recipients RecipientAgents RecipientGroups RecipientRoles
             Events StateID QueueID PriorityID LockID TypeID ServiceID SLAID
-            CustomerID CustomerUserID
-            ArticleTypeID ArticleSubjectMatch ArticleBodyMatch ArticleAttachmentInclude
-            ArticleSenderTypeID Transports OncePerDay SendOnOutOfOffice
-            VisibleForAgent VisibleForAgentTooltip LanguageID)
+            CustomerID CustomerUserID IsVisibleForCustomer ArticleAttachmentInclude
+            ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID
+            Transports OncePerDay SendOnOutOfOffice VisibleForAgent VisibleForAgentTooltip
+            LanguageID AgentEnabledByDefault)
             )
         {
             my @Data = $ParamObject->GetArray( Param => $Parameter );
@@ -145,7 +156,7 @@ sub Run {
         for my $DynamicFieldConfig ( @{$DynamicField} ) {
             next DYNAMICFIELD if !IsHashRefWithData($DynamicFieldConfig);
 
-            # extract the dynamic field value form the web request
+            # extract the dynamic field value from the web request
             my $DynamicFieldValue = $BackendObject->SearchFieldValueGet(
                 DynamicFieldConfig     => $DynamicFieldConfig,
                 ParamObject            => $ParamObject,
@@ -201,15 +212,25 @@ sub Run {
             @{ $GetParam{Data}->{Events} || [] }
             )
         {
-            if (
-                !$GetParam{ArticleTypeID}
-                && !$GetParam{ArticleSenderTypeID}
-                && $GetParam{ArticleSubjectMatch} eq ''
-                && $GetParam{ArticleBodyMatch} eq ''
-                )
-            {
-                $ArticleFilterMissing = 1;
+            my $ArticleFilterValueSet = 0;
+            for my $ArticleFilter (qw(ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID)) {
+                if ( $GetParam{$ArticleFilter} ) {
+                    $ArticleFilterValueSet = 1;
+                }
             }
+
+            ARTICLEFIELDKEY:
+            for my $ArticleFieldKey (@ArticleSearchableFieldsKeys) {
+
+                last ARTICLEFIELDKEY if $ArticleFilterValueSet;
+                next ARTICLEFIELDKEY if !$GetParam{$ArticleFieldKey};
+
+                $ArticleFilterValueSet = 1;
+
+                last ARTICLEFIELDKEY;
+            }
+
+            $ArticleFilterMissing = 1 if !$ArticleFilterValueSet;
         }
 
         # required Article filter only on ArticleCreate and ArticleSend event
@@ -223,17 +244,23 @@ sub Run {
         }
 
         if ($Ok) {
-            $Self->_Overview();
-            my $Output = $LayoutObject->Header();
-            $Output .= $LayoutObject->NavigationBar();
-            $Output .= $LayoutObject->Notify( Info => 'Updated!' );
-            $Output .= $LayoutObject->Output(
-                TemplateFile => 'AdminNotificationEvent',
-                Data         => \%Param,
-            );
-            $Output .= $LayoutObject->Footer();
 
-            return $Output;
+            # if the user would like to continue editing the notification event, just redirect to the edit screen
+            if (
+                defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+                && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+                )
+            {
+                my $ID = $ParamObject->GetParam( Param => 'ID' ) || '';
+                return $LayoutObject->Redirect(
+                    OP => "Action=$Self->{Action};Subaction=Change;ID=$ID;Notification=Update"
+                );
+            }
+            else {
+
+                # otherwise return to overview
+                return $LayoutObject->Redirect( OP => "Action=$Self->{Action};Notification=Update" );
+            }
         }
         else {
             for my $Needed (qw(Name Events Transports)) {
@@ -244,16 +271,15 @@ sub Run {
             }
 
             # define ServerError Class attribute if necessary
-            $GetParam{ArticleTypeIDServerError}       = "";
             $GetParam{ArticleSenderTypeIDServerError} = "";
-            $GetParam{ArticleSubjectMatchServerError} = "";
-            $GetParam{ArticleBodyMatchServerError}    = "";
 
             if ($ArticleFilterMissing) {
-                $GetParam{ArticleTypeIDServerError}       = "ServerError";
+
                 $GetParam{ArticleSenderTypeIDServerError} = "ServerError";
-                $GetParam{ArticleSubjectMatchServerError} = "ServerError";
-                $GetParam{ArticleBodyMatchServerError}    = "ServerError";
+
+                for my $ArticleTypeKey (@ArticleSearchableFieldsKeys) {
+                    $GetParam{ $ArticleTypeKey . 'ServerError' } = "ServerError";
+                }
             }
 
             my $Output = $LayoutObject->Header();
@@ -305,18 +331,23 @@ sub Run {
 
         my %GetParam;
         for my $Parameter (
-            qw(Name Comment ValidID Events ArticleSubjectMatch ArticleBodyMatch ArticleTypeID ArticleSenderTypeID Transports)
+            @ArticleSearchableFieldsKeys,
+            qw(Name Comment ValidID Events IsVisibleForCustomer
+            ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID
+            Transports)
             )
         {
             $GetParam{$Parameter} = $ParamObject->GetParam( Param => $Parameter ) || '';
         }
         PARAMETER:
         for my $Parameter (
+            @ArticleSearchableFieldsKeys,
             qw(Recipients RecipientAgents RecipientRoles RecipientGroups Events StateID QueueID
             PriorityID LockID TypeID ServiceID SLAID CustomerID CustomerUserID
-            ArticleTypeID ArticleSubjectMatch ArticleBodyMatch ArticleAttachmentInclude
-            ArticleSenderTypeID Transports OncePerDay SendOnOutOfOffice
-            VisibleForAgent VisibleForAgentTooltip LanguageID)
+            IsVisibleForCustomer ArticleAttachmentInclude
+            ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID
+            Transports OncePerDay SendOnOutOfOffice VisibleForAgent VisibleForAgentTooltip
+            LanguageID AgentEnabledByDefault)
             )
         {
             my @Data = $ParamObject->GetArray( Param => $Parameter );
@@ -354,7 +385,7 @@ sub Run {
         for my $DynamicFieldConfig ( @{$DynamicField} ) {
             next DYNAMICFIELD if !IsHashRefWithData($DynamicFieldConfig);
 
-            # extract the dynamic field value form the web request
+            # extract the dynamic field value from the web request
             my $DynamicFieldValue = $BackendObject->SearchFieldValueGet(
                 DynamicFieldConfig     => $DynamicFieldConfig,
                 ParamObject            => $ParamObject,
@@ -410,15 +441,25 @@ sub Run {
             @{ $GetParam{Data}->{Events} || [] }
             )
         {
-            if (
-                !$GetParam{ArticleTypeID}
-                && !$GetParam{ArticleSenderTypeID}
-                && $GetParam{ArticleSubjectMatch} eq ''
-                && $GetParam{ArticleBodyMatch} eq ''
-                )
-            {
-                $ArticleFilterMissing = 1;
+            my $ArticleFilterValueSet = 0;
+            for my $ArticleFilter (qw(ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID)) {
+                if ( $GetParam{$ArticleFilter} ) {
+                    $ArticleFilterValueSet = 1;
+                }
             }
+
+            ARTICLEFIELDKEY:
+            for my $ArticleFieldKey (@ArticleSearchableFieldsKeys) {
+
+                last ARTICLEFIELDKEY if $ArticleFilterValueSet;
+                next ARTICLEFIELDKEY if !$GetParam{$ArticleFieldKey};
+
+                $ArticleFilterValueSet = 1;
+
+                last ARTICLEFIELDKEY;
+            }
+
+            $ArticleFilterMissing = 1 if !$ArticleFilterValueSet;
         }
 
         # required Article filter only on ArticleCreate and Article Send event
@@ -438,7 +479,7 @@ sub Run {
             $Self->_Overview();
             my $Output = $LayoutObject->Header();
             $Output .= $LayoutObject->NavigationBar();
-            $Output .= $LayoutObject->Notify( Info => 'Added!' );
+            $Output .= $LayoutObject->Notify( Info => Translatable('Notification added!') );
             $Output .= $LayoutObject->Output(
                 TemplateFile => 'AdminNotificationEvent',
                 Data         => \%Param,
@@ -456,16 +497,15 @@ sub Run {
             }
 
             # checking if article filter exist if necessary
-            $GetParam{ArticleTypeIDServerError}       = "";
             $GetParam{ArticleSenderTypeIDServerError} = "";
-            $GetParam{ArticleSubjectMatchServerError} = "";
-            $GetParam{ArticleBodyMatchServerError}    = "";
 
             if ($ArticleFilterMissing) {
-                $GetParam{ArticleTypeIDServerError}       = "ServerError";
+
                 $GetParam{ArticleSenderTypeIDServerError} = "ServerError";
-                $GetParam{ArticleSubjectMatchServerError} = "ServerError";
-                $GetParam{ArticleBodyMatchServerError}    = "ServerError";
+
+                for my $ArticleTypeKey (@ArticleSearchableFieldsKeys) {
+                    $GetParam{ $ArticleTypeKey . 'ServerError' } = "ServerError";
+                }
             }
 
             my $Output = $LayoutObject->Header();
@@ -530,7 +570,8 @@ sub Run {
 
             if ( !IsHashRefWithData( \%NotificationSingleData ) ) {
                 return $LayoutObject->ErrorScreen(
-                    Message => "There was an error getting data for Notification with ID " . $NotificationID,
+                    Message => $LayoutObject->{LanguageObject}
+                        ->Translate( 'There was an error getting data for Notification with ID:%s!', $NotificationID ),
                 );
             }
 
@@ -584,7 +625,7 @@ sub Run {
         );
         if ( !IsHashRefWithData( \%NotificationData ) ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Unknown Notification $NotificationID!",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Unknown Notification %s!', $NotificationID ),
             );
         }
 
@@ -605,7 +646,7 @@ sub Run {
         # show error if can't create
         if ( !$NewNotificationID ) {
             return $LayoutObject->ErrorScreen(
-                Message => "There was an error creating the Notification",
+                Message => Translatable("There was an error creating the Notification"),
             );
         }
 
@@ -637,8 +678,9 @@ sub Run {
 
         if ( !$NotificationImport->{Success} ) {
             my $Message = $NotificationImport->{Message}
-                || 'Notifications could not be Imported due to a unknown error,'
-                . ' please check OTRS logs for more information';
+                || Translatable(
+                'Notifications could not be Imported due to a unknown error, please check OTRS logs for more information'
+                );
             return $LayoutObject->ErrorScreen(
                 Message => $Message,
             );
@@ -646,22 +688,27 @@ sub Run {
 
         if ( $NotificationImport->{AddedNotifications} ) {
             push @{ $Param{NotifyData} }, {
-                Info => 'The following Notifications have been added successfully: '
-                    . $NotificationImport->{AddedNotifications},
+                Info => $LayoutObject->{LanguageObject}->Translate(
+                    'The following Notifications have been added successfully: %s',
+                    $NotificationImport->{AddedNotifications}
+                ),
             };
         }
         if ( $NotificationImport->{UpdatedNotifications} ) {
             push @{ $Param{NotifyData} }, {
-                Info => 'The following Notifications have been updated successfully: '
-                    . $NotificationImport->{UpdatedNotifications},
+                Info => $LayoutObject->{LanguageObject}->Translate(
+                    'The following Notifications have been updated successfully: %s',
+                    $NotificationImport->{UpdatedNotifications}
+                ),
             };
         }
         if ( $NotificationImport->{NotificationErrors} ) {
             push @{ $Param{NotifyData} }, {
                 Priority => 'Error',
-                Info     => 'There where errors adding/updating the following Notifications: '
-                    . $NotificationImport->{NotificationErrors}
-                    . '. Please check the log file for more information.',
+                Info     => $LayoutObject->{LanguageObject}->Translate(
+                    'There where errors adding/updating the following Notifications: %s. Please check the log file for more information.',
+                    $NotificationImport->{NotificationErrors}
+                ),
             };
         }
 
@@ -692,6 +739,8 @@ sub Run {
         $Self->_Overview();
         my $Output = $LayoutObject->Header();
         $Output .= $LayoutObject->NavigationBar();
+        $Output .= $LayoutObject->Notify( Info => Translatable('Notification updated!') )
+            if ( $Notification && $Notification eq 'Update' );
         $Output .= $LayoutObject->Output(
             TemplateFile => 'AdminNotificationEvent',
             Data         => \%Param,
@@ -726,14 +775,16 @@ sub _Edit {
 
     $Param{RecipientsStrg} = $LayoutObject->BuildSelection(
         Data => {
-            AgentOwner              => Translatable('Agent who owns the ticket'),
-            AgentResponsible        => Translatable('Agent who is responsible for the ticket'),
-            AgentWatcher            => Translatable('All agents watching the ticket'),
-            AgentWritePermissions   => Translatable('All agents with write permission for the ticket'),
-            AgentMyQueues           => Translatable('All agents subscribed to the ticket\'s queue'),
-            AgentMyServices         => Translatable('All agents subscribed to the ticket\'s service'),
-            AgentMyQueuesMyServices => Translatable('All agents subscribed to both the ticket\'s queue and service'),
-            Customer                => Translatable('Customer of the ticket'),
+            AgentOwner                => Translatable('Agent who owns the ticket'),
+            AgentResponsible          => Translatable('Agent who is responsible for the ticket'),
+            AgentWatcher              => Translatable('All agents watching the ticket'),
+            AgentWritePermissions     => Translatable('All agents with write permission for the ticket'),
+            AgentMyQueues             => Translatable('All agents subscribed to the ticket\'s queue'),
+            AgentMyServices           => Translatable('All agents subscribed to the ticket\'s service'),
+            AgentMyQueuesMyServices   => Translatable('All agents subscribed to both the ticket\'s queue and service'),
+            Customer                  => Translatable('Customer user of the ticket'),
+            AllRecipientsFirstArticle => Translatable('All recipients of the first article'),
+            AllRecipientsLastArticle  => Translatable('All recipients of the last article'),
         },
         Name       => 'Recipients',
         Multiple   => 1,
@@ -780,12 +831,6 @@ sub _Edit {
         $EventClass .= ' ' . $Param{EventsServerError};
     }
 
-    # Set class name for article type...
-    my $ArticleTypeIDClass = '';
-    if ( $Param{ArticleTypeIDServerError} ) {
-        $ArticleTypeIDClass .= ' ' . $Param{ArticleTypeIDServerError};
-    }
-
     # Set class name for article sender type...
     my $ArticleSenderTypeIDClass = '';
     if ( $Param{ArticleSenderTypeIDServerError} ) {
@@ -800,6 +845,14 @@ sub _Edit {
     for my $ObjectType ( sort keys %RegisteredEvents ) {
         push @Events, @{ $RegisteredEvents{$ObjectType} || [] };
     }
+
+    # Suppress these events because of danger of endless loops.
+    my %EventBlacklist = (
+        ArticleAgentNotification    => 1,
+        ArticleCustomerNotification => 1,
+    );
+
+    @Events = grep { !$EventBlacklist{$_} } @Events;
 
     # Build the list...
     $Param{EventsStrg} = $LayoutObject->BuildSelection(
@@ -879,14 +932,6 @@ sub _Edit {
         Data => \%Param,
     );
 
-    # shows header
-    if ( $Param{Action} eq 'Change' ) {
-        $LayoutObject->Block( Name => 'HeaderEdit' );
-    }
-    else {
-        $LayoutObject->Block( Name => 'HeaderAdd' );
-    }
-
     # build type string
     if ( $ConfigObject->Get('Ticket::Type') ) {
         my %Type = $Kernel::OM->Get('Kernel::System::Type')->TypeList(
@@ -914,7 +959,7 @@ sub _Edit {
         # get list type
         my %Service = $Kernel::OM->Get('Kernel::System::Service')->ServiceList(
             Valid        => 1,
-            KeepChildren => 1,
+            KeepChildren => $ConfigObject->Get('Ticket::Service::KeepChildren') // 0,
             UserID       => $Self->{UserID},
         );
         $Param{ServicesStrg} = $LayoutObject->BuildSelection(
@@ -1005,8 +1050,8 @@ sub _Edit {
         $Param{RichTextHeight} = $Config->{RichTextHeight} || 0;
         $Param{RichTextWidth}  = $Config->{RichTextWidth}  || 0;
 
-        $LayoutObject->Block(
-            Name => 'RichText',
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
             Data => \%Param,
         );
     }
@@ -1028,8 +1073,41 @@ sub _Edit {
         @LanguageIDs = ('en');
     }
 
-    my %DefaultUsedLanguages         = %{ $ConfigObject->Get('DefaultUsedLanguages') };
-    my %OriginalDefaultUsedLanguages = %DefaultUsedLanguages;
+    # get names of languages in English
+    my %DefaultUsedLanguages = %{ $ConfigObject->Get('DefaultUsedLanguages') || {} };
+
+    # get native names of languages
+    my %DefaultUsedLanguagesNative = %{ $ConfigObject->Get('DefaultUsedLanguagesNative') || {} };
+
+    my %Languages;
+    LANGUAGEID:
+    for my $LanguageID ( sort keys %DefaultUsedLanguages ) {
+
+        # next language if there is not set any name for current language
+        if ( !$DefaultUsedLanguages{$LanguageID} && !$DefaultUsedLanguagesNative{$LanguageID} ) {
+            next LANGUAGEID;
+        }
+
+        # get texts in native and default language
+        my $Text        = $DefaultUsedLanguagesNative{$LanguageID} || '';
+        my $TextEnglish = $DefaultUsedLanguages{$LanguageID}       || '';
+
+        # translate to current user's language
+        my $TextTranslated =
+            $Kernel::OM->Get('Kernel::Output::HTML::Layout')->{LanguageObject}->Translate($TextEnglish);
+
+        if ( $TextTranslated && $TextTranslated ne $Text ) {
+            $Text .= ' - ' . $TextTranslated;
+        }
+
+        # next language if there is not set English nor native name of language.
+        next LANGUAGEID if !$Text;
+
+        $Languages{$LanguageID} = $Text;
+    }
+
+    # copy original list of languages which will be used for rebuilding language selection
+    my %OriginalDefaultUsedLanguages = %Languages;
 
     my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
 
@@ -1072,7 +1150,7 @@ sub _Edit {
                 Subject => $Param{Message}->{$LanguageID}->{Subject} || '',
                 Body    => $Param{Message}->{$LanguageID}->{Body}    || '',
                 LanguageID         => $LanguageID,
-                Language           => $DefaultUsedLanguages{$LanguageID},
+                Language           => $Languages{$LanguageID},
                 SubjectServerError => $Param{ $LanguageID . '_SubjectServerError' } || '',
                 BodyServerError    => $Param{ $LanguageID . '_BodyServerError' } || '',
             },
@@ -1090,11 +1168,11 @@ sub _Edit {
         }
 
         # delete language from drop-down list because it is already shown
-        delete $DefaultUsedLanguages{$LanguageID};
+        delete $Languages{$LanguageID};
     }
 
     $Param{LanguageStrg} = $LayoutObject->BuildSelection(
-        Data         => \%DefaultUsedLanguages,
+        Data         => \%Languages,
         Name         => 'Language',
         Class        => 'Modernize W50pc LanguageAdd',
         Translation  => 1,
@@ -1109,21 +1187,10 @@ sub _Edit {
         HTMLQuote    => 0,
     );
 
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-
-    $Param{ArticleTypesStrg} = $LayoutObject->BuildSelection(
-        Data        => { $TicketObject->ArticleTypeList( Result => 'HASH' ), },
-        Name        => 'ArticleTypeID',
-        SelectedID  => $Param{Data}->{ArticleTypeID},
-        Class       => $ArticleTypeIDClass . ' Modernize W75pc',
-        Size        => 5,
-        Multiple    => 1,
-        Translation => 1,
-        Max         => 200,
-    );
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
 
     $Param{ArticleSenderTypesStrg} = $LayoutObject->BuildSelection(
-        Data        => { $TicketObject->ArticleSenderTypeList( Result => 'HASH' ), },
+        Data        => { $ArticleObject->ArticleSenderTypeList(), },
         Name        => 'ArticleSenderTypeID',
         SelectedID  => $Param{Data}->{ArticleSenderTypeID},
         Class       => $ArticleSenderTypeIDClass . ' Modernize W75pc',
@@ -1131,6 +1198,31 @@ sub _Edit {
         Multiple    => 1,
         Translation => 1,
         Max         => 200,
+    );
+
+    $Param{ArticleCustomerVisibilityStrg} = $LayoutObject->BuildSelection(
+        Data => {
+            0 => 'Invisible to customer',
+            1 => 'Visible to customer',
+        },
+        Name         => 'ArticleIsVisibleForCustomer',
+        SelectedID   => $Param{Data}->{ArticleIsVisibleForCustomer},
+        Class        => 'Modernize W75pc',
+        Translation  => 1,
+        PossibleNone => 1,
+    );
+
+    my @CommunicationChannelList = $Kernel::OM->Get('Kernel::System::CommunicationChannel')->ChannelList();
+    my %CommunicationChannels = map { $_->{ChannelID} => $_->{ChannelName} } @CommunicationChannelList;
+
+    $Param{ArticleCommunicationChannelStrg} = $LayoutObject->BuildSelection(
+        Data        => \%CommunicationChannels,
+        Name        => 'ArticleCommunicationChannelID',
+        SelectedID  => $Param{Data}->{ArticleCommunicationChannelID},
+        Class       => 'Modernize W75pc',
+        Multiple    => 1,
+        Size        => 5,
+        Translation => 1,
     );
 
     $Param{ArticleAttachmentIncludeStrg} = $LayoutObject->BuildSelection(
@@ -1145,10 +1237,31 @@ sub _Edit {
         Class       => 'Modernize W75pc',
     );
 
+    # get all searchable article field definitions
+    my %ArticleSearchableFields = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleSearchableFieldsList();
+
+    for my $ArticleFieldKey ( sort keys %ArticleSearchableFields ) {
+
+        my $Value = '';
+
+        if ( IsArrayRefWithData( $Param{Data}->{$ArticleFieldKey} ) ) {
+            $Value = $Param{Data}->{$ArticleFieldKey}->[0];
+        }
+
+        $LayoutObject->Block(
+            Name => 'BackendArticleField',
+            Data => {
+                Label => Translatable( $ArticleSearchableFields{$ArticleFieldKey}->{Label} ),
+                Key   => $ArticleSearchableFields{$ArticleFieldKey}->{Key},
+                Value => $Value,
+            },
+        );
+    }
+
     # take over data fields
     KEY:
     for my $Key (
-        qw(VisibleForAgent VisibleForAgentTooltip CustomerID CustomerUserID ArticleSubjectMatch ArticleBodyMatch)
+        qw(VisibleForAgent VisibleForAgentTooltip CustomerID CustomerUserID)
         )
     {
         next KEY if !$Param{Data}->{$Key};
@@ -1162,13 +1275,21 @@ sub _Edit {
     # set once per day checked value
     $Param{OncePerDayChecked} = ( $Param{Data}->{OncePerDay} ? 'checked="checked"' : '' );
 
-    if ( $Param{VisibleForAgent} ) {
+    $Param{VisibleForAgentStrg} = $LayoutObject->BuildSelection(
+        Data => {
+            0 => Translatable('No'),
+            1 => Translatable('Yes'),
+            2 => Translatable('Yes, but require at least one active notification method'),
+        },
+        Name       => 'VisibleForAgent',
+        Sort       => 'NumericKey',
+        Size       => 1,
+        SelectedID => $Param{VisibleForAgent},
+        Class      => 'Modernize W50pc',
+    );
 
-        # include checked attribute
-        $Param{VisibleForAgentChecked} = 'checked="checked"';
-    }
-    else {
-        # include read-only attribute
+    # include read-only attribute
+    if ( !$Param{VisibleForAgent} ) {
         $Param{VisibleForAgentTooltipReadonly} = 'readonly="readonly"';
     }
 
@@ -1247,17 +1368,30 @@ sub _Edit {
                     %Param,
                     );
 
+                # it should decide if the default value for the
+                # notification on AgentPreferences is enabled or not
+                my $AgentEnabledByDefault = 0;
+                if ( grep { $_ eq $Transport } @{ $Param{Data}->{AgentEnabledByDefault} } ) {
+                    $AgentEnabledByDefault = 1;
+                }
+                elsif ( !$Param{ID} && defined $RegisteredTransports{$Transport}->{AgentEnabledByDefault} ) {
+                    $AgentEnabledByDefault = $RegisteredTransports{$Transport}->{AgentEnabledByDefault};
+                }
+                my $AgentEnabledByDefaultChecked = ( $AgentEnabledByDefault ? 'checked="checked"' : '' );
+
                 # transport
                 $LayoutObject->Block(
                     Name => 'TransportRowEnabled',
                     Data => {
-                        Transport             => $Transport,
-                        TransportName         => $RegisteredTransports{$Transport}->{Name},
-                        TransportChecked      => $TransportChecked,
-                        SettingsString        => $TransportSettings,
-                        TransportsServerError => $Param{TransportsServerError},
+                        Transport                    => $Transport,
+                        TransportName                => $RegisteredTransports{$Transport}->{Name},
+                        TransportChecked             => $TransportChecked,
+                        SettingsString               => $TransportSettings,
+                        AgentEnabledByDefaultChecked => $AgentEnabledByDefaultChecked,
+                        TransportsServerError        => $Param{TransportsServerError},
                     },
                 );
+
             }
 
         }
@@ -1286,6 +1420,7 @@ sub _Overview {
     $LayoutObject->Block( Name => 'ActionList' );
     $LayoutObject->Block( Name => 'ActionAdd' );
     $LayoutObject->Block( Name => 'ActionImport' );
+    $LayoutObject->Block( Name => 'Filter' );
 
     $LayoutObject->Block(
         Name => 'OverviewResult',

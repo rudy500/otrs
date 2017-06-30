@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -47,21 +47,4 @@
         </div>
     </form>
 </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-// Allow only CreateDB if database is not Oracle
-$('select#DBType').bind('change', function(){
-    if (/oracle/.test($(this).val())) {
-        $("#DBInstallTypeUseDB").attr("checked", true);
-        $("#DBInstallTypeUseDB").attr("disabled", "disabled");
-        $("#DBInstallTypeCreateDB").attr("disabled", "disabled");
-    }
-    else {
-        $("#DBInstallTypeUseDB").removeAttr("disabled");
-        $("#DBInstallTypeCreateDB").removeAttr("disabled");
-        $("#DBInstallTypeCreateDB").attr("checked", true);
-    }
-}).trigger('change');
-//]]></script>
-[% END %]
 [% RenderBlockEnd("DatabaseStart") %]

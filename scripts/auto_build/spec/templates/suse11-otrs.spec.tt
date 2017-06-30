@@ -8,8 +8,8 @@ Group:        Applications/Mail
 Provides:     otrs
 Requires:     [%
     Requires = [
-        'bash-completion',
-        'cronie',
+        #'cronie', # unavailable in SLES 11
+        'cron', # replacement for cronie in SLES 11
         'apache2',
         'apache2-mod_perl',
         'perl',

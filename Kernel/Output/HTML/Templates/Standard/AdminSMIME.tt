@@ -1,15 +1,73 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+[% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("S/MIME Management") | html %]: [% Translate(Data.Subtitle) | html %]</h1>
-    <div class="SidebarColumn">
+    <h1>[% Translate("S/MIME Management") | html %][% IF Data.Subtitle %]:[% END %] [% Translate(Data.Subtitle) | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('S/MIME Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% IF Data.Action == "ShowAddCertificate" %]
+        [% BreadcrumbPath.push({ Name => Translate("Add Certificate"),}) %]
+    [% ELSIF Data.Action == "ShowAddPrivate" %]
+        [% BreadcrumbPath.push({ Name => Translate("Add Private Key"),}) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="SidebarColumn">
+[% RenderBlockStart("Notice") %]
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2>[% Translate("Notice") | html %]</h2>
+            </div>
+            <div class="Content ActionList">
+                <form action="[% Env("CGIHandle") %]" method="post">
+                    <input type="hidden" name="Action" value="AdminSystemConfiguration"/>
+                    <input type="hidden" name="Subaction" value="Edit"/>
+                    <input type="hidden" name="SysConfigGroup" value="Framework"/>
+                    <input type="hidden" name="SysConfigSubGroup" value="Crypt::SMIME"/>
+[% RenderBlockStart("Disabled") %]
+                    <h3><span class="Warning">[% Translate("SMIME support is disabled") | html %]<span></h3>
+                    <fieldset>
+                        <p class="FieldExplanation">
+                            [% Translate("To be able to use SMIME in OTRS, you have to enable it first.") | html %]
+                        </p>
+                        <div class="Field">
+                            <button class="CallForAction Fullsize Center" type="submit" value="[% Translate("Enable it here!") | html %]">
+                                <span><i class="fa fa-unlock-alt"></i> [% Translate("Enable SMIME support") | html %]</span>
+                            </button>
+                        </div>
+[% RenderBlockEnd("Disabled") %]
+[% RenderBlockStart("NotWorking") %]
+                    <h3><span class="Error">[% Translate("Faulty SMIME configuration") | html %]<span></h3>
+                    <fieldset>
+                        <p class="FieldExplanation">
+                            [% Translate("SMIME support is enabled, but the relevant configuration contains errors. Please check the configuration using the button below.") | html %]
+                        </p>
+                        <div class="Field">
+                            <button class="CallForAction Fullsize Center" type="submit" value="[% Translate("Configure it here!") | html %]">
+                                <span><i class="fa fa-unlock-alt"></i> [% Translate("Check SMIME configuration") | html %]</span>
+                            </button>
+                        </div>
+[% RenderBlockEnd("NotWorking") %]
+                        <div class="Clear"></div>
+                    </fieldset>
+                </form>
+            </div>
+        </div>
+[% RenderBlockEnd("Notice") %]
 [% RenderBlockStart("ActionList") %]
         <div class="WidgetSimple">
             <div class="Header">
@@ -39,7 +97,7 @@
 [% RenderBlockStart("SMIMEFilter") %]
         <div class="WidgetSimple">
             <div class="Header">
-                <h2><label for="FilterSMIME">[% Translate("Filter for certificates") | html %]</label></h2>
+                <h2><label for="FilterSMIME">[% Translate("Filter for Certificates") | html %]</label></h2>
             </div>
             <div class="Content">
                 <ul>
@@ -53,13 +111,6 @@
                 </ul>
             </div>
         </div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.Table.InitTableFilter($('#FilterSMIME'), $('#SMIME'));
-//]]></script>
-[% END %]
-
 [% RenderBlockEnd("SMIMEFilter") %]
 
 [% RenderBlockStart("OverviewHint") %]
@@ -151,14 +202,6 @@
                                 <a class="CertificateRead" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Read;Type=[% Data.Type | uri %];Filename=[% Data.Filename | uri %]" title="[% Translate("Read certificate") | html %]">
                                     [% Translate("Read certificate") | html %]
                                 </a>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    $('a.CertificateRead').unbind('click').bind('click', function (Event) {
-        Core.UI.Popup.OpenPopup($(this).attr('href'), 'CertificateRead');
-        return false;
-    });
-//]]></script>
-[% END %]
 [% RenderBlockEnd("CertificateRead") %]
 
                             </td>
@@ -205,7 +248,7 @@
                     <div class="Clear"></div>
 
                     <div class="Field SpacingTop">
-                        <button class="Primary CallForAction" type="submit"><span>[% Translate("Submit") | html %]</span></button>
+                        <button class="Primary CallForAction" type="submit" value="[% Translate("Add")%]"><span>[% Translate("Add") | html %]</span></button>
                         [% Translate("or") | html %]
                         <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                     </div>
@@ -353,12 +396,7 @@
             </table>
         </div>
     </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.Table.InitTableFilter($('#FilterSMIMECerts'), $('#AvailableCerts'));
-//]]></script>
-[% END %]
-
 [% RenderBlockEnd("SignerCertificates") %]
 </div>
 <div class="Clear"></div>
+[% RenderBlockEnd("Overview") %]

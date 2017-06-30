@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,35 +7,18 @@
 # --
 
 package Kernel::System::PostMaster::LoopProtection::DB;
-## nofilter(TidyAll::Plugin::OTRS::Perl::Time)
 
 use strict;
 use warnings;
+
+use parent 'Kernel::System::PostMaster::LoopProtection::Common';
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::DB',
     'Kernel::System::Log',
+    'Kernel::System::DateTime',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get config options
-    $Self->{PostmasterMaxEmails} = $Kernel::OM->Get('Kernel::Config')->Get('PostmasterMaxEmails') || 40;
-
-    # create logfile name
-    my ( $Sec, $Min, $Hour, $Day, $Month, $Year ) = localtime(time);    ## no critic
-    $Year = $Year + 1900;
-    $Month++;
-    $Self->{LoopProtectionDate} .= $Year . '-' . $Month . '-' . $Day;
-
-    return $Self;
-}
 
 sub SendEmail {
     my ( $Self, %Param ) = @_;
@@ -82,8 +65,10 @@ sub Check {
         $Count = $Row[0];
     }
 
+    my $Max = $Self->{PostmasterMaxEmailsPerAddress}{ lc $To } // $Self->{PostmasterMaxEmails};
+
     # check possible loop
-    if ( $Count >= $Self->{PostmasterMaxEmails} ) {
+    if ( $Max && $Count >= $Max ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'notice',
             Message =>

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,22 @@
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1 class="Header">[% Translate("Session Management") | html %]</h1>
 
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Session Management'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% IF Data.Action == 'Detail' %]
+        [% USE DetailView = String(Translate("Detail Session View for")) %]
+        [% BreadcrumbPath.push({ Name => DetailView.append( ' ', Data.UserType, ': ', Data.UserFirstname, ' ', Data.UserLastname ) })%]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
     <div class="SidebarColumn">
 
 [% RenderBlockStart("ActionList") %]
@@ -64,7 +80,16 @@
             </div>
         </div>
 [% RenderBlockEnd("ActionList") %]
-
+[% RenderBlockStart("Filter") %]
+        <div class="WidgetSimple">
+            <div class="Header">
+                <h2><label for="FilterSessions">[% Translate("Filter for Sessions") | html %]</label></h2>
+            </div>
+            <div class="Content">
+                <input type="text" id="FilterSessions" class="FilterBox" placeholder="[% Translate("Just start typing to filter...") | html %]" name="FilterSessions" value="" title="[% Translate("Filter for sessions") | html %]">
+            </div>
+        </div>
+[% RenderBlockEnd("Filter") %]
     </div>
 
     <div class="ContentColumn">
@@ -75,7 +100,7 @@
                 <h2>[% Translate("List") | html %]</h2>
             </div>
             <div class="Content">
-                <table class="DataTable">
+                <table class="DataTable" id="Sessions">
                     <thead>
                         <tr>
                             <th>[% Translate("Session") | html %]</th>
@@ -91,12 +116,15 @@
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminSession;Subaction=Detail;WantSessionID=[% Data.SessionID | uri %]">[% Data.SessionID | html %]</a>
                             </td>
                             <td>[% Data.UserType | html %]</td>
-                            <td>[% Data.UserFirstname | html %] [% Data.UserLastname %]</td>
+                            <td>[% Data.UserFullname | html %]</td>
                             <td>
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminSession;Subaction=Kill;WantSessionID=[% Data.SessionID | uri %];[% Env("ChallengeTokenParam") | html %]">[% Translate("Kill this session") | html %]</a>
                             </td>
                         </tr>
 [% RenderBlockEnd("Session") %]
+                        <tr class="FilterMessage Hidden">
+                            <td colspan="4">[% Translate("No matches found.") | html %]</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -104,7 +132,7 @@
 
 [% RenderBlockStart("DetailView") %]
             <div class="Header">
-                <h2>[% Translate("Detail View for SessionID") | html %] : [% Data.SessionID | html %] - [% Data.UserFirstname | html %] [% Data.UserLastname | html %]</h2>
+                <h2>[% Translate("Detail View for SessionID") | html %] : [% Data.SessionID | html %] - [% Data.UserFullname | html %]</h2>
             </div>
             <div class="Content">
                 <table class="DataTable">

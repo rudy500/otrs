@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,6 +23,7 @@ my $LayoutObject = Kernel::Output::HTML::Layout->new(
     UserID => 1,
     Lang   => 'de',
 );
+my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 my @Tests = (
     {
@@ -335,6 +336,45 @@ console.log(22);
         Result => '
 ',
     },
+
+    {
+        Name     => 'JSData 1',
+        Template => '
+[% PROCESS JSData
+    Key   = "Config.Test"
+    Value = 123
+%]
+[% PROCESS JSData
+    Key   = "Config.Test2"
+    Value = [1, 2, { test => "test"}]
+%]',
+        Result => '
+
+',
+    },
+    {
+        Name      => 'JSData 2 with AddJSData()',
+        Template  => '',
+        AddJSData => {
+            Key   => 'Perl.Code',
+            Value => { Perl => 'Data' }
+        },
+        Result => '',
+    },
+    {
+        Name     => 'JSDataInsert',
+        Template => '
+[% PROCESS "JSDataInsert" -%]',
+        Result => '
+Core.Config.AddConfig({"Config.Test":123,"Config.Test2":[1,2,{"test":"test"}],"Perl.Code":{"Perl":"Data"}});
+',
+    },
+    {
+        Name     => 'JSDataInsert, no data',
+        Template => '[% PROCESS "JSDataInsert" -%]',
+        Result   => '',
+    },
+
     {
         Name     => 'Form without ChallengeToken',
         Template => '
@@ -418,11 +458,42 @@ EOF
             HTML => '<h1 class="test">Test</h1><p>mytext</p><p>mytext2</p>'
         },
     },
+    {
+        Name     => 'HumanReadableDataSize',
+        Template => <<'EOF',
+[% 123 | Localize( 'Filesize' ) %] [% Localize( 456 * 1024, 'Filesize' ) %]
+EOF
+        Result => '123 B 456 KB
+',
+        Data => {},
+    },
+    {
+        Name     => 'RelativeTime',
+        Template => <<'EOF',
+[% '2017-01-09 00:00:00' | Localize( 'RelativeTime' ) %] [% Localize( '2017-01-11 00:00:00', 'RelativeTime' ) %]
+EOF
+        Result => 'a day ago in a day
+',
+        Data         => {},
+        FixedTimeSet => '2017-01-10 00:00:00',
+    },
 );
 
 for my $Test (@Tests) {
+    if ( $Test->{FixedTimeSet} ) {
 
-    # Make sure EnvRef is populated every time
+        # Set current time to the provided timestamp.
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{FixedTimeSet},
+            },
+        );
+
+        $HelperObject->FixedTimeSet($DateTimeObject);
+    }
+
+    # make sure EnvRef is populated every time
     delete $LayoutObject->{EnvRef};
     for my $Key ( sort keys %{ $Test->{Env} || {} } ) {
         $LayoutObject->{$Key} = $Test->{Env}->{$Key};
@@ -438,6 +509,12 @@ for my $Test (@Tests) {
         );
     }
 
+    if ( $Test->{AddJSData} ) {
+        $LayoutObject->AddJSData(
+            %{ $Test->{AddJSData} },
+        );
+    }
+
     my $Result = $LayoutObject->Output(
         Template => $Test->{Template},
         Data     => $Test->{Data} // {},
@@ -448,10 +525,16 @@ for my $Test (@Tests) {
         $Test->{Result},
         $Test->{Name},
     );
+
+    if ( $Test->{FixedTimeSet} ) {
+
+        # Reset time to the current timestamp.
+        $HelperObject->FixedTimeSet();
+    }
 }
 
-# Verify that the TemplateObject is correctly destroyed to make sure there
-#   are no ring references.
+# verify that the TemplateObject is correctly destroyed to make sure there
+# are no ring references.
 my $TemplateObject = $LayoutObject->{TemplateObject};
 
 Scalar::Util::weaken($TemplateObject);

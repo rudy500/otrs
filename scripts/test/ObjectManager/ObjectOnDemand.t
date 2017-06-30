@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use vars (qw($Self));
 
 #
 # This test makes sure that object dependencies are only created when
-#   the object actively asks for them, not earlier
+# the object actively asks for them, not earlier.
 #
 
 use Kernel::System::ObjectManager;
@@ -27,25 +27,25 @@ $Self->True(
 );
 
 $Self->False(
-    exists $Kernel::OM->{Objects}->{'Kernel::System::Time'},
-    'Kernel::System::Time was not yet loaded',
+    exists $Kernel::OM->{Objects}->{'Kernel::System::Valid'},
+    'Kernel::System::Valid was not loaded yet',
 );
 
 $Self->False(
     exists $Kernel::OM->{Objects}->{'Kernel::System::Log'},
-    'Kernel::System::Log was not yet loaded',
+    'Kernel::System::Log was not loaded yet',
 );
 
-$Kernel::OM->Get('Kernel::System::Time');
+$Kernel::OM->Get('Kernel::System::Valid');
 
 $Self->True(
-    exists $Kernel::OM->{Objects}->{'Kernel::System::Time'},
-    'Kernel::System::Time was loaded',
+    exists $Kernel::OM->{Objects}->{'Kernel::System::Valid'},
+    'Kernel::System::Valid was loaded',
 );
 
 $Self->False(
     exists $Kernel::OM->{Objects}->{'Kernel::System::Log'},
-    'Kernel::System::Log is a dependency of Kernel::System::Time, but was not yet loaded',
+    'Kernel::System::Log is a dependency of Kernel::System::Valid, but was not yet loaded',
 );
 
 1;

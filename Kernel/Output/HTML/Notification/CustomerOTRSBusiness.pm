@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,6 +7,8 @@
 # --
 
 package Kernel::Output::HTML::Notification::CustomerOTRSBusiness;
+
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -16,16 +18,6 @@ our @ObjectDependencies = (
     'Kernel::System::OTRSBusiness',
     'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -37,14 +29,14 @@ sub Run {
 
     return '' if !$OTRSBusinessObject->OTRSBusinessIsInstalled();
 
-    # ----------------------------------------
+    #
     # check entitlement status
-    # ----------------------------------------
+    #
     my $EntitlementStatus = $OTRSBusinessObject->OTRSBusinessEntitlementStatus(
         CallCloudService => 0,
     );
 
-    if ( $EntitlementStatus eq 'forbidden' ) {
+    if ( $EntitlementStatus eq 'warning-error' || $EntitlementStatus eq 'forbidden' ) {
 
         my $OTRSBusinessLabel = '<b>OTRS Business Solution</b>™';
 

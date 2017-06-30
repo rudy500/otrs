@@ -28,15 +28,30 @@ nv.models.OTRSmultiBarChart = function() {
         , tooltips = true
         , tooltip = function(key, x, y, e, graph) {
             return '<h3>' + key + '</h3>' +
-                '<p>' +  y + ' on ' + x + '</p>'
+// ---
+// OTRS
+// ---
+//                '<p>' +  y + ' on ' + x + '</p>'
+                '<p>' +  y + ' - ' + x + '</p>'
+// ---
         }
         , x //can be accessed via chart.xScale()
         , y //can be accessed via chart.yScale()
         , state = nv.utils.state()
         , defaultState = null
-        , noData = "No Data Available."
+// ---
+// OTRS
+// ---
+//        , noData = 'No Data Available.'
+        , noData = Core.Language.Translate('No Data Available.')
+// ---
         , dispatch = d3.dispatch('tooltipShow', 'tooltipHide', 'stateChange', 'changeState', 'renderEnd')
-        , controlWidth = function() { return showControls ? 180 : 0 }
+// ---
+// OTRS
+// ---
+//        , controlWidth = function() { return showControls ? 180 : 0 }
+        , controlWidth = function() { return showControls ? 220 : 0 }
+// ---
         , duration = 250
         ;
 
@@ -48,7 +63,6 @@ nv.models.OTRSmultiBarChart = function() {
     xAxis
         .orient('bottom')
         .tickPadding(7)
-        .highlightZero(true)
         .showMaxMin(false)
         .tickFormat(function(d) { return d })
     ;
@@ -212,8 +226,14 @@ nv.models.OTRSmultiBarChart = function() {
             // Controls
             if (showControls) {
                 var controlsData = [
-                    { key: controlLabels.grouped || 'Grouped', disabled: multibar.stacked() },
-                    { key: controlLabels.stacked || 'Stacked', disabled: !multibar.stacked() }
+// ---
+// OTRS
+// ---
+//                    { key: controlLabels.grouped || 'Grouped', disabled: multibar.stacked() },
+//                    { key: controlLabels.stacked || 'Stacked', disabled: !multibar.stacked() }
+                    { key: controlLabels.grouped || Core.Language.Translate('Grouped'), disabled: multibar.stacked() },
+                    { key: controlLabels.stacked || Core.Language.Translate('Stacked'), disabled: !multibar.stacked() }
+// ---
                 ];
 
                 controls.width(controlWidth()).color(['#444', '#444', '#444']);
@@ -330,10 +350,20 @@ nv.models.OTRSmultiBarChart = function() {
                 d.disabled = false;
 
                 switch (d.key) {
-                    case 'Grouped':
+// ---
+// OTRS
+// ---
+//                    case 'Grouped':
+                    case Core.Language.Translate('Grouped'):
+// ---
                         multibar.stacked(false);
                         break;
-                    case 'Stacked':
+// ---
+// OTRS
+// ---
+//                    case 'Stacked':
+                    case Core.Language.Translate('Stacked'):
+// ---
                         multibar.stacked(true);
                         break;
                 }

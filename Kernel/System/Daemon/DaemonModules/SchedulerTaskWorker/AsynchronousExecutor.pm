@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::Asynchronous
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
+use parent qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
@@ -21,21 +21,15 @@ our @ObjectDependencies = (
 
 Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::AsynchronousExecutor - Scheduler daemon task handler module for generic asynchronous tasks
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This task handler executes scheduler generic asynchronous tasks.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
-
-=item new()
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
-    my $TaskHandlerObject = $Kernel::OM-Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::AsynchronousExecutor');
+    my $TaskHandlerObject = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::AsynchronousExecutor');
 
 =cut
 
@@ -51,9 +45,9 @@ sub new {
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
-performs the selected asynchronous task.
+Performs the selected asynchronous task.
 
     my $Success = $TaskHandlerObject->Run(
         TaskID   => 123,
@@ -74,70 +68,38 @@ Returns:
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # check needed
-    for my $Needed (qw(TaskID Data)) {
-        if ( !$Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed!",
-            );
+    # Check task params.
+    my $CheckResult = $Self->_CheckTaskParams(
+        %Param,
+        NeededDataAttributes => [ 'Object', 'Function' ],
+    );
 
-            return;
-        }
-    }
+    # Stop execution if an error in params is detected.
+    return if !$CheckResult;
 
-    # check data
-    if ( ref $Param{Data} ne 'HASH' ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no valid Data!',
-        );
+    $Param{Data}->{Params} //= {};
 
-        return;
-    }
+    # Stop execution if invalid params ref is detected.
+    return if !ref $Param{Data}->{Params};
 
-    for my $Needed (qw(Object Function)) {
-        if ( !$Param{Data}->{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need Data->$Needed!",
-            );
-
-            return;
-        }
-
-    }
-
-    if ( $Param{Data}->{Params} && ref $Param{Data}->{Params} ne 'HASH' ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "Data->Params is invalid!",
-        );
-
-        return;
-    }
-
-    # get module object
     my $LocalObject;
-
     eval {
         $LocalObject = $Kernel::OM->Get( $Param{Data}->{Object} );
     };
-
     if ( !$LocalObject ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "Could not create a new object $Param{Data}->{Object}!",
+            Message  => "Could not create a new object $Param{Data}->{Object}! - Task: $Param{TaskName}",
         );
 
         return;
     }
 
-    # check if the module provide the required function()
+    # Check if the module provide the required function().
     if ( !$LocalObject->can( $Param{Data}->{Function} ) ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "$Param{Data}->{Object} does not provide $Param{Data}->{Function}()!",
+            Message  => "$Param{Data}->{Object} does not provide $Param{Data}->{Function}()! - Task: $Param{TaskName}",
         );
 
         return;
@@ -151,21 +113,34 @@ sub Run {
         print "    $Self->{WorkerName} executes task: $Param{TaskName}\n";
     }
 
-    # run given function on the object with the specified parameters in Data->{Params}
+    # Run given function on the object with the specified parameters in Data->{Params}
     eval {
 
-        # localize the standard error, everything will be restored after the eval block
+        # Restore child signal to default, main daemon set it to 'IGNORE' to be able to create
+        #   multiple process at the same time, but in workers this causes problems if function does
+        #   system calls (on linux), since system calls returns -1. See bug#12126.
+        local $SIG{CHLD} = 'DEFAULT';
+
+        # Localize the standard error, everything will be restored after the eval block.
         local *STDERR;
 
-        # redirect the standard error to a variable
+        # Redirect the standard error to a variable.
         open STDERR, ">>", \$ErrorMessage;
 
-        $LocalObject->$Function(
-            %{ $Param{Data}->{Params} },
-        );
+        if ( ref $Param{Data}->{Params} eq 'ARRAY' ) {
+            $LocalObject->$Function(
+                @{ $Param{Data}->{Params} },
+            );
+        }
+        else {
+            $LocalObject->$Function(
+                %{ $Param{Data}->{Params} // {} },
+            );
+        }
+
     };
 
-    # check if there are errors
+    # Check if there are errors.
     if ($ErrorMessage) {
 
         $Self->_HandleError(
@@ -182,8 +157,6 @@ sub Run {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::SupportDataCollector::Plugin::OTRS::ConfigSettings;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::SupportDataCollector::PluginBase);
+use parent qw(Kernel::System::SupportDataCollector::PluginBase);
 
 use Kernel::Language qw(Translatable);
 
@@ -20,26 +20,26 @@ our @ObjectDependencies = (
 );
 
 sub GetDisplayPath {
-    return 'OTRS/Config Settings';
+    return Translatable('OTRS') . '/' . Translatable('Config Settings');
 }
 
 sub Run {
     my $Self = shift;
 
-    my @Settings = qw(
-        Home
-        FQDN
-        HttpType
-        DefaultLanguage
-        SystemID
-        Version
-        ProductName
-        Organization
-        Ticket::IndexModule
-        Ticket::SearchIndexModule
-        Ticket::StorageModule
-        SendmailModule
-        Frontend::RichText
+    my @Settings = (
+        'Home',
+        'FQDN',
+        'HttpType',
+        'DefaultLanguage',
+        'SystemID',
+        'Version',
+        'ProductName',
+        'Organization',
+        'Ticket::IndexModule',
+        'Ticket::SearchIndexModule',
+        'Ticket::Article::Backend::MIMEBase###ArticleStorage',
+        'SendmailModule',
+        'Frontend::RichText',
     );
 
     # get config object
@@ -48,6 +48,12 @@ sub Run {
     for my $Setting (@Settings) {
 
         my $ConfigValue = $ConfigObject->Get($Setting);
+
+        if ( $Setting =~ m{###} ) {
+            my ( $Name, $SubKey ) = $Setting =~ m{(.*)###(.*)};
+            $ConfigValue = $ConfigObject->Get($Name);
+            $ConfigValue = $ConfigValue->{$SubKey} if ref $ConfigValue eq 'HASH';
+        }
 
         if ( defined $ConfigValue ) {
             $Self->AddResultInformation(
@@ -68,17 +74,5 @@ sub Run {
 
     return $Self->GetResults();
 }
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut
 
 1;

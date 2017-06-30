@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -33,8 +33,12 @@ sub Run {
 
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
+    # Ignore all inline parts as these are actually part of the email body.
+    my @Attachments = $Self->{ParserObject}->GetAttachments();
+    @Attachments = grep { defined $_->{ContentDisposition} && $_->{ContentDisposition} ne 'inline' } @Attachments;
+
     ATTACHMENT:
-    for my $Attachment ( $Self->{ParserObject}->GetAttachments() ) {
+    for my $Attachment (@Attachments) {
 
         my $Tn = $TicketObject->GetTNByString( $Attachment->{Content} );
         next ATTACHMENT if !$Tn;

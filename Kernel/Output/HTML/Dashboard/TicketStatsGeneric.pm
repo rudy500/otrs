@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Output::HTML::Dashboard::TicketStatsGeneric;
 
 use strict;
 use warnings;
+
+use Kernel::System::DateTime qw(:all);
 
 our $ObjectManagerDisabled = 1;
 
@@ -61,10 +63,17 @@ sub Run {
     );
 
     if ( ref $Cache ) {
+
+        # send data to JS
+        $LayoutObject->AddJSData(
+            Key   => 'DashboardTicketStats',
+            Value => $Cache,
+        );
+
         return $LayoutObject->Output(
-            TemplateFile   => 'AgentDashboardTicketStats',
-            Data           => $Cache,
-            KeepScriptTags => $Param{AJAX},
+            TemplateFile => 'AgentDashboardTicketStats',
+            Data         => $Cache,
+            AJAX         => $Param{AJAX},
         );
     }
 
@@ -88,37 +97,50 @@ sub Run {
     my @TicketWeekdays = ();
     my $Max            = 0;
 
-    # get ticket object
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-    for my $Key ( 0 .. 6 ) {
+    my $TimeZone = $Self->{UserTimeZone} || OTRSTimeZoneGet();
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    for my $DaysBack ( 0 .. 6 ) {
 
-        my $TimeNow = $TimeObject->SystemTime();
-        if ($Key) {
-            $TimeNow = $TimeNow - ( 60 * 60 * 24 * $Key );
-        }
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeNow,
+        # cache results for 30 min. for todays stats
+        my $CacheTTL = 60 * 30;
+
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                TimeZone => $TimeZone,
+                }
         );
+        if ($DaysBack) {
+            $DateTimeObject->Subtract( Days => $DaysBack );
+
+            # for past 6 days cache results for 8 days (should not change)
+            $CacheTTL = 60 * 60 * 24 * 8;
+        }
+        $DateTimeObject->ToOTRSTimeZone();
+
+        my $DateTimeValues = $DateTimeObject->Get();
+        my $WeekDay = $DateTimeValues->{DayOfWeek} == 7 ? 0 : $DateTimeValues->{DayOfWeek};
 
         unshift(
             @TicketWeekdays,
             $LayoutObject->{LanguageObject}->Translate( $Axis{'7Day'}->{$WeekDay} )
         );
 
+        my $TimeStart = $DateTimeObject->Format( Format => '%Y-%m-%d 00:00:00' );
+        my $TimeStop  = $DateTimeObject->Format( Format => '%Y-%m-%d 23:59:59' );
+
         my $CountCreated = $TicketObject->TicketSearch(
 
-            # cache search result 30 min
-            CacheTTL => 60 * 30,
+            # cache search result
+            CacheTTL => $CacheTTL,
 
             # tickets with create time after ... (ticket newer than this date) (optional)
-            TicketCreateTimeNewerDate => "$Year-$Month-$Day 00:00:00",
+            TicketCreateTimeNewerDate => $TimeStart,
 
             # tickets with created time before ... (ticket older than this date) (optional)
-            TicketCreateTimeOlderDate => "$Year-$Month-$Day 23:59:59",
+            TicketCreateTimeOlderDate => $TimeStop,
 
             CustomerID => $Param{Data}->{UserCustomerID},
             Result     => 'COUNT',
@@ -126,7 +148,7 @@ sub Run {
             # search with user permissions
             Permission => $Self->{Config}->{Permission} || 'ro',
             UserID => $Self->{UserID},
-        );
+        ) || 0;
         if ( $CountCreated && $CountCreated > $Max ) {
             $Max = $CountCreated;
         }
@@ -134,14 +156,14 @@ sub Run {
 
         my $CountClosed = $TicketObject->TicketSearch(
 
-            # cache search result 30 min
-            CacheTTL => 60 * 30,
+            # cache search result
+            CacheTTL => $CacheTTL,
 
             # tickets with create time after ... (ticket newer than this date) (optional)
-            TicketCloseTimeNewerDate => "$Year-$Month-$Day 00:00:00",
+            TicketCloseTimeNewerDate => $TimeStart,
 
             # tickets with created time before ... (ticket older than this date) (optional)
-            TicketCloseTimeOlderDate => "$Year-$Month-$Day 23:59:59",
+            TicketCloseTimeOlderDate => $TimeStop,
 
             CustomerID => $Param{Data}->{UserCustomerID},
             Result     => 'COUNT',
@@ -149,7 +171,7 @@ sub Run {
             # search with user permissions
             Permission => $Self->{Config}->{Permission} || 'ro',
             UserID => $Self->{UserID},
-        );
+        ) || 0;
         if ( $CountClosed && $CountClosed > $Max ) {
             $Max = $CountClosed;
         }
@@ -168,14 +190,10 @@ sub Run {
         [ $ClosedText,  reverse @TicketsClosed ],
     );
 
-    my $ChartDataJSON = $LayoutObject->JSONEncode(
-        Data => \@ChartData,
-    );
-
     my %Data = (
         %{ $Self->{Config} },
         Key       => int rand 99999,
-        ChartData => $ChartDataJSON,
+        ChartData => \@ChartData,
     );
 
     if ( $Self->{Config}->{CacheTTLLocal} ) {
@@ -187,10 +205,16 @@ sub Run {
         );
     }
 
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'DashboardTicketStats',
+        Value => \%Data
+    );
+
     my $Content = $LayoutObject->Output(
-        TemplateFile   => 'AgentDashboardTicketStats',
-        Data           => \%Data,
-        KeepScriptTags => $Param{AJAX},
+        TemplateFile => 'AgentDashboardTicketStats',
+        Data         => \%Data,
+        AJAX         => $Param{AJAX},
     );
 
     return $Content;

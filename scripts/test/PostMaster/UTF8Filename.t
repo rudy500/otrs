@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -13,17 +14,26 @@ use utf8;
 use vars (qw($Self));
 
 use Kernel::System::PostMaster;
-use Kernel::System::Ticket;
 
 # get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-my $MainObject   = $Kernel::OM->Get('Kernel::System::Main');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 for my $Backend (qw(DB FS)) {
 
     $ConfigObject->Set(
-        Key   => 'Ticket::StorageModule',
+        Key   => 'Ticket::Article::Backend::MIMEBase###ArticleStorage',
         Value => 'Kernel::System::Ticket::ArticleStorage' . $Backend,
     );
 
@@ -35,9 +45,6 @@ for my $Backend (qw(DB FS)) {
         Mode     => 'binmode',
         Result   => 'ARRAY',
     );
-
-    # new/clear ticket object
-    my $TicketObject = Kernel::System::Ticket->new();
 
     my $TicketID;
     {
@@ -55,13 +62,13 @@ for my $Backend (qw(DB FS)) {
         "$Backend - Ticket created",
     );
 
-    my @ArticleIDs = $TicketObject->ArticleIndex( TicketID => $TicketID );
+    my @ArticleIDs = map { $_->{ArticleID} } $ArticleObject->ArticleList( TicketID => $TicketID );
     $Self->True(
         $ArticleIDs[0],
         "$Backend - Article created",
     );
 
-    my %Attachments = $TicketObject->ArticleAttachmentIndex(
+    my %Attachments = $ArticleBackendObject->ArticleAttachmentIndex(
         ArticleID => $ArticleIDs[0],
         UserID    => 1,
     );
@@ -71,7 +78,6 @@ for my $Backend (qw(DB FS)) {
         {
             ContentAlternative => '',
             ContentID          => '',
-            Filesize           => '132 Bytes',
             ContentType        => 'application/pdf; name="=?UTF-8?Q?Documentacio=CC=81n=2Epdf?="',
             Filename           => 'Documentación.pdf',
             FilesizeRaw        => '132',
@@ -79,16 +85,8 @@ for my $Backend (qw(DB FS)) {
         },
         "$Backend - Attachment filename",
     );
-
-    my $Success = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-
-    $Self->True(
-        $Success,
-        "$Backend - TicketDelete - removed ticket $TicketID",
-    );
 }
+
+# cleanup is done by RestoreDatabase.
 
 1;

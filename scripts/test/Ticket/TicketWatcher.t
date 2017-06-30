@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,35 +13,36 @@ use utf8;
 use vars (qw($Self));
 
 # get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 my $UserObject   = $Kernel::OM->Get('Kernel::System::User');
 
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
 # enable watcher feature
-$ConfigObject->Set(
+$Kernel::OM->Get('Kernel::Config')->Set(
     Key   => 'Ticket::Watcher',
     Value => 1,
 );
 
-my $TestUserLogin1 = $HelperObject->TestUserCreate(
-    Groups => [ 'users', ],
-);
-
-my $TestUserID1 = $UserObject->UserLookup(
-    UserLogin => $TestUserLogin1,
-);
-
-my $TestUserLogin2 = $HelperObject->TestUserCreate(
-    Groups => [ 'users', ],
-);
-
-my $TestUserID2 = $UserObject->UserLookup(
-    UserLogin => $TestUserLogin2,
-);
-
 my @TicketIDs;
+my @TestUserIDs;
 for ( 1 .. 2 ) {
+
+    my $TestUserLogin = $Helper->TestUserCreate(
+        Groups => [ 'users', ],
+    );
+    my $TestUserID = $UserObject->UserLookup(
+        UserLogin => $TestUserLogin,
+    );
+
+    push @TestUserIDs, $TestUserID;
 
     # create a new ticket
     my $TicketID = $TicketObject->TicketCreate(
@@ -65,7 +66,7 @@ for ( 1 .. 2 ) {
 
 my $Subscribe = $TicketObject->TicketWatchSubscribe(
     TicketID    => $TicketIDs[0],
-    WatchUserID => $TestUserID1,
+    WatchUserID => $TestUserIDs[0],
     UserID      => 1,
 );
 $Self->True(
@@ -74,7 +75,7 @@ $Self->True(
 );
 my $Unsubscribe = $TicketObject->TicketWatchUnsubscribe(
     TicketID    => $TicketIDs[0],
-    WatchUserID => $TestUserID1,
+    WatchUserID => $TestUserIDs[0],
     UserID      => 1,
 );
 $Self->True(
@@ -85,7 +86,7 @@ $Self->True(
 # add new subscription (will be deleted by TicketDelete(), also check foreign keys)
 $Subscribe = $TicketObject->TicketWatchSubscribe(
     TicketID    => $TicketIDs[0],
-    WatchUserID => $TestUserID1,
+    WatchUserID => $TestUserIDs[0],
     UserID      => 1,
 );
 $Self->True(
@@ -96,7 +97,7 @@ $Self->True(
 # subscribe first ticket with second user
 $Subscribe = $TicketObject->TicketWatchSubscribe(
     TicketID    => $TicketIDs[0],
-    WatchUserID => $TestUserID2,
+    WatchUserID => $TestUserIDs[1],
     UserID      => 1,
 );
 $Self->True(
@@ -107,7 +108,7 @@ $Self->True(
 # subscribe second ticket with second user
 $Subscribe = $TicketObject->TicketWatchSubscribe(
     TicketID    => $TicketIDs[1],
-    WatchUserID => $TestUserID2,
+    WatchUserID => $TestUserIDs[1],
     UserID      => 1,
 );
 $Self->True(
@@ -119,11 +120,11 @@ my %Watch = $TicketObject->TicketWatchGet(
     TicketID => $TicketIDs[0],
 );
 $Self->True(
-    $Watch{$TestUserID1} || 0,
+    $Watch{ $TestUserIDs[0] } || 0,
     'TicketWatchGet - first user',
 );
 $Self->True(
-    $Watch{$TestUserID2},
+    $Watch{ $TestUserIDs[1] },
     'TicketWatchGet - second user',
 );
 
@@ -131,11 +132,11 @@ $Self->True(
     TicketID => $TicketIDs[1],
 );
 $Self->False(
-    $Watch{$TestUserID1} || 0,
+    $Watch{ $TestUserIDs[0] } || 0,
     'TicketWatchGet - first user',
 );
 $Self->True(
-    $Watch{$TestUserID2},
+    $Watch{ $TestUserIDs[1] },
     'TicketWatchGet - second user',
 );
 
@@ -155,11 +156,11 @@ $Self->True(
     TicketID => $TicketIDs[0],
 );
 $Self->True(
-    $Watch{$TestUserID1} || 0,
+    $Watch{ $TestUserIDs[0] } || 0,
     'TicketWatchGet - first user',
 );
 $Self->True(
-    $Watch{$TestUserID2} || 0,
+    $Watch{ $TestUserIDs[1] } || 0,
     'TicketWatchGet - second user',
 );
 
@@ -167,23 +168,14 @@ $Self->True(
     TicketID => $TicketIDs[1],
 );
 $Self->False(
-    $Watch{$TestUserID1} || 0,
+    $Watch{ $TestUserIDs[0] } || 0,
     'TicketWatchGet - first user',
 );
 $Self->False(
-    $Watch{$TestUserID2} || 0,
+    $Watch{ $TestUserIDs[1] } || 0,
     'TicketWatchGet - second user',
 );
 
-for my $TicketID (@TicketIDs) {
-    my $Success = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-    $Self->True(
-        $Success,
-        "Removed ticket $TicketID",
-    );
-}
+# cleanup is done by RestoreDatabase.
 
 1;

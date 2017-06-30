@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,6 +14,7 @@ use warnings;
 our $ObjectManagerDisabled = 1;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -26,6 +27,13 @@ sub new {
 
 sub Run {
     my ( $Self, %Param ) = @_;
+
+    # Store last entity screen.
+    $Kernel::OM->Get('Kernel::System::AuthSession')->UpdateSessionID(
+        SessionID => $Self->{SessionID},
+        Key       => 'LastScreenEntity',
+        Value     => $Self->{RequestedURL},
+    );
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
@@ -58,27 +66,29 @@ sub Run {
         );
     }
     return $LayoutObject->ErrorScreen(
-        Message => "Undefined subaction.",
+        Message => Translatable('Undefined subaction.'),
     );
 }
 
 sub _Add {
     my ( $Self, %Param ) = @_;
 
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
     my %GetParam;
     for my $Needed (qw(ObjectType FieldType FieldOrder)) {
         $GetParam{$Needed} = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $Needed );
-        if ( !$Needed ) {
-            return $Kernel::OM->Get('Kernel::Output::HTML::Layout')->ErrorScreen(
-                Message => "Need $Needed",
+        if ( !$GetParam{$Needed} ) {
+            return $LayoutObject->ErrorScreen(
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Need %s', $Needed ),
             );
         }
     }
 
     # get the object type and field type display name
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $ObjectTypeName
-        = $ConfigObject->Get('DynamicFields::ObjectType')->{ $GetParam{ObjectType} }->{DisplayName} || '';
+    my $ConfigObject   = $Kernel::OM->Get('Kernel::Config');
+    my $ObjectTypeName = $ConfigObject->Get('DynamicFields::ObjectType')->{ $GetParam{ObjectType} }->{DisplayName}
+        || '';
     my $FieldTypeName = $ConfigObject->Get('DynamicFields::Driver')->{ $GetParam{FieldType} }->{DisplayName} || '';
 
     return $Self->_ShowScreen(
@@ -101,7 +111,7 @@ sub _AddAction {
         $GetParam{$Needed} = $ParamObject->GetParam( Param => $Needed );
         if ( !$GetParam{$Needed} ) {
             $Errors{ $Needed . 'ServerError' }        = 'ServerError';
-            $Errors{ $Needed . 'ServerErrorMessage' } = 'This field is required.';
+            $Errors{ $Needed . 'ServerErrorMessage' } = Translatable('This field is required.');
         }
     }
 
@@ -115,7 +125,7 @@ sub _AddAction {
             # add server error error class
             $Errors{NameServerError} = 'ServerError';
             $Errors{NameServerErrorMessage} =
-                'The field does not contain only ASCII letters and numbers.';
+                Translatable('The field does not contain only ASCII letters and numbers.');
         }
 
         # check if name is duplicated
@@ -132,7 +142,7 @@ sub _AddAction {
 
             # add server error error class
             $Errors{NameServerError}        = 'ServerError';
-            $Errors{NameServerErrorMessage} = 'There is another field with the same name.';
+            $Errors{NameServerErrorMessage} = Translatable('There is another field with the same name.');
         }
     }
 
@@ -143,7 +153,7 @@ sub _AddAction {
 
             # add server error error class
             $Errors{FieldOrderServerError}        = 'ServerError';
-            $Errors{FieldOrderServerErrorMessage} = 'The field must be numeric.';
+            $Errors{FieldOrderServerErrorMessage} = Translatable('The field must be numeric.');
         }
     }
 
@@ -161,7 +171,7 @@ sub _AddAction {
     }
 
     for my $ConfigParam (
-        qw(ObjectType ObjectTypeName FieldType FieldTypeName YearsPeriod DateRestriction ValidID Link)
+        qw(ObjectType ObjectTypeName FieldType FieldTypeName YearsPeriod DateRestriction ValidID Link LinkPreview)
         )
     {
         $GetParam{$ConfigParam} = $ParamObject->GetParam( Param => $ConfigParam );
@@ -172,7 +182,7 @@ sub _AddAction {
     # uncorrectable errors
     if ( !$GetParam{ValidID} ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need ValidID",
+            Message => Translatable('Need ValidID'),
         );
     }
 
@@ -194,6 +204,7 @@ sub _AddAction {
         YearsInFuture   => $GetParam{YearsInFuture},
         YearsInPast     => $GetParam{YearsInPast},
         Link            => $GetParam{Link},
+        LinkPreview     => $GetParam{LinkPreview},
     };
 
     # create a new field
@@ -210,7 +221,7 @@ sub _AddAction {
 
     if ( !$FieldID ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not create the new field",
+            Message => Translatable('Could not create the new field'),
         );
     }
 
@@ -228,24 +239,24 @@ sub _Change {
     my %GetParam;
     for my $Needed (qw(ObjectType FieldType)) {
         $GetParam{$Needed} = $ParamObject->GetParam( Param => $Needed );
-        if ( !$Needed ) {
+        if ( !$GetParam{$Needed} ) {
             return $LayoutObject->ErrorScreen(
-                Message => "Need $Needed",
+                Message => $LayoutObject->{LanguageObject}->Translate( 'Need %s', $Needed ),
             );
         }
     }
 
     # get the object type and field type display name
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $ObjectTypeName
-        = $ConfigObject->Get('DynamicFields::ObjectType')->{ $GetParam{ObjectType} }->{DisplayName} || '';
+    my $ConfigObject   = $Kernel::OM->Get('Kernel::Config');
+    my $ObjectTypeName = $ConfigObject->Get('DynamicFields::ObjectType')->{ $GetParam{ObjectType} }->{DisplayName}
+        || '';
     my $FieldTypeName = $ConfigObject->Get('DynamicFields::Driver')->{ $GetParam{FieldType} }->{DisplayName} || '';
 
     my $FieldID = $ParamObject->GetParam( Param => 'ID' );
 
     if ( !$FieldID ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need ID",
+            Message => Translatable('Need ID'),
         );
     }
 
@@ -257,7 +268,8 @@ sub _Change {
     # check for valid dynamic field configuration
     if ( !IsHashRefWithData($DynamicFieldData) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get data for dynamic field $FieldID",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not get data for dynamic field %s', $FieldID ),
         );
     }
 
@@ -291,7 +303,7 @@ sub _ChangeAction {
         $GetParam{$Needed} = $ParamObject->GetParam( Param => $Needed );
         if ( !$GetParam{$Needed} ) {
             $Errors{ $Needed . 'ServerError' }        = 'ServerError';
-            $Errors{ $Needed . 'ServerErrorMessage' } = 'This field is required.';
+            $Errors{ $Needed . 'ServerErrorMessage' } = Translatable('This field is required.');
         }
     }
 
@@ -300,7 +312,7 @@ sub _ChangeAction {
     my $FieldID = $ParamObject->GetParam( Param => 'ID' );
     if ( !$FieldID ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need ID",
+            Message => Translatable('Need ID'),
         );
     }
 
@@ -314,7 +326,8 @@ sub _ChangeAction {
     # check for valid dynamic field configuration
     if ( !IsHashRefWithData($DynamicFieldData) ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not get data for dynamic field $FieldID",
+            Message =>
+                $LayoutObject->{LanguageObject}->Translate( 'Could not get data for dynamic field %s', $FieldID ),
         );
     }
 
@@ -326,7 +339,7 @@ sub _ChangeAction {
             # add server error error class
             $Errors{NameServerError} = 'ServerError';
             $Errors{NameServerErrorMessage} =
-                'The field does not contain only ASCII letters and numbers.';
+                Translatable('The field does not contain only ASCII letters and numbers.');
         }
 
         # check if name is duplicated
@@ -347,7 +360,7 @@ sub _ChangeAction {
 
             # add server error class
             $Errors{NameServerError}        = 'ServerError';
-            $Errors{NameServerErrorMessage} = 'There is another field with the same name.';
+            $Errors{NameServerErrorMessage} = Translatable('There is another field with the same name.');
         }
 
         # if it's an internal field, it's name should not change
@@ -359,7 +372,7 @@ sub _ChangeAction {
 
             # add server error class
             $Errors{NameServerError}        = 'ServerError';
-            $Errors{NameServerErrorMessage} = 'The name for this field should not change.';
+            $Errors{NameServerErrorMessage} = Translatable('The name for this field should not change.');
             $Param{InternalField}           = $DynamicFieldData->{InternalField};
         }
     }
@@ -371,7 +384,7 @@ sub _ChangeAction {
 
             # add server error error class
             $Errors{FieldOrderServerError}        = 'ServerError';
-            $Errors{FieldOrderServerErrorMessage} = 'The field must be numeric.';
+            $Errors{FieldOrderServerErrorMessage} = Translatable('The field must be numeric.');
         }
     }
 
@@ -402,7 +415,7 @@ sub _ChangeAction {
     }
 
     for my $ConfigParam (
-        qw(ObjectType ObjectTypeName FieldType FieldTypeName YearsPeriod DateRestriction ValidID Link)
+        qw(ObjectType ObjectTypeName FieldType FieldTypeName YearsPeriod DateRestriction ValidID Link LinkPreview)
         )
     {
         $GetParam{$ConfigParam} = $ParamObject->GetParam( Param => $ConfigParam );
@@ -411,8 +424,36 @@ sub _ChangeAction {
     # uncorrectable errors
     if ( !$GetParam{ValidID} ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Need ValidID",
+            Message => Translatable('Need ValidID'),
         );
+    }
+
+    # Check if dynamic field is present in SysConfig setting
+    my $UpdateEntity        = $ParamObject->GetParam( Param => 'UpdateEntity' ) || '';
+    my $SysConfigObject     = $Kernel::OM->Get('Kernel::System::SysConfig');
+    my %DynamicFieldOldData = %{$DynamicFieldData};
+    my @IsDynamicFieldInSysConfig;
+    @IsDynamicFieldInSysConfig = $SysConfigObject->ConfigurationEntityCheck(
+        EntityType => 'DynamicField',
+        EntityName => $DynamicFieldData->{Name},
+    );
+    if (@IsDynamicFieldInSysConfig) {
+
+        # An entity present in SysConfig couldn't be invalidated.
+        if (
+            $Kernel::OM->Get('Kernel::System::Valid')->ValidLookup( ValidID => $GetParam{ValidID} )
+            ne 'valid'
+            )
+        {
+            $Errors{ValidIDInvalid}         = 'ServerError';
+            $Errors{ValidOptionServerError} = 'InSetting';
+        }
+
+        # In case changing name an authorization (UpdateEntity) should be send
+        elsif ( $DynamicFieldData->{Name} ne $GetParam{Name} && !$UpdateEntity ) {
+            $Errors{NameInvalid}              = 'ServerError';
+            $Errors{InSettingNameServerError} = 1;
+        }
     }
 
     # return to change screen if errors occured
@@ -434,6 +475,7 @@ sub _ChangeAction {
         YearsInFuture   => $GetParam{YearsInFuture},
         YearsInPast     => $GetParam{YearsInPast},
         Link            => $GetParam{Link},
+        LinkPreview     => $GetParam{LinkPreview},
     };
 
     # update dynamic field (FieldType and ObjectType cannot be changed; use old values)
@@ -451,13 +493,64 @@ sub _ChangeAction {
 
     if ( !$UpdateSuccess ) {
         return $LayoutObject->ErrorScreen(
-            Message => "Could not update the field $GetParam{Name}",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Could not update the field %s', $GetParam{Name} ),
         );
     }
 
-    return $LayoutObject->Redirect(
-        OP => "Action=AdminDynamicField",
-    );
+    if (
+        @IsDynamicFieldInSysConfig
+        && $DynamicFieldOldData{Name} ne $GetParam{Name}
+        && $UpdateEntity
+        )
+    {
+        SETTING:
+        for my $SettingName (@IsDynamicFieldInSysConfig) {
+
+            my %Setting = $SysConfigObject->SettingGet(
+                Name => $SettingName,
+            );
+
+            next SETTING if !IsHashRefWithData( \%Setting );
+
+            $Setting{EffectiveValue} =~ s/$DynamicFieldOldData{Name}/$GetParam{Name}/g;
+
+            my $ExclusiveLockGUID = $SysConfigObject->SettingLock(
+                Name   => $Setting{Name},
+                Force  => 1,
+                UserID => $Self->{UserID}
+            );
+            $Setting{ExclusiveLockGUID} = $ExclusiveLockGUID;
+
+            my %UpdateSuccess = $SysConfigObject->SettingUpdate(
+                %Setting,
+                UserID => $Self->{UserID},
+            );
+        }
+
+        $SysConfigObject->ConfigurationDeploy(
+            Comments      => "DynamicField name change",
+            DirtySettings => \@IsDynamicFieldInSysConfig,
+            UserID        => $Self->{UserID},
+            Force         => 1,
+        );
+    }
+
+    # if the user would like to continue editing the dynamic field, just redirect to the change screen
+    if (
+        defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+        && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+        )
+    {
+        return $LayoutObject->Redirect(
+            OP =>
+                "Action=$Self->{Action};Subaction=Change;ObjectType=$DynamicFieldData->{ObjectType};FieldType=$DynamicFieldData->{FieldType};ID=$FieldID"
+        );
+    }
+    else {
+
+        # otherwise return to overview
+        return $LayoutObject->Redirect( OP => "Action=AdminDynamicField" );
+    }
 }
 
 sub _ShowScreen {
@@ -492,7 +585,7 @@ sub _ShowScreen {
     # when adding we need to create an extra order number for the new field
     if ( $Param{Mode} eq 'Add' ) {
 
-        # get the last element form the order list and add 1
+        # get the last element from the order list and add 1
         my $LastOrderNumber = $DynamicfieldOrderList[-1];
         $LastOrderNumber++;
 
@@ -539,6 +632,7 @@ sub _ShowScreen {
     my $YearsPeriod     = $Param{YearsPeriod}     || 0;
     my $DateRestriction = $Param{DateRestriction} || 0;
     my $Link            = $Param{Link}            || '';
+    my $LinkPreview     = $Param{LinkPreview}     || '';
 
     my $YearsInFuture = 5;
     if ( defined $Param{YearsInFuture} ) {
@@ -553,8 +647,8 @@ sub _ShowScreen {
     # create the Default Value Type select
     my $YearsPeriodStrg = $LayoutObject->BuildSelection(
         Data => {
-            0 => 'No',
-            1 => 'Yes',
+            0 => Translatable('No'),
+            1 => Translatable('Yes'),
         },
         Name         => 'YearsPeriod',
         SelectedID   => $YearsPeriod,
@@ -568,15 +662,15 @@ sub _ShowScreen {
         Data => [
             {
                 Key   => '',
-                Value => 'No',
+                Value => Translatable('No'),
             },
             {
                 Key   => 'DisableFutureDates',
-                Value => 'Prevent entry of dates in the future',
+                Value => Translatable('Prevent entry of dates in the future'),
             },
             {
                 Key   => 'DisablePastDates',
-                Value => 'Prevent entry of dates in the past',
+                Value => Translatable('Prevent entry of dates in the past'),
             },
         ],
         Name         => 'DateRestriction',
@@ -603,6 +697,51 @@ sub _ShowScreen {
         $ReadonlyInternalField = 'readonly="readonly"';
     }
 
+    my $DynamicFieldName = $Param{Name};
+
+    # Add warning in case the DynamicField belongs a SysConfig setting.
+    my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+
+    # In case dirty setting disable form
+    my $IsDirtyConfig = 0;
+    my @IsDirtyResult = $SysConfigObject->ConfigurationDirtySettingsList();
+    my %IsDirtyList   = map { $_ => 1 } @IsDirtyResult;
+
+    my @IsDynamicFieldInSysConfig = $SysConfigObject->ConfigurationEntityCheck(
+        EntityType => 'DynamicField',
+        EntityName => $DynamicFieldName,
+    );
+
+    if (@IsDynamicFieldInSysConfig) {
+        $LayoutObject->Block(
+            Name => 'DynamicFieldInSysConfig',
+            Data => {
+                OldName => $DynamicFieldName,
+            },
+        );
+        for my $SettingName (@IsDynamicFieldInSysConfig) {
+            $LayoutObject->Block(
+                Name => 'DynamicFieldInSysConfigRow',
+                Data => {
+                    SettingName => $SettingName,
+                },
+            );
+
+            # Verify if dirty setting
+            if ( $IsDirtyList{$SettingName} ) {
+                $IsDirtyConfig = 1;
+            }
+
+        }
+    }
+
+    if ($IsDirtyConfig) {
+        $LayoutObject->Block(
+            Name => 'DynamicFieldInSysConfigDirty',
+            ,
+        );
+    }
+
     # generate output
     $Output .= $LayoutObject->Output(
         TemplateFile => 'AdminDynamicFieldDateTime',
@@ -618,6 +757,7 @@ sub _ShowScreen {
             YearsInPast           => $YearsInPast,
             ReadonlyInternalField => $ReadonlyInternalField,
             Link                  => $Link,
+            LinkPreview           => $LinkPreview,
             }
     );
 

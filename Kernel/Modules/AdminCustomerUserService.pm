@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -194,11 +194,24 @@ sub Run {
             );
         }
 
-        # redirect to overview
-        return $LayoutObject->Redirect(
-            OP =>
-                "Action=$Self->{Action};CustomerUserSearch=$Param{CustomerUserSearch}"
-        );
+        # if the user would like to continue editing the customer user allocating just redirect to the edit screen
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
+            return $LayoutObject->Redirect(
+                OP =>
+                    "Action=$Self->{Action};Subaction=AllocateCustomerUser;CustomerUserLogin=$Param{CustomerUserLogin};CustomerUserSearch=$Param{CustomerUserSearch}"
+            );
+        }
+        else {
+
+            # otherwise return to relations overview
+            return $LayoutObject->Redirect(
+                OP => "Action=$Self->{Action};CustomerUserSearch=$Param{CustomerUserSearch}"
+            );
+        }
     }
 
     # ------------------------------------------------------------ #
@@ -237,11 +250,25 @@ sub Run {
             );
         }
 
-        # redirect to overview
-        return $LayoutObject->Redirect(
-            OP =>
-                "Action=$Self->{Action};CustomerUserSearch=$Param{CustomerUserSearch}"
-        );
+        # if the user would like to continue editing the customer user allocating just redirect to the edit screen
+        if (
+            defined $ParamObject->GetParam( Param => 'ContinueAfterSave' )
+            && ( $ParamObject->GetParam( Param => 'ContinueAfterSave' ) eq '1' )
+            )
+        {
+            return $LayoutObject->Redirect(
+                OP =>
+                    "Action=$Self->{Action};Subaction=AllocateService;ServiceID=$Param{ServiceID};CustomerUserSearch=$Param{CustomerUserSearch}"
+            );
+        }
+        else {
+
+            # otherwise return to relations overview
+            return $LayoutObject->Redirect(
+                OP =>
+                    "Action=$Self->{Action};CustomerUserSearch=$Param{CustomerUserSearch}"
+            );
+        }
     }
 
     # ------------------------------------------------------------ #
@@ -335,8 +362,21 @@ sub _Change {
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
+    if ( $VisibleType{$NeType} eq 'Customer' ) {
+        $Param{BreadcrumbTitle} = "Allocate Customers to Service";
+    }
+    else {
+        $Param{BreadcrumbTitle} = "Allocate Services to Customer";
+    }
+
     # overview
-    $LayoutObject->Block( Name => 'Overview' );
+    $LayoutObject->Block(
+        Name => 'Overview',
+        Data => {
+            %Param,
+            OverviewLink => $Self->{Action} . ';CustomerUserSearch=' . $Param{CustomerUserSearch},
+        },
+    );
     $LayoutObject->Block( Name => 'ActionList' );
     $LayoutObject->Block(
         Name => 'ActionOverview',
@@ -380,11 +420,10 @@ sub _Change {
             VisibleNeType   => $VisibleType{$NeType},
             SubactionHeader => $Subaction{$Type},
             IDHeaderStrg    => $IDStrg{$Type},
+            Subaction       => $Self->{Subaction},
             %Param,
         },
     );
-
-    $LayoutObject->Block( Name => "AllocateItemHeader$VisibleType{$NeType}" );
 
     my $ColSpan = 2;
 
@@ -483,7 +522,14 @@ sub _Overview {
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
-    $LayoutObject->Block( Name => 'Overview' );
+    # overview
+    $LayoutObject->Block(
+        Name => 'Overview',
+        Data => {
+            %Param,
+            OverviewLink => $Self->{Action},
+        },
+    );
     $LayoutObject->Block( Name => 'ActionList' );
 
     # output search block

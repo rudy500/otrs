@@ -1,28 +1,39 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst AdminGenericInterfaceMappingXSLT">
-    <h1>[% Translate("GenericInterface Mapping XSLT for Web Service %s", Data.WebserviceName) | html %]</h1>
+    <h1>[% Translate( "GenericInterface Web Service Management" ) | html %]</h1>
 
-    <ul class="BreadCrumb">
-        <li>[% Translate("You are here") | html %]:</li>
-        <li>
-            <a href="[% Env("Baselink") %]Action=AdminGenericInterfaceWebservice">[% Translate("Web Services") | html %]</a>
-        </li>
-        <li>
-            <a href="[% Env("Baselink") %]Action=AdminGenericInterfaceWebservice;Subaction=Change;WebserviceID=[% Data.WebserviceID | uri %]">[% Data.WebserviceName | html %]</a>
-        </li>
-        <li>
-            <a href="[% Env("Baselink") %]Action=[% Data.ActionFrontendModule | uri %];Subaction=Change;[% Data.ActionType | uri %]=[% Data.Action | uri %];WebserviceID=[% Data.WebserviceID | uri %]">[% Data.ActionType | html %] [% Data.Action | html %]</a>
-        </li>
-        <li>
-            [% Translate(Data.MappingDirection) | html %]
-        </li>
-    </ul>
+    [% USE WebserviceLink = String( "AdminGenericInterfaceWebservice;Subaction=Change;WebserviceID=" ) %]
+    [% USE ActionName = String( Data.ActionType ) %]
+    [% USE ActionLink = String( Data.ActionFrontendModule ) %]
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate( 'Web Service Management' ),
+                Link => 'AdminGenericInterfaceWebservice',
+            },
+            {
+                Name => Data.WebserviceName,
+                Link => WebserviceLink.append( Data.WebserviceID ),
+            },
+            {
+                Name => ActionName.append( ': ', Data.Action ),
+                Link => ActionLink.append( ';Subaction=Change;', Data.ActionType, '=', Data.Action, ';WebserviceID=', Data.WebserviceID ),
+            },
+            {
+                Name => Data.MappingDirection,
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
+
+    <div class="Clear"></div>
 
     <div class="SidebarColumn">
         <div class="WidgetSimple">
@@ -68,17 +79,10 @@
                     </fieldset>
                     <fieldset class="TableLike">
                         <div class="Field Spacing">
-                            <button class="Primary" type="submit" value="[% Translate("Save") | html %]">[% Translate("Save") | html %]</button>
+                            <button class="Primary CallForAction" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
 
-                            <button type="submit" id="SaveAndFinishButton" value="[% Translate("Save and finish") | html %]">[% Translate("Save and finish") | html %]</button>
-                            <input type="hidden" name="ReturnToAction" id="ReturnToAction" value="" />
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('#SaveAndFinishButton').bind('click', function(){
-    $('#ReturnToAction').val(1);
-});
-//]]></script>
-[% END %]
+                            <button type="submit" class="CallForAction" id="SaveAndFinishButton" value="[% Translate("Save and finish") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            <input autocomplete="off" type="hidden" name="ReturnToAction" id="ReturnToAction" value="" />
 
                             [% Translate("or") | html %]
                             <a href="[% Env("Baselink") %]Action=[% Data.ActionFrontendModule | uri %];Subaction=Change;[% Data.ActionType | uri %]=[% Data.Action | uri %];WebserviceID=[% Data.WebserviceID | uri %]">[% Translate("Cancel") | html %]</a>

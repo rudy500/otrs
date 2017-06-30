@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use utf8;
 
-use base qw(Kernel::System::Daemon::BaseDaemon);
+use parent qw(Kernel::System::Daemon::BaseDaemon);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -20,52 +20,47 @@ our @ObjectDependencies = (
     'Kernel::System::Daemon::SchedulerDB',
     'Kernel::System::Cache',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
 
 Kernel::System::Daemon::DaemonModules::SchedulerFutureTaskManager - daemon to manage scheduler future tasks
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Scheduler future task daemon
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
-
-=item new()
-
-create scheduler future task manager object.
+Create scheduler future task manager object.
 
 =cut
 
 sub new {
     my ( $Type, %Param ) = @_;
 
-    # allocate new hash for object
+    # Allocate new hash for object.
     my $Self = {};
     bless $Self, $Type;
 
-    # get objects in constructor to save performance
+    # Get objects in constructor to save performance.
     $Self->{ConfigObject}      = $Kernel::OM->Get('Kernel::Config');
     $Self->{CacheObject}       = $Kernel::OM->Get('Kernel::System::Cache');
     $Self->{DBObject}          = $Kernel::OM->Get('Kernel::System::DB');
     $Self->{SchedulerDBObject} = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
 
-    # disable in memory cache to be clusterable
+    # Disable in memory cache to be clusterable.
     $Self->{CacheObject}->Configure(
         CacheInMemory  => 0,
         CacheInBackend => 1,
     );
 
-    # get the NodeID from the SysConfig settings, this is used on High Availability systems.
+    # Get the NodeID from the SysConfig settings, this is used on High Availability systems.
     $Self->{NodeID} = $Self->{ConfigObject}->Get('NodeID') || 1;
 
-    # check NodeID, if does not match is impossible to continue
+    # Check NodeID, if does not match is impossible to continue.
     if ( $Self->{NodeID} !~ m{ \A \d+ \z }xms && $Self->{NodeID} > 0 && $Self->{NodeID} < 1000 ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
@@ -90,10 +85,10 @@ sub new {
 sub PreRun {
     my ( $Self, %Param ) = @_;
 
-    # check the database connection each 10 seconds
+    # Check the database connection each 10 seconds.
     return 1 if $Self->{DiscardCount} % ( 10 / $Self->{SleepPost} );
 
-    # check if database is on-line
+    # Check if database is on-line.
     return 1 if $Self->{DBObject}->Ping();
 
     sleep 10;
@@ -140,3 +135,13 @@ sub DESTROY {
 }
 
 1;
+
+=head1 TERMS AND CONDITIONS
+
+This software is part of the OTRS project (L<http://otrs.org/>).
+
+This software comes with ABSOLUTELY NO WARRANTY. For details, see
+the enclosed file COPYING for license information (AGPL). If you
+did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
+
+=cut

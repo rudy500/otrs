@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,25 +24,31 @@ use Kernel::System::UnitTest::Helper;
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 my $JSONObject   = $Kernel::OM->Get('Kernel::System::JSON');
 
-my $HelperObject = Kernel::System::UnitTest::Helper->new(
-    SkipSSLVerify => 1,
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        SkipSSLVerify     => 1,
+        DisableAsyncCalls => 1,
+    },
 );
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-my $TestUserLogin = $HelperObject->TestUserCreate(
+my $TestUserLogin = $Helper->TestUserCreate(
     Groups => ['admin'],
 );
-my $TestCustomerUserLogin = $HelperObject->TestCustomerUserCreate();
+my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate();
 
 my $BaseURL = $ConfigObject->Get('HttpType') . '://';
 
-$BaseURL .= 'localhost/';
+$BaseURL .= $Helper->GetTestHTTPHostname() . '/';
 $BaseURL .= $ConfigObject->Get('ScriptAlias');
 
 my $AgentBaseURL    = $BaseURL . 'index.pl?';
 my $CustomerBaseURL = $BaseURL . 'customer.pl?';
 my $PublicBaseURL   = $BaseURL . 'public.pl?';
 
-my $UserAgent = LWP::UserAgent->new();
+my $UserAgent = LWP::UserAgent->new(
+    Timeout => 60,
+);
 $UserAgent->cookie_jar( {} );    # keep cookies
 
 my $Response = $UserAgent->get(
@@ -101,28 +107,29 @@ my %Frontends = (
     $PublicBaseURL   => $ConfigObject->Get('PublicFrontend::Module'),
 );
 
-# test plack server if present
-if ( $ConfigObject->Get('UnitTestPlackServerPort') ) {
-    my $PlackBaseURL = 'http://localhost:' . $ConfigObject->Get('UnitTestPlackServerPort') . '/';
-    %Frontends = (
-        %Frontends,
-        $PlackBaseURL . 'index.pl?'    => $ConfigObject->Get('Frontend::Module'),
-        $PlackBaseURL . 'customer.pl?' => $ConfigObject->Get('CustomerFrontend::Module'),
-        $PlackBaseURL . 'public.pl?'   => $ConfigObject->Get('PublicFrontend::Module'),
-    );
-}
-
 for my $BaseURL ( sort keys %Frontends ) {
+
     FRONTEND:
     for my $Frontend ( sort keys %{ $Frontends{$BaseURL} } ) {
+
         next FRONTEND if $Frontend =~ m/Login|Logout/;
 
         my $URL = $BaseURL . "Action=$Frontend";
 
-        $Response = $UserAgent->get($URL);
+        my $Status;
+        TRY:
+        for my $Try ( 1 .. 2 ) {
+
+            $Response = $UserAgent->get($URL);
+
+            $Status = scalar $Response->code();
+            my $StatusGroup = substr $Status, 0, 1;
+
+            last TRY if $StatusGroup ne 5;
+        }
 
         $Self->Is(
-            scalar $Response->code(),
+            $Status,
             200,
             "Module $Frontend status code ($URL)",
         );
@@ -137,7 +144,7 @@ for my $BaseURL ( sort keys %Frontends ) {
             "Module $Frontend is no OTRS login screen ($URL)",
         );
 
-        # Check response contents
+        # check response contents
         if ( $Response->header('Content-type') =~ 'html' ) {
             $Self->True(
                 scalar $Response->content() =~ m{<body|<div|<script}xms,
@@ -145,7 +152,10 @@ for my $BaseURL ( sort keys %Frontends ) {
             );
         }
         elsif ( $Response->header('Content-type') =~ 'json' ) {
-            my $Data = $JSONObject->Decode( Data => $Response->content() );
+
+            my $Data = $JSONObject->Decode(
+                Data => $Response->content()
+            );
 
             $Self->True(
                 scalar $Data,
@@ -154,5 +164,8 @@ for my $BaseURL ( sort keys %Frontends ) {
         }
     }
 }
+
+# cleanup cache
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
 
 1;

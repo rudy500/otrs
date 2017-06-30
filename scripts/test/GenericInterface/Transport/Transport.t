@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,23 +12,20 @@ use utf8;
 
 use vars (qw($Self));
 
-use CGI;
-use HTTP::Request::Common;
-
 use Kernel::GenericInterface::Debugger;
 use Kernel::GenericInterface::Transport;
 
-# get needed objects
+# get encode object
 my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 
-# helper object
+# get helper object
 # skip SSL certificate verification
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
     },
 );
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
     DebuggerConfig => {
@@ -86,7 +83,7 @@ for my $Fail ( 0 .. 1 ) {
     $Self->Is(
         ref $TransportObject,
         'Kernel::GenericInterface::Transport',
-        'TransportObject instantiated with testing backend (Fail $Fail)',
+        "TransportObject instantiated with testing backend (Fail $Fail)",
     );
 
     #
@@ -146,7 +143,7 @@ for my $Fail ( 0 .. 1 ) {
     for my $TestEntry (@RPRTestData) {
 
         # discard Web::Request from OM to prevent errors
-        $Kernel::OM->ObjectsDiscard('Kernel::System::Web::Request');
+        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
 
         my $Result = $TransportObject->RequesterPerformRequest(
             Operation => $TestEntry->{Operation},
@@ -241,7 +238,7 @@ for my $Fail ( 0 .. 1 ) {
             CGI::initialize_globals();
 
             # discard Web::Request from OM to prevent errors
-            $Kernel::OM->ObjectsDiscard('Kernel::System::Web::Request');
+            $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
 
             $Result = $TransportObject->ProviderProcessRequest();
         }
@@ -330,7 +327,7 @@ for my $Fail ( 0 .. 1 ) {
                 open STDOUT, '>:utf8', \$ResultData;    ## no critic
 
                 # discard Web::Request from OM to prevent errors
-                $Kernel::OM->ObjectsDiscard('Kernel::System::Web::Request');
+                $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
 
                 $Result = $TransportObject->ProviderGenerateResponse(
                     Success      => $OptionSuccess,

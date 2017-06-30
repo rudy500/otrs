@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,35 +11,29 @@ package Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::GenericInter
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
+use parent qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::GenericInterface::Requester',
+    'Kernel::System::DateTime',
     'Kernel::System::Daemon::SchedulerDB',
     'Kernel::System::GenericInterface::Webservice',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
 
 Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::GenericInterface - Scheduler daemon task handler module for GenericInterface
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This task handler executes scheduler tasks delegated by asynchronous invoker configuration
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
-
-=item new()
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $TaskHandlerObject = $Kernel::OM-Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::GenericInterface');
 
 =cut
@@ -56,9 +50,9 @@ sub new {
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
-performs the selected Task, causing an Invoker call via GenericInterface.
+Performs the selected Task, causing an Invoker call via GenericInterface.
 
     my $Result = $TaskHandlerObject->Run(
         TaskID   => 123,
@@ -81,48 +75,22 @@ Returns:
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # check needed
-    for my $Needed (qw(TaskID Data)) {
-        if ( !$Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed!",
-            );
+    # Check task params.
+    my $CheckResult = $Self->_CheckTaskParams(
+        NeededDataAttributes => [ 'WebserviceID', 'Invoker', 'Data' ],
+        %Param,
+    );
 
-            return;
-        }
-    }
+    # Stop execution if an error in params is detected.
+    return if !$CheckResult;
 
-    # check data
-    if ( ref $Param{Data} ne 'HASH' ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no valid Data!',
-        );
-
-        return;
-    }
-
-    # to store task data locally
+    # To store task data locally.
     my %TaskData = %{ $Param{Data} };
-
-    # check needed parameters inside task data
-    for my $Needed (qw(WebserviceID Invoker Data)) {
-        if ( !$TaskData{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Got no $Needed!",
-            );
-
-            return;
-        }
-    }
 
     if ( $Self->{Debug} ) {
         print "    $Self->{WorkerName} executes task: $Param{TaskName}\n";
     }
 
-    # run requester
     my $Result = $Kernel::OM->Get('Kernel::GenericInterface::Requester')->Run(
         WebserviceID => $TaskData{WebserviceID},
         Invoker      => $TaskData{Invoker},
@@ -132,7 +100,6 @@ sub Run {
 
     if ( !$Result->{Success} ) {
 
-        # get the web service name
         my $Webservice = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice')->WebserviceGet(
             ID => $Param{Data}->{WebserviceID},
         );
@@ -149,50 +116,47 @@ sub Run {
             ErrorMessage => "$ErrorMessage",
         );
 
-        # check if task needs to be re-schedule in the future
+        # Check if task needs to be re-schedule in the future.
         if ( $Result->{Data}->{ReSchedule} ) {
 
-            # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+            my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-            # use the execution time from the return data (if nay)
+            # Use the execution time from the return data (if any).
             my $ExecutionTime = $Result->{Data}->{ExecutionTime} || 0;
 
-            # check if execution time is valid
+            # Check if execution time is valid.
             if ($ExecutionTime) {
-                my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-                    String => $ExecutionTime,
-                );
+                my $ValidSystemTime = $DateTimeObject->Set( String => $ExecutionTime );
 
-                if ( !$SystemTime ) {
+                if ( !$ValidSystemTime ) {
                     $Kernel::OM->Get('Kernel::System::Log')->Log(
                         Priority => 'error',
                         Message =>
-                            "Invoker returned future execution time: $ExecutionTime is invalid! falling back to default",
+                            "Invoker $Param{Data}->{Invoker} WebService: $WebServiceName returned future execution time: $ExecutionTime is invalid! falling back to default",
                     );
 
                     $ExecutionTime = 0;
                 }
             }
 
-            # use another if condition as inside the first one, the Execution time could be reset to 0
+            # Use another if condition as inside the first one, the Execution time could be reset to 0.
             if ( !$ExecutionTime ) {
 
-                # get default time difference from config
+                # Get default time difference from config.
                 my $FutureTaskTimeDiff = abs( $Kernel::OM->Get('Kernel::Config')
                         ->Get('Daemon::SchedulerGenericInterfaceTaskManager::FutureTaskTimeDiff') || 300 );
 
-                # calculate execution time in future
-                $ExecutionTime = $TimeObject->SystemTime2TimeStamp(
-                    SystemTime => $TimeObject->SystemTime() + $FutureTaskTimeDiff,
-                );
+                # Calculate execution time in future.
+                $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+                $DateTimeObject->Add( Seconds => $FutureTaskTimeDiff );
+                $ExecutionTime = $DateTimeObject->ToString();
             }
 
             if ( $Self->{Debug} ) {
                 print "    $Self->{WorkerName} re-schedule task: $Param{TaskName} for: $ExecutionTime\n";
             }
 
-            # create a new task (replica) that will be executed in the future
+            # Create a new task (replica) that will be executed in the future.
             my $TaskID = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB')->FutureTaskAdd(
                 ExecutionTime => $ExecutionTime,
                 Type          => 'GenericInterface',
@@ -216,8 +180,6 @@ sub Run {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

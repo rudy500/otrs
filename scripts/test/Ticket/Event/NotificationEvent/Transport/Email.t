@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,16 @@ use vars (qw($Self));
 
 # get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # disable rich text editor
 my $Success = $ConfigObject->Set(
@@ -74,7 +84,6 @@ my %UserData = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
 
 my $UserID = $UserData{UserID};
 
-# get ticket object
 my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
 # create ticket
@@ -85,7 +94,7 @@ my $TicketID = $TicketObject->TicketCreate(
     Priority     => '3 normal',
     State        => 'new',
     CustomerID   => 'example.com',
-    CustomerUser => 'customerOne@example.com',
+    CustomerUser => $UserData{UserLogin},
     OwnerID      => $UserID,
     UserID       => $UserID,
 );
@@ -96,19 +105,19 @@ $Self->True(
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
-my $ArticleID = $TicketObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'webrequest',
-    SenderType     => 'customer',
-    From           => 'customerOne@example.com',
-    To             => 'Some Agent A <agent-a@example.com>',
-    Subject        => 'some short description',
-    Body           => 'the message text',
-    Charset        => 'utf8',
-    MimeType       => 'text/plain',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => 1,
+my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal')->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'customer',
+    From                 => 'customerOne@example.com, customerTwo@example.com',
+    To                   => 'Some Agent A <agent-a@example.com>',
+    Subject              => 'some short description',
+    Body                 => 'the message text',
+    Charset              => 'utf8',
+    MimeType             => 'text/plain',
+    HistoryType          => 'OwnerUpdate',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
 );
 
 # sanity check
@@ -118,7 +127,7 @@ $Self->True(
 );
 
 # get a random id
-my $RandomID = int rand 1_000_000_000;
+my $RandomID = $Helper->GetRandomNumber();
 
 # get dynamic field object
 my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
@@ -171,17 +180,27 @@ my @Tests = (
         ],
     },
     {
-        Name => 'Recipient Customer',
+        Name => 'Recipient Customer - JustToRealCustomer enabled',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => ['Customer'],
+        },
+        ExpectedResults    => [],
+        JustToRealCustomer => 1,
+    },
+    {
+        Name => 'Recipient Customer - JustToRealCustomer disabled',
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients => ['Customer'],
         },
         ExpectedResults => [
             {
-                ToArray => ['customerOne@example.com'],
-                Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+                ToArray => [ 'customerOne@example.com', 'customerTwo@example.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
             },
         ],
+        JustToRealCustomer => 0,
     },
 );
 
@@ -193,6 +212,18 @@ for my $Test (@Tests) {
 
     # add transport setting
     $Test->{Data}->{Transports} = ['Email'];
+
+    # set just to real customer
+    my $JustToRealCustomer = $Test->{JustToRealCustomer} || 0;
+    $Success = $ConfigObject->Set(
+        Key   => 'CustomerNotifyJustToRealCustomer',
+        Value => $JustToRealCustomer,
+    );
+
+    $Self->True(
+        $Success,
+        "Set notifications just to real customer: $JustToRealCustomer.",
+    );
 
     my $NotificationID = $NotificationEventObject->NotificationAdd(
         Name    => "JobName$Count-$RandomID",
@@ -286,5 +317,7 @@ $Self->True(
     $TicketDelete,
     "TicketDelete() successful for Ticket ID $TicketID",
 );
+
+# cleanup is done by RestoreDatabase.
 
 1;

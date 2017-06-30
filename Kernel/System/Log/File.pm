@@ -1,13 +1,14 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-package Kernel::System::Log::File;
 ## nofilter(TidyAll::Plugin::OTRS::Perl::Time)
+
+package Kernel::System::Log::File;
 
 use strict;
 use warnings;
@@ -35,7 +36,7 @@ sub new {
     if ( $ConfigObject->Get('LogModule::LogFile::Date') ) {
         my ( $s, $m, $h, $D, $M, $Y, $WD, $YD, $DST ) = localtime( time() );    ## no critic
         $Y = $Y + 1900;
-        $M++;
+        $M = sprintf '%02d', ++$M;
         $Self->{LogFile} .= ".$Y-$M";
     }
 
@@ -70,7 +71,7 @@ sub Log {
     }
 
     # write log file
-    $Kernel::OM->Get('Kernel::System::Encode')->SetIO($FH);
+    $Kernel::OM->Get('Kernel::System::Encode')->ConfigureOutputFileHandle( FileHandle => $FH );
 
     print $FH '[' . localtime() . ']';    ## no critic
 

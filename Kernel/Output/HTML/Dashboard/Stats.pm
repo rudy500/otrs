@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -200,25 +200,65 @@ sub Run {
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
-    # check permission for AgentStats
+    # check permission for AgentStatistics
     my $StatsReg = $Kernel::OM->Get('Kernel::Config')->Get('Frontend::Module')->{'AgentStatistics'};
     my $AgentStatisticsFrontendPermission = 0;
     if ( !$StatsReg->{GroupRo} && !$StatsReg->{Group} ) {
         $AgentStatisticsFrontendPermission = 1;
     }
     else {
+        my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
         TYPE:
         for my $Type (qw(GroupRo Group)) {
             my $StatsGroups = ref $StatsReg->{$Type} eq 'ARRAY' ? $StatsReg->{$Type} : [ $StatsReg->{$Type} ];
             GROUP:
             for my $StatsGroup ( @{$StatsGroups} ) {
                 next GROUP if !$StatsGroup;
-                next GROUP if !$LayoutObject->{"UserIsGroupRo[$StatsGroup]"};
-                next GROUP if $LayoutObject->{"UserIsGroupRo[$StatsGroup]"} ne 'Yes';
+                next GROUP if !$GroupObject->PermissionCheck(
+                    UserID    => $Self->{UserID},
+                    GroupName => $StatsGroup,
+                    Type      => 'ro',
+                );
+
                 $AgentStatisticsFrontendPermission = 1;
                 last TYPE;
             }
         }
+    }
+
+    my $StatsResultDataJSON = $LayoutObject->JSONEncode(
+        Data     => $CachedData,
+        NoQuotes => 1,
+    );
+
+    my $StatsFormatJSON = $LayoutObject->JSONEncode(
+        Data     => $Format,
+        NoQuotes => 1,
+    );
+
+    # send data to JS
+    $LayoutObject->AddJSData(
+        Key   => 'StatsData' . $StatID,
+        Value => {
+            Name           => $Self->{Name},
+            Format         => $StatsFormatJSON,
+            StatResultData => $StatsResultDataJSON,
+            Preferences => $Preferences{ 'GraphWidget' . $Self->{Name} } || '{}',
+            MaxXaxisAttributes => $Kernel::OM->Get('Kernel::Config')->Get('Stats::MaxXaxisAttributes'),
+        },
+    );
+
+    if ( $Self->{UserRefreshTime} ) {
+        my $Refresh = 60 * $Self->{UserRefreshTime};
+
+        $LayoutObject->AddJSData(
+            Key   => 'WidgetRefreshStat' . $StatID,
+            Value => {
+                Name        => $Self->{Name},
+                NameHTML    => $Self->{Name},
+                RefreshTime => $Refresh,
+            },
+        );
     }
 
     my $Content = $LayoutObject->Output(
@@ -233,7 +273,7 @@ sub Run {
             AgentStatisticsFrontendPermission => $AgentStatisticsFrontendPermission,
             Preferences => $Preferences{ 'GraphWidget' . $Self->{Name} } || '{}',
         },
-        KeepScriptTags => $Param{AJAX},
+        AJAX => $Param{AJAX},
     );
 
     return $Content;

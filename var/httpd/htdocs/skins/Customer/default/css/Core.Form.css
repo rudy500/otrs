@@ -198,6 +198,13 @@ fieldset h2 {
     text-shadow: 0 1px 0 #FFF;
 }
 
+fieldset h2 + p.Description {
+    font-size: 11px;
+    margin-left: 0px;
+    padding: 10px 10px;
+    color: #555;
+}
+
 fieldset h2 + div {
     padding-top: 13px;
     border-top: 1px solid #FFF;
@@ -234,6 +241,7 @@ fieldset select {
 
 .TicketCompose fieldset #Subject {
     width: 50%;
+    max-width: 614px;
 }
 
 fieldset.Columns .Column {
@@ -315,6 +323,16 @@ fieldset div.Field {
  */
 textarea {
     font-family: monospace,fixed;
+}
+
+/**
+ * @subsection  Input Readonly
+ */
+input[type=text][readonly],
+input[type=password][readonly],
+input[type=email][readonly],
+textarea[readonly] {
+    background-color: #DDD;
 }
 
 /**

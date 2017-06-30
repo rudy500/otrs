@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -28,25 +28,6 @@
 [% RenderBlockEnd("DocumentActionRow") %]
 
 [% RenderBlockStart("DocumentHeader") %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.ActionRow.Init();
-
-    $('a.AsPopup').bind('click', function (Event) {
-        var Matches,
-            PopupType = 'TicketAction';
-
-        Matches = $(this).attr('class').match(/PopupType_(\w+)/);
-        if (Matches) {
-            PopupType = Matches[1];
-        }
-
-        Core.UI.Popup.OpenPopup($(this).attr('href'), PopupType);
-        return false;
-    });
-//]]></script>
-[% END %]
-
 <ul id="TicketOverviewMedium" class="Overview OverviewMedium">
 [% RenderBlockEnd("DocumentHeader") %]
 
@@ -63,24 +44,12 @@
             <ul class="Actions InlineActions">
                 <li class="ResponsiveActionMenu"><a href="#" id="ResponsiveActionMenu[% Data.TicketID | html %]" title="[% Translate("Open / Close ticket action menu") | html %]"><i class="fa fa-bars"></i></a></li>
 [% RenderBlockStart("InlineActionRowItem") %]
-                <li><a id="[% Data.ID | html %][% Data.TicketID | html %]" class="[% Data.Class | html %]" href="[% Data.Link | Interpolate | html %]" title="[% Data.Description | Interpolate | html %]">[% Data.Name | Interpolate | html %]</a></li>
+                <li><a id="[% Data.ID | html %][% Data.TicketID | html %]" class="[% Data.Class | html %]" href="[% Data.Link | Interpolate | html %]" title="[% Translate(Data.Description) | html %]">[% Translate(Data.Name) | html %]</a></li>
 [% RenderBlockEnd("InlineActionRowItem") %]
 [% RenderBlockStart("InlineActionRowItemHTML") %]
                 [% Data.HTML %]
 [% RenderBlockEnd("InlineActionRowItemHTML") %]
             </ul>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    // Stop propagation on click on a part of the InlienActionRow without a link
-    // Otherwise that would trigger the li-wide link to the ticketzoom
-    $('ul.InlineActions').click(function (Event) {
-        Event.cancelBubble = true;
-        if (Event.stopPropagation) {
-            Event.stopPropagation();
-        }
-    });
-//]]></script>
-[% END %]
 [% RenderBlockEnd("InlineActionRow") %]
 [% RenderBlockStart("Bulk") %]
             <div class="Checkbox">
@@ -99,7 +68,7 @@
 [% RenderBlockEnd("MetaIcon") %]
 [% RenderBlockEnd("Meta") %]
             <h2>
-                <a href="[% Env("Baselink") %]Action=AgentTicketZoom;TicketID=[% Data.TicketID | uri %]" class="MasterActionLink">[% Config("Ticket::Hook") %]: [% Data.TicketNumber %] &ndash; [% Data.Title | html %]</a>
+                <a href="[% Env("Baselink") %]Action=AgentTicketZoom;TicketID=[% Data.TicketID | uri %]" class="MasterActionLink">[% Config("Ticket::Hook") %][% Config("Ticket::HookDivider") %][% Data.TicketNumber %] &ndash; [% Data.Title | html %]</a>
             </h2>
 [% RenderBlockStart("MenuItem") %]
             <a href="[% Env("Baselink") %][% Data.Link %]" [% Data.LinkParam %] title="[% Translate(Data.Description) | html %]">[% Translate(Data.Name) | html %]</a>
@@ -118,10 +87,10 @@
                         </td>
                         <td>
 [% RenderBlockStart("CustomerIDRW") %]
-                            <label>[% Translate("CustomerID") | html %]</label>[% IF Data.CustomerID %]<a href="[% Config("CustomerDBLink") | Interpolate %]" class="AsPopup PopupType_TicketAction" [% Config("CustomerDBLinkTarget") %]>[% Data.CustomerID | html %]</a>[% END %]
+                            <label>[% Translate("Customer ID") | html %]</label>[% IF Data.CustomerID %]<a href="[% Config("CustomerDBLink") | Interpolate %]" class="AsPopup PopupType_TicketAction" [% Config("CustomerDBLinkTarget") %]>[% Data.CustomerID | html %]</a>[% END %]
 [% RenderBlockEnd("CustomerIDRW") %]
 [% RenderBlockStart("CustomerIDRO") %]
-                            <label>[% Translate("CustomerID") | html %]</label>[% Data.CustomerID | html %]
+                            <label>[% Translate("Customer ID") | html %]</label>[% Data.CustomerID | html %]
 [% RenderBlockEnd("CustomerIDRO") %]
                             <br /><div title="[% Data.CustomerName | html %]">[% Data.CustomerName | html %]</div>
                         </td>
@@ -186,9 +155,17 @@
                         <td>
                             <label>[% Translate("Subject") | html %]</label><div title="[% Data.Subject | html %]">[% Data.Subject | html %]</div>
                         </td>
+[% RenderBlockStart("OwnerResponsible") %]
+[% IF Config('Ticket::Responsible') %]
                         <td>
-                            <label>[% Translate("Owner") | html %]</label><div title="[% Data.UserFirstname | html %] [% Data.UserLastname | html %] ([% Data.Owner | html %])">[% Data.UserFirstname | html %] [% Data.UserLastname | html %]</div>
+                            <label>[% Translate("Owner") | html %] / [% Translate("Responsible") | html %]</label><div title="[% Data.OwnerFullname | html %] ([% Data.Owner | html %]) / [% Data.ResponsibleFullname | html %] ([% Data.Responsible | html %])">[% Data.OwnerFullname | html %] / [% Data.ResponsibleFullname | html %]</div>
                         </td>
+[% ELSE %]
+                        <td>
+                            <label>[% Translate("Owner") | html %]</label><div title="[% Data.OwnerFullname | html %] ([% Data.Owner | html %])">[% Data.OwnerFullname | html %]</div>
+                        </td>
+[% END %]
+[% RenderBlockEnd("OwnerResponsible") %]
                         <td>
                             <label>[% Translate("Lock") | html %]</label><div title="[% Translate(Data.Lock) | html %]">[% Translate(Data.Lock) | html %]</div>
                         </td>
@@ -276,56 +253,5 @@
         <label for="DestQueueID" class="InvisibleText">[% Translate("Change queue") | html %]:</label>
         [% Data.MoveQueuesStrg %]
     </form>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    $('.InlineActions, .OverviewActions').on('change', 'select[name=DestQueueID]', function (Event) {
-        $(this).closest('form').submit();
-    });
-//]]></script>
-[% END %]
 </li>
 [% RenderBlockEnd("DocumentMenuItemMoveForm") %]
-
-[% WRAPPER JSOnDocumentComplete %]
-[% RenderBlockStart("DocumentReadyActionRowAdd") %]
-[% FOREACH MenuElement IN Data.Data %]
-    [% MenuElement.Name = Interpolate(MenuElement.Name) %]
-    [% MenuElement.Link = Interpolate(MenuElement.Link) %]
-    [% MenuElement.Description = Interpolate(MenuElement.Description) %]
-[% END %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.ActionRow.AddActions($('#TicketID_[% Data.TicketID | html %]'), [% JSON(Data.Data) %]);
-//]]></script>
-[% RenderBlockEnd("DocumentReadyActionRowAdd") %]
-[% RenderBlockStart("DocumentReadyStart") %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.InitCheckboxSelection($('div.Checkbox'));
-    $('.MasterAction').bind('click', function (Event) {
-        var $MasterActionLink = $(this).find('.MasterActionLink');
-        // prevent MasterAction on Dynamic Fields links
-        if ($(Event.target).hasClass('DynamicFieldLink')) {
-            return true;
-        }
-        // only act if the link was not clicked directly
-        if (Event.target !== $MasterActionLink.get(0)) {
-            if (Event.ctrlKey || Event.metaKey) {
-                window.open($MasterActionLink.attr('href'));
-            }
-            else {
-                window.location = $MasterActionLink.attr('href');
-            }
-            return false;
-        }
-    });
-
-    if ($('body').hasClass('TouchDevice')) {
-        $('ul.InlineActions li:not(.ResponsiveActionMenu)').hide();
-    }
-    $('li.ResponsiveActionMenu').on('click.ToggleResponsiveActionMenu', function () {
-        $(this).siblings().toggle();
-        $(this).toggleClass('Opened')
-        return false;
-    });
-//]]></script>
-[% RenderBlockEnd("DocumentReadyStart") %]
-[% END %]

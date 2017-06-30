@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,18 +13,21 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::CustomerUser',
+    'Kernel::System::CustomerCompany',
     'Kernel::System::DB',
     'Kernel::System::DynamicField',
     'Kernel::System::DynamicField::Backend',
     'Kernel::System::Group',
     'Kernel::System::Queue',
     'Kernel::System::Ticket',
+    'Kernel::System::Ticket::Article',
     'Kernel::System::User',
+    'Kernel::System::Priority',
 );
 
 sub Configure {
@@ -55,6 +58,13 @@ sub Configure {
     $Self->AddOption(
         Name        => 'generate-customer-users',
         Description => "Specify how many customer users should be generated.",
+        Required    => 0,
+        HasValue    => 1,
+        ValueRegex  => qr/^\d+$/smx,
+    );
+    $Self->AddOption(
+        Name        => 'generate-customer-companies',
+        Description => "Specify how many customer companies should be generated.",
         Required    => 0,
         HasValue    => 1,
         ValueRegex  => qr/^\d+$/smx,
@@ -139,8 +149,14 @@ sub Run {
         @QueueIDs = QueueCreate( $Self->GetOption('generate-queues'), \@GroupIDs );
     }
 
+    # customer users
     if ( $Self->GetOption('generate-customer-users') ) {
         CustomerCreate( $Self->GetOption('generate-customer-users') );
+    }
+
+    # customer companies
+    if ( $Self->GetOption('generate-customer-companies') ) {
+        CompanyCreate( $Self->GetOption('generate-customer-companies') );
     }
 
     my $Counter = 1;
@@ -154,7 +170,7 @@ sub Run {
             Title        => RandomSubject(),
             QueueID      => $QueueIDs[ int( rand($#QueueIDs) ) ],
             Lock         => 'unlock',
-            Priority     => '3 normal',
+            Priority     => PriorityGet(),
             State        => 'new',
             CustomerNo   => int( rand(1000) ),
             CustomerUser => RandomAddress(),
@@ -180,20 +196,23 @@ sub Run {
             print "Ticket with ID '$TicketID' created.\n";
 
             for ( 1 .. $Self->GetOption('articles-per-ticket') // 10 ) {
-                my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket')->ArticleCreate(
-                    TicketID       => $TicketID,
-                    ArticleType    => 'note-external',
-                    SenderType     => 'customer',
-                    From           => RandomAddress(),
-                    To             => RandomAddress(),
-                    Cc             => RandomAddress(),
-                    Subject        => RandomSubject(),
-                    Body           => RandomBody(),
-                    ContentType    => 'text/plain; charset=ISO-8859-15',
-                    HistoryType    => 'AddNote',
-                    HistoryComment => 'Some free text!',
-                    UserID         => $UserIDs[ int( rand($#UserIDs) ) ],
-                    NoAgentNotify  => 1,                                 # if you don't want to send agent notifications
+                my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+                    ChannelName => 'Internal',
+                );
+                my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                    TicketID             => $TicketID,
+                    IsVisibleForCustomer => 1,
+                    SenderType           => 'customer',
+                    From                 => RandomAddress(),
+                    To                   => RandomAddress(),
+                    Cc                   => RandomAddress(),
+                    Subject              => RandomSubject(),
+                    Body                 => RandomBody(),
+                    ContentType          => 'text/plain; charset=ISO-8859-15',
+                    HistoryType          => 'AddNote',
+                    HistoryComment       => 'Some free text!',
+                    UserID               => $UserIDs[ int( rand($#UserIDs) ) ],
+                    NoAgentNotify => 1,    # if you don't want to send agent notifications
                 );
 
                 if ( $Self->GetOption('mark-tickets-as-seen') ) {
@@ -362,6 +381,18 @@ sub RandomBody {
         $Body .= $Text[ int( rand( $#Text + 1 ) ) ] . "\n";
     }
     return $Body;
+}
+
+sub PriorityGet {
+    my %PriorityList = $Kernel::OM->Get('Kernel::System::Priority')->PriorityList(
+        Valid => 1,
+    );
+
+    my @Priorities;
+    for my $PriorityID ( sort keys %PriorityList ) {
+        push @Priorities, $PriorityList{$PriorityID};
+    }
+    return $Priorities[ int( rand( $#Priorities + 1 ) ) ];
 }
 
 sub QueueGet {
@@ -535,16 +566,28 @@ sub CustomerCreate {
     }
 }
 
+sub CompanyCreate {
+    my $Count = shift || return;
+
+    for ( 1 .. $Count ) {
+
+        my $Name       = 'fill-up-company' . int( rand(100_000_000) );
+        my $CustomerID = $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyAdd(
+            Source                 => 'CustomerCompany',          # CustomerCompany source config
+            CustomerID             => $Name . '_CustomerID',
+            CustomerCompanyName    => $Name,
+            CustomerCompanyStreet  => '5201 Blue Lagoon Drive',
+            CustomerCompanyZIP     => '33126',
+            CustomerCompanyCity    => 'Miami',
+            CustomerCompanyCountry => 'USA',
+            CustomerCompanyURL     => 'http://www.example.org',
+            CustomerCompanyComment => 'some comment',
+            ValidID                => 1,
+            UserID                 => 1,
+        );
+
+        print "CustomerCompany '$Name' created.\n";
+    }
+}
+
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -26,17 +26,13 @@ our @ObjectDependencies = (
 
 Kernel::System::Log - global log interface
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All log functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create a log object. Do not use it directly, instead use:
 
@@ -79,6 +75,11 @@ sub new {
     $Self->{LogPrefix} = $Param{LogPrefix} || '?LogPrefix?';
     $Self->{LogPrefix} .= '-' . $SystemID;
 
+    # configured log level (debug by default)
+    $Self->{MinimumLevel}    = $ConfigObject->Get('MinimumLogLevel') || 'debug';
+    $Self->{MinimumLevel}    = lc $Self->{MinimumLevel};
+    $Self->{MinimumLevelNum} = $LogLevel{ $Self->{MinimumLevel} };
+
     # load log backend
     my $GenericModule = $ConfigObject->Get('LogModule') || 'Kernel::System::Log::SysLog';
     if ( !eval "require $GenericModule" ) {    ## no critic
@@ -92,26 +93,36 @@ sub new {
 
     return $Self if !eval "require IPC::SysV";    ## no critic
 
-    # create the IPC options
-    $Self->{IPC}     = 1;
-    $Self->{IPCKey}  = '444423' . $SystemID;
+    # Setup IPC for shared access to the last log entries.
+    $Self->{IPCKey} = '444423' . $SystemID;       # This name is used to identify the shared memory segment.
     $Self->{IPCSize} = $ConfigObject->Get('LogSystemCacheSize') || 32 * 1024;
 
-    $Self->{MinimumLevel}    = $ConfigObject->Get('MinimumLogLevel') || 'debug';
-    $Self->{MinimumLevel}    = lc $Self->{MinimumLevel};
-    $Self->{MinimumLevelNum} = $LogLevel{ $Self->{MinimumLevel} };
+    # Create/access shared memory segment.
+    if ( !eval { $Self->{IPCSHMKey} = shmget( $Self->{IPCKey}, $Self->{IPCSize}, oct(1777) ) } ) {
 
-    # init session data mem
-    if ( !eval { $Self->{Key} = shmget( $Self->{IPCKey}, $Self->{IPCSize}, oct(1777) ) } ) {
-        $Self->{Key} = shmget( $Self->{IPCKey}, 1, oct(1777) );
-        $Self->CleanUp();
-        $Self->{Key} = shmget( $Self->{IPCKey}, $Self->{IPCSize}, oct(1777) );
+        # If direct creation fails, try more gently, allocate a small segment first and the reset/resize it.
+        $Self->{IPCSHMKey} = shmget( $Self->{IPCKey}, 1, oct(1777) );
+        if ( !shmctl( $Self->{IPCSHMKey}, 0, 0 ) ) {
+            $Self->Log(
+                Priority => 'error',
+                Message  => "Can't remove shm for log: $!",
+            );
+            return;
+        }
+
+        # Re-initialize SHM segment.
+        $Self->{IPCSHMKey} = shmget( $Self->{IPCKey}, $Self->{IPCSize}, oct(1777) );
     }
+
+    return if !$Self->{IPCSHMKey};
+
+    # Only flag IPC as active if everything worked well.
+    $Self->{IPC} = 1;
 
     return $Self;
 }
 
-=item Log()
+=head2 Log()
 
 log something. log priorities are 'debug', 'info', 'notice' and 'error'.
 
@@ -133,7 +144,7 @@ Normal but significant condition; events that are unusual but not error conditio
 
 =item error
 
-Error conditions. Non-urgent failures, should be relayed to developers or admins, each item must be resolved.
+Error conditions. Non-urgent failures, should be relayed to developers or administrators, each item must be resolved.
 
 =back
 
@@ -241,13 +252,13 @@ sub Log {
         my $Data   = localtime() . ";;$Priority;;$Self->{LogPrefix};;$Message\n";    ## no critic
         my $String = $Self->GetLog();
 
-        shmwrite( $Self->{Key}, $Data . $String, 0, $Self->{IPCSize} ) || die $!;
+        shmwrite( $Self->{IPCSHMKey}, $Data . $String, 0, $Self->{IPCSize} ) || die $!;
     }
 
     return 1;
 }
 
-=item GetLogEntry()
+=head2 GetLogEntry()
 
 to get the last log info back
 
@@ -264,7 +275,7 @@ sub GetLogEntry {
     return $Self->{ lc $Param{Type} }->{ $Param{What} } || '';
 }
 
-=item GetLog()
+=head2 GetLog()
 
 to get the tmp log data (from shared memory - ipc) in csv form
 
@@ -277,8 +288,11 @@ sub GetLog {
 
     my $String = '';
     if ( $Self->{IPC} ) {
-        shmread( $Self->{Key}, $String, 0, $Self->{IPCSize} ) || die "$!";
+        shmread( $Self->{IPCSHMKey}, $String, 0, $Self->{IPCSize} ) || die "$!";
     }
+
+    # Remove \0 bytes that shmwrite adds for padding.
+    $String =~ s{\0}{}smxg;
 
     # encode the string
     $Kernel::OM->Get('Kernel::System::Encode')->EncodeInput( \$String );
@@ -286,7 +300,7 @@ sub GetLog {
     return $String;
 }
 
-=item CleanUp()
+=head2 CleanUp()
 
 to clean up tmp log data from shared memory (ipc)
 
@@ -299,19 +313,12 @@ sub CleanUp {
 
     return 1 if !$Self->{IPC};
 
-    # remove the shm
-    if ( !shmctl( $Self->{Key}, 0, 0 ) ) {
-        $Self->Log(
-            Priority => 'error',
-            Message  => "Can't remove shm for log: $!",
-        );
-        return;
-    }
+    shmwrite( $Self->{IPCSHMKey}, '', 0, $Self->{IPCSize} ) || die $!;
 
     return 1;
 }
 
-=item Dumper()
+=head2 Dumper()
 
 dump a perl variable to log
 
@@ -347,8 +354,6 @@ sub Dumper {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

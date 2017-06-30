@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -97,8 +97,7 @@ Core.Agent.SortedTree = (function (TargetNS) {
 
             // elements which have children can't be removed
             if ($(this).parent().next('ul').length) {
-                alert("This element has children elements and can currently not be removed.");
-//                alert([% Translate("This element has children elements and can currently not be removed.") | JSON %]);
+                alert(Core.Language.Translate('This element has children elements and can currently not be removed.'));
                 return false;
             }
 
@@ -170,8 +169,8 @@ Core.Agent.SortedTree = (function (TargetNS) {
             return false;
         });
 
-        // generate JSON data
-        $Form.on('submit.GenerateJSON', function() {
+        // Store sort options as JSON data in a hidden element, prior to form submission.
+        Core.Form.Validate.SetSubmitFunction($Form, function(Form) {
             var Items = CollectElements($Element),
                 Value = '';
 
@@ -180,6 +179,8 @@ Core.Agent.SortedTree = (function (TargetNS) {
             }
 
             $TargetElement.val(Value);
+
+            Form.submit();
         });
 
         // Initially fill the container with passed JSON data.

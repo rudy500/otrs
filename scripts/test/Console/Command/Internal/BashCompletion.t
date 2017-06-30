@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,8 +15,8 @@ use vars (qw($Self));
 my @Tests = (
     {
         Name      => 'Command completion',
-        COMP_LINE => 'bin/otrs.Console.pl H',
-        Arguments => [ 'bin/otrs.Console.pl', 'H', 'bin/otrs.Console.pl' ],
+        COMP_LINE => 'bin/otrs.Console.pl Hel',
+        Arguments => [ 'bin/otrs.Console.pl', 'Hel', 'bin/otrs.Console.pl' ],
         Result    => "Help",
     },
     {

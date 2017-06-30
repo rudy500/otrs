@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,34 +19,28 @@ our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Cache',
     'Kernel::System::CronEvent',
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::Encode',
     'Kernel::System::GenericAgent',
     'Kernel::System::Log',
     'Kernel::System::Storable',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
 
 Kernel::System::Daemon::SchedulerDB - Scheduler database lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Includes all scheduler related database functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create a scheduler database object. Do not use it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
 
 =cut
@@ -61,7 +55,7 @@ sub new {
     return $Self;
 }
 
-=item TaskAdd()
+=head2 TaskAdd()
 
 add a new task to scheduler task list
 
@@ -131,15 +125,14 @@ sub TaskAdd {
     $Data = encode_base64($Data);
 
     # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
     my $Identifier;
     TRY:
     for my $Try ( 1 .. 10 ) {
 
         # calculate a task identifier
-        $Identifier = $TimeObject->SystemTime() . int rand 1000000;
+        $Identifier = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch() . int rand 1000000;
 
         # insert the task (initially locked with lock_key = 1 so it will not be taken by any worker
         #   at this moment)
@@ -191,7 +184,7 @@ sub TaskAdd {
     return $TaskID;
 }
 
-=item TaskGet()
+=head2 TaskGet()
 
 get scheduler task
 
@@ -284,7 +277,7 @@ sub TaskGet {
     return %Task;
 }
 
-=item TaskDelete()
+=head2 TaskDelete()
 
 delete a task from scheduler task list
 
@@ -321,7 +314,7 @@ sub TaskDelete {
     return 1;
 }
 
-=item TaskList()
+=head2 TaskList()
 
 get the list of scheduler tasks
 
@@ -384,7 +377,7 @@ sub TaskList {
     return @List;
 }
 
-=item TaskListUnlocked()
+=head2 TaskListUnlocked()
 
 get a list of unlocked tasks
 
@@ -438,7 +431,7 @@ sub TaskListUnlocked {
     return @List;
 }
 
-=item TaskLock()
+=head2 TaskLock()
 
 locks task to a specific PID
 
@@ -550,7 +543,7 @@ sub TaskLock {
     return 1;
 }
 
-=item TaskCleanup()
+=head2 TaskCleanup()
 
 deletes obsolete worker tasks
 
@@ -562,9 +555,6 @@ sub TaskCleanup {
     my ( $Self, %Param ) = @_;
 
     my @List = $Self->TaskList();
-
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
 
     TASKITEM:
     for my $TaskItem (@List) {
@@ -580,14 +570,19 @@ sub TaskCleanup {
         next TASKITEM if $Task{LockKey} < 1;
 
         # get system time
-        my $SystemTime = $TimeObject->SystemTime();
+        my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
         # get expiration time. 7 days ago system time
         my $ExpiredTime = $SystemTime - ( 60 * 60 * 24 * 7 );
 
-        my $LockTime = $TimeObject->TimeStamp2SystemTime(
-            String => $Task{LockTime},
+        my $LockTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Task{LockTime},
+            },
         );
+
+        $LockTime = $LockTime ? $LockTime->ToEpoch() : 0;
 
         # skip if task is not expired
         next TASKITEM if $LockTime > $ExpiredTime;
@@ -607,7 +602,7 @@ sub TaskCleanup {
     return 1;
 }
 
-=item TaskSummary()
+=head2 TaskSummary()
 
 get a summary of the tasks from the worker task table divided into handled and unhandled
 
@@ -644,10 +639,7 @@ sub TaskSummary {
     my @HandledTasks;
     my @UnhandledTasks;
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-    my $SystemTime = $TimeObject->SystemTime();
+    my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     TASK:
     for my $Task (@List) {
@@ -668,9 +660,14 @@ sub TaskSummary {
             # calculate duration from lock time
             my $CurrentDuration;
             if ( defined $Task->{LockTime} ) {
-                my $LockSystemTime = $TimeObject->TimeStamp2SystemTime(
-                    String => $Task->{LockTime},
+                my $LockSystemTime = $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        String => $Task->{LockTime},
+                    },
                 );
+                $LockSystemTime = $LockSystemTime ? $LockSystemTime->ToEpoch() : 0;
+
                 $CurrentDuration = $Self->_Seconds2String( $SystemTime - $LockSystemTime );
             }
 
@@ -744,7 +741,7 @@ sub TaskSummary {
     );
 }
 
-=item TaskLockUpdate()
+=head2 TaskLockUpdate()
 
 sets the task lock update time as current time for the specified tasks
 
@@ -785,7 +782,7 @@ sub TaskLockUpdate {
     return 1;
 }
 
-=item TaskUnlockExpired()
+=head2 TaskUnlockExpired()
 
 remove lock status for working tasks that has not been updated its lock update time for more than 5 minutes
 
@@ -797,15 +794,15 @@ sub TaskUnlockExpired {
     my ( $Self, %Param ) = @_;
 
     # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
-    # ask the database (get all recurrent tasks for the given type with a lock key different than 0)
+    # ask the database (get all worker tasks with a lock key different than 0)
     return if !$DBObject->Prepare(
         SQL => '
             SELECT id, name, lock_update_time
             FROM scheduler_task
             WHERE lock_key <> 0
+                AND lock_key <> 1
             ORDER BY id ASC',
     );
 
@@ -814,13 +811,27 @@ sub TaskUnlockExpired {
     ROW:
     while ( my @Row = $DBObject->FetchrowArray() ) {
 
-        # convert lock update time stamp to a system time
-        my $LockUpdateTime = $TimeObject->TimeStamp2SystemTime(
-            String => $Row[2],
-        ) || 0;
-
         # get current system time
-        my $SystemTime = $TimeObject->SystemTime();
+        my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+
+        # convert lock update time stamp to a system time
+        my $LockUpdateTime = 0;
+
+        if ( $Row[2] ) {
+            $LockUpdateTime = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $Row[2],
+                },
+            );
+            $LockUpdateTime = $LockUpdateTime ? $LockUpdateTime->ToEpoch() : 0;
+        }
+        else {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "Lock Update Time missing for task $Row[1]! ($Row[0])",
+            );
+        }
 
         # skip task if it has been locked update time is in within the last 5 minutes
         next ROW if $SystemTime - $LockUpdateTime < ( 60 * 5 );
@@ -850,7 +861,7 @@ sub TaskUnlockExpired {
     return 1;
 }
 
-=item FutureTaskAdd()
+=head2 FutureTaskAdd()
 
 add a new task to scheduler future task list
 
@@ -890,8 +901,12 @@ sub FutureTaskAdd {
     }
 
     # check valid ExecutionTime
-    my $SystemTime = $Kernel::OM->Get('Kernel::System::Time')->TimeStamp2SystemTime(
-        String => $Param{ExecutionTime},
+
+    my $SystemTime = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $Param{ExecutionTime},
+        },
     );
 
     if ( !$SystemTime ) {
@@ -902,6 +917,7 @@ sub FutureTaskAdd {
 
         return;
     }
+    $SystemTime = $SystemTime->ToEpoch();
 
     if ( $Param{MaximumParallelInstances} && $Param{MaximumParallelInstances} =~ m{\A \d+ \z}msx ) {
 
@@ -911,11 +927,10 @@ sub FutureTaskAdd {
         );
 
         my @FilteredList = @List;
-
-        if ( $Param{Name} ) {
+        if ( $Param{Name} && @List ) {
 
             # remove all tasks that does not match specified task name
-            @FilteredList = grep { $_->{Name} eq $Param{Name} } @List;
+            @FilteredList = grep { ( $_->{Name} || '' ) eq $Param{Name} } @List;
         }
 
         # compare the number of task with the maximum parallel limit
@@ -935,15 +950,14 @@ sub FutureTaskAdd {
     $Data = encode_base64($Data);
 
     # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
     my $Identifier;
     TRY:
     for my $Try ( 1 .. 10 ) {
 
         # calculate a task identifier
-        $Identifier = $TimeObject->SystemTime() . int rand 1000000;
+        $Identifier = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch() . int rand 1000000;
 
         # insert the future task (initially locked with lock_key = 1 so it will not be taken by any
         #    moved into worker task list at this moment)
@@ -996,7 +1010,7 @@ sub FutureTaskAdd {
     return $TaskID;
 }
 
-=item FutureTaskGet()
+=head2 FutureTaskGet()
 
 get scheduler future task
 
@@ -1088,7 +1102,7 @@ sub FutureTaskGet {
     return %Task;
 }
 
-=item FutureTaskDelete()
+=head2 FutureTaskDelete()
 
 delete a task from scheduler future task list
 
@@ -1125,7 +1139,7 @@ sub FutureTaskDelete {
     return 1;
 }
 
-=item FutureTaskList()
+=head2 FutureTaskList()
 
 get the list of scheduler future tasks
 
@@ -1191,7 +1205,7 @@ sub FutureTaskList {
     return @List;
 }
 
-=item FutureTaskToExecute()
+=head2 FutureTaskToExecute()
 
 moves all future tasks with reached execution time to the task table to execute
 
@@ -1223,11 +1237,10 @@ sub FutureTaskToExecute {
     my $LockKey       = '1' . $LockKeyNodeID . $LockKeyPID;
 
     # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
     # get current time
-    my $CurrentTime = $TimeObject->CurrentTimestamp();
+    my $CurrentTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
     # lock the task in database
     return if !$DBObject->Do(
@@ -1310,7 +1323,7 @@ sub FutureTaskToExecute {
     return 1;
 }
 
-=item FutureTaskSummary()
+=head2 FutureTaskSummary()
 
 get a summary of the tasks from the future task table
 
@@ -1349,7 +1362,7 @@ sub FutureTaskSummary {
     );
 }
 
-=item CronTaskToExecute()
+=head2 CronTaskToExecute()
 
 creates cron tasks that needs to be run in the current time into the task table to execute
 
@@ -1382,11 +1395,7 @@ sub CronTaskToExecute {
     return 1 if !IsHashRefWithData($Config);
 
     # get needed objects
-    my $TimeObject      = $Kernel::OM->Get('Kernel::System::Time');
     my $CronEventObject = $Kernel::OM->Get('Kernel::System::CronEvent');
-
-    # get current time
-    my $SystemTime = $TimeObject->SystemTime();
 
     CRONJOBKEY:
     for my $CronjobKey ( sort keys %{$Config} ) {
@@ -1398,20 +1407,11 @@ sub CronTaskToExecute {
 
         next CRONJOBKEY if !IsHashRefWithData($JobConfig);
 
-        if ( !$JobConfig->{Module} && !$JobConfig->{Command} ) {
+        if ( !$JobConfig->{Module} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
                 Message  => "Config option Daemon::SchedulerCronTaskManager::Task###$CronjobKey is invalid."
-                    . " Need 'Module' or 'Command' parameter!",
-            );
-            next CRONJOBKEY;
-        }
-
-        if ( $JobConfig->{Module} && $JobConfig->{Command} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Config option Daemon::SchedulerCronTaskManager::Task###$CronjobKey is invalid."
-                    . " Need 'Module' or 'Command' parameter but not both!",
+                    . " Need 'Module' parameter!",
             );
             next CRONJOBKEY;
         }
@@ -1441,7 +1441,6 @@ sub CronTaskToExecute {
             PreviousEventTimestamp   => $PreviousEventTimestamp,
             MaximumParallelInstances => $JobConfig->{MaximumParallelInstances},
             Data                     => {
-                Command  => $JobConfig->{Command}  || '',
                 Module   => $JobConfig->{Module}   || '',
                 Function => $JobConfig->{Function} || '',
                 Params   => $JobConfig->{Params}   || '',
@@ -1452,7 +1451,7 @@ sub CronTaskToExecute {
     return 1;
 }
 
-=item CronTaskCleanup()
+=head2 CronTaskCleanup()
 
 removes recurrent tasks that does not have a matching a cron tasks definition in SysConfig
 
@@ -1470,7 +1469,6 @@ sub CronTaskCleanup {
     return 1 if !IsHashRefWithData($Config);
 
     # get needed objects
-    my $TimeObject      = $Kernel::OM->Get('Kernel::System::Time');
     my $CronEventObject = $Kernel::OM->Get('Kernel::System::CronEvent');
 
     my %CronJobLookup;
@@ -1485,9 +1483,7 @@ sub CronTaskCleanup {
 
         next CRONJOBKEY if !IsHashRefWithData($JobConfig);
 
-        next CRONJOBKEY if ( !$JobConfig->{Module} && !$JobConfig->{Command} );
-
-        next CRONJOBKEY if ( $JobConfig->{Module} && $JobConfig->{Command} );
+        next CRONJOBKEY if ( !$JobConfig->{Module} );
 
         next CRONJOBKEY if ( $JobConfig->{Module} && !$JobConfig->{Function} );
 
@@ -1527,7 +1523,7 @@ sub CronTaskCleanup {
     return 1;
 }
 
-=item CronTaskSummary()
+=head2 CronTaskSummary()
 
 get a summary of the cron tasks from the recurrent task table
 
@@ -1561,7 +1557,7 @@ sub CronTaskSummary {
     );
 }
 
-=item GenericAgentTaskToExecute()
+=head2 GenericAgentTaskToExecute()
 
 creates generic agent tasks that needs to be run in the current time into the task table to execute
 
@@ -1627,11 +1623,11 @@ sub GenericAgentTaskToExecute {
         next JOBNAME if !$Schedule;
 
         # get the last time the GenericAgent job should be executed, this returns even THIS minute
-        my $EventSystemTime = $CronEventObject->PreviousEventGet(
+        my $PreviousEventTimestamp = $CronEventObject->PreviousEventGet(
             Schedule => $Schedule,
         );
 
-        next JOBNAME if !$EventSystemTime;
+        next JOBNAME if !$PreviousEventTimestamp;
 
         # execute recurrent tasks
         $Self->RecurrentTaskExecute(
@@ -1639,7 +1635,7 @@ sub GenericAgentTaskToExecute {
             PID                      => $Param{PID},
             TaskName                 => $JobName,
             TaskType                 => 'GenericAgent',
-            PreviousEventTimestamp   => $EventSystemTime,
+            PreviousEventTimestamp   => $PreviousEventTimestamp,
             MaximumParallelInstances => 1,
             Data                     => \%Job,
         );
@@ -1648,7 +1644,7 @@ sub GenericAgentTaskToExecute {
     return 1;
 }
 
-=item GenericAgentTaskCleanup()
+=head2 GenericAgentTaskCleanup()
 
 removes recurrent tasks that does not have a matching generic agent job
 
@@ -1729,7 +1725,7 @@ sub GenericAgentTaskCleanup {
     return 1;
 }
 
-=item GenericAgentTaskSummary()
+=head2 GenericAgentTaskSummary()
 
 get a summary of the generic agent tasks from the recurrent task table
 
@@ -1788,7 +1784,7 @@ sub GenericAgentTaskSummary {
     );
 }
 
-=item RecurrentTaskGet()
+=head2 RecurrentTaskGet()
 
 get scheduler recurrent task
 
@@ -1852,7 +1848,7 @@ sub RecurrentTaskGet {
     return %Task;
 }
 
-=item RecurrentTaskList()
+=head2 RecurrentTaskList()
 
 get the list of scheduler recurrent tasks
 
@@ -1933,7 +1929,7 @@ sub RecurrentTaskList {
     return @List;
 }
 
-=item RecurrentTaskDelete()
+=head2 RecurrentTaskDelete()
 
 delete a task from scheduler recurrent task list
 
@@ -1980,7 +1976,7 @@ sub RecurrentTaskDelete {
     return 1;
 }
 
-=item RecurrentTaskExecute()
+=head2 RecurrentTaskExecute()
 
 executes recurrent tasks like cron or generic agent tasks
 
@@ -2033,17 +2029,12 @@ sub RecurrentTaskExecute {
     return 1 if $Cache && $Cache eq $Param{PreviousEventTimestamp};
 
     # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
-    # convert last previous event time-stamp
-    my $PreviousEventTime = $TimeObject->SystemTime2TimeStamp(
-        SystemTime => $Param{PreviousEventTimestamp},
-    );
+    my $LastExecutionTimeStamp;
 
     # get entry id and last execution time from database
     my $EntryID;
-    my $LastExecutionTimeStamp = '';
     TRY:
     for my $Try ( 1 .. 10 ) {
 
@@ -2059,7 +2050,7 @@ sub RecurrentTaskExecute {
                 Bind => [
                     \$Param{TaskName},
                     \$Param{TaskType},
-                    \$PreviousEventTime,
+                    \$Param{PreviousEventTimestamp},
                 ],
             );
         }
@@ -2077,19 +2068,9 @@ sub RecurrentTaskExecute {
         );
 
         # fetch the entry id
-        my $LastExecutionTime;
         while ( my @Row = $DBObject->FetchrowArray() ) {
-            $EntryID           = $Row[0];
-            $LastExecutionTime = $Row[1];
-        }
-
-        next TRY if !$EntryID;
-
-        # convert last execution time to a time-stamp
-        if ($LastExecutionTime) {
-            $LastExecutionTimeStamp = $TimeObject->TimeStamp2SystemTime(
-                String => $LastExecutionTime,
-            ) || '';
+            $EntryID                = $Row[0];
+            $LastExecutionTimeStamp = $Row[1];
         }
 
         last TRY if $EntryID;
@@ -2171,7 +2152,7 @@ sub RecurrentTaskExecute {
                     change_time = current_timestamp
                 WHERE lock_key = ? AND id = ?',
             Bind => [
-                \$PreviousEventTime,
+                \$Param{PreviousEventTimestamp},
                 \$TaskID,
                 \$LockKey,
                 \$EntryID,
@@ -2202,7 +2183,7 @@ sub RecurrentTaskExecute {
     return;
 }
 
-=item RecurrentTaskSummary()
+=head2 RecurrentTaskSummary()
 
 get a summary of the recurring tasks for the specified task type
 
@@ -2255,7 +2236,6 @@ sub RecurrentTaskSummary {
     );
 
     # get needed objects
-    my $TimeObject      = $Kernel::OM->Get('Kernel::System::Time');
     my $CronEventObject = $Kernel::OM->Get('Kernel::System::CronEvent');
 
     # fetch the result
@@ -2269,12 +2249,8 @@ sub RecurrentTaskSummary {
         next ROW if !$Schedule;
 
         # calculate next cron event time
-        my $NextEvent = $CronEventObject->NextEventGet(
+        my $NextExecutionTime = $CronEventObject->NextEventGet(
             Schedule => $Schedule,
-        );
-
-        my $NextExecutionTime = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $NextEvent,
         );
 
         my $LastWorkerStatus;
@@ -2333,7 +2309,7 @@ sub RecurrentTaskSummary {
     );
 }
 
-=item RecurrentTaskWorkerInfoSet()
+=head2 RecurrentTaskWorkerInfoSet()
 
 sets last worker information (success status and running time) to a recurrent task
 
@@ -2378,7 +2354,7 @@ sub RecurrentTaskWorkerInfoSet {
     return 1;
 }
 
-=item RecurrentTaskUnlockExpired()
+=head2 RecurrentTaskUnlockExpired()
 
 remove lock status for recurring tasks that has been locked for more than 1 minutes
 
@@ -2400,8 +2376,7 @@ sub RecurrentTaskUnlockExpired {
     }
 
     # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
     # ask the database (get all recurrent tasks for the given type with a lock key different than 0)
     return if !$DBObject->Prepare(
@@ -2419,13 +2394,17 @@ sub RecurrentTaskUnlockExpired {
     ROW:
     while ( my @Row = $DBObject->FetchrowArray() ) {
 
-        # convert lock time stamp to a system time
-        my $LockTime = $TimeObject->TimeStamp2SystemTime(
-            String => $Row[2],
-        ) || 0;
-
         # get current system time
-        my $SystemTime = $TimeObject->SystemTime();
+        my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+
+        # convert lock time stamp to a system time
+        my $LockTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Row[2],
+            },
+        );
+        $LockTime = $LockTime ? $LockTime->ToEpoch() : 0;
 
         # skip task if it has been locked within the last minute
         next ROW if $SystemTime - $LockTime < 60;
@@ -2475,8 +2454,6 @@ sub _Seconds2String {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

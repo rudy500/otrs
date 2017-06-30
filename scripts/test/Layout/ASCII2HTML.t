@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,17 +12,8 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::Output::HTML::Layout;
-
-# get needed objects
-my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
-
-my $LayoutObject = Kernel::Output::HTML::Layout->new(
-    UserChallengeToken => 'TestToken',
-    UserID             => 1,
-    Lang               => 'de',
-    SessionID          => 123,
-);
+# get layout object
+my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
 # check the function Ascii2Html
 my $TestString = << 'END_STRING';
@@ -102,9 +93,9 @@ ak@example.com<br/>
 &lt;<a href="http://bugs.example.org/show_bug.cgi?id=2450" target="_blank" title="http://bugs.example.org/show_bug.cgi?id=2450">http://bugs.example.org/show_bug.cgi?id=2450</a>&gt;asdf<br/>
 &lt;<a href="http://bugs.example.org/s()how_bug.cgi?id=2450" target="_blank" title="http://bugs.example.org/s()how_bug.cgi?id=2450">http://bugs.example.org/s()how_bug.cgi?id=2450</a>&gt; as<br/>
 <br/>
-<a href="http://wwww.example.net" target="_blank" title="http://wwww.example.net">http://wwww.example.net</a><br/>
+<a href="http://wwww.example.net" target="_blank" title="http://wwww.example.net">wwww.example.net</a><br/>
 <br/>
-<a href="ftp://ftp.example.org" target="_blank" title="ftp://ftp.example.org">ftp://ftp.example.org</a><br/>
+<a href="ftp://ftp.example.org" target="_blank" title="ftp://ftp.example.org">ftp.example.org</a><br/>
 <br/>
 <a href="https://portal.example.com/otrs/index.pl?Action=AgentFileManager&Location=/home/tr/CVSUpdate().pl" target="_blank" title="https://portal.example.com/otrs/index.pl?Action=AgentFileManager&Location=/home/tr/CVSUpdate().pl">https://portal.example.com/otrs/index.pl?Action=AgentFileManager&Location=/[..]</a><br/>
 <br/>
@@ -113,7 +104,7 @@ lkj <a href="https://portal.example.com/otrs/index.pl?Action=AgentFileManager&Lo
 lk<br/>
 END_RESULT
 
-# html quoting
+# HTML quoting
 my $ConvertedString = $LayoutObject->Ascii2Html(
     NewLine        => 90,
     Text           => $TestString,
@@ -128,7 +119,7 @@ $Self->Is(
     'Ascii2Html() - Check if the link feature works correct',
 );
 
-# html quoting 2
+# HTML quoting 2
 my @Tests = (
     {
         Name   => 'Ascii2Html() - #1',
@@ -164,7 +155,7 @@ my @Tests = (
         Name   => 'Ascii2Html() - #6',
         String => ' www.example.com ',
         Result =>
-            ' <a href="http://www.example.com" target="_blank" title="http://www.example.com">http://www.example.com</a> ',
+            ' <a href="http://www.example.com" target="_blank" title="http://www.example.com">www.example.com</a> ',
     },
     {
         Name   => 'Ascii2Html() - #7',
@@ -283,10 +274,17 @@ my @Tests = (
         Result => "http.<br/>\nsome text http.<br/>\nsome text http. some text<br/>\n",
     },
     {
-        Name   => 'Ascii2Html() - #27 ftp-check',
+        Name   => 'Ascii2Html() - #28 ftp-check',
         String => "ftp.example.com",
         Result =>
-            "<a href=\"ftp://ftp.example.com\" target=\"_blank\" title=\"ftp://ftp.example.com\">ftp://ftp.example.com</a>",
+            "<a href=\"ftp://ftp.example.com\" target=\"_blank\" title=\"ftp://ftp.example.com\">ftp.example.com</a>",
+    },
+    {
+        Name   => 'Ascii2Html() - #29 brackets in url',                      # bug#12222
+        String => "http://wwww.exaple.com?Action=ActionName#position(12)",
+        Result =>
+            "<a href=\"http://wwww.exaple.com?Action=ActionName#position(12)\" target=\"_blank\" " .
+            "title=\"http://wwww.exaple.com?Action=ActionName#position(12)\">http://wwww.exaple.com?Action=ActionName#position(12)</a>",
     },
 );
 
@@ -303,7 +301,7 @@ for my $Test (@Tests) {
     );
 }
 
-# html quoting 3
+# HTML quoting 3
 @Tests = (
     {
         Name   => 'Ascii2Html() - Max check #1',

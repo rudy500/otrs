@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -123,13 +123,4 @@
         </div>
     </form>
 </div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    $('#ButtonCheckDB').bind('click',Core.Installer.CheckDBData);
-    $('#ButtonBack').bind('click', function() {
-        parent.history.back();
-    });
-//]]></script>
-[% END %]
 [% RenderBlockEnd("DatabasePostgreSQL") %]

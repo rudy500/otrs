@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,19 +12,17 @@ use utf8;
 
 use vars (qw($Self));
 
-use Socket;
-
-# get needed objects
+# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-# helper object
+# get helper object
 # skip SSL certificate verification
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
     },
 );
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # add webservice to be used (empty config)
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
@@ -33,7 +31,7 @@ $Self->Is(
     ref $WebserviceObject,
     "Create webservice object",
 );
-my $WebserviceName = 'SOAPTest' . $HelperObject->GetRandomID();
+my $WebserviceName = 'SOAP' . $Helper->GetRandomID();
 my $WebserviceID   = $WebserviceObject->WebserviceAdd(
     Name   => $WebserviceName,
     Config => {
@@ -55,23 +53,7 @@ $Self->True(
 );
 
 # get remote host with some precautions for certain unit test systems
-my $Host;
-my $FQDN = $ConfigObject->Get('FQDN');
-
-# try to resolve fqdn host
-if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
-    $Host = $FQDN;
-}
-
-# try to resolve localhost instead
-if ( !$Host && gethostbyname('localhost') ) {
-    $Host = 'localhost';
-}
-
-# use hardcoded localhost ip address
-if ( !$Host ) {
-    $Host = '127.0.0.1';
-}
+my $Host = $Helper->GetTestHTTPHostname();
 
 # prepare webservice config
 my $RemoteSystem =
@@ -717,8 +699,8 @@ my @Tests = (
             Success => 0,
             ErrorMessage =>
                 "faultcode: Server, faultstring: Namespace from SOAPAction"
-                . " 'http://otrs.org/InvalidSoapTestInterface/' does not match namespace"
-                . " from configuration 'http://otrs.org/SoapTestInterface/'",
+                . " 'http://otrs.org/InvalidSoapTestInterface' does not match namespace"
+                . " from configuration 'http://otrs.org/SoapTestInterface'",
 
         },
         WebserviceConfig => {
@@ -2064,7 +2046,6 @@ for my $Test (@Tests) {
 
     # update webservice with real config
     my $WebserviceUpdate = $WebserviceObject->WebserviceUpdate(
-
         ID      => $WebserviceID,
         Name    => $WebserviceName,
         Config  => $Test->{WebserviceConfig},
@@ -2121,9 +2102,91 @@ for my $Test (@Tests) {
         "$Test->{Name} - Requester success status (needs configured and running webserver)",
     );
 
-}    #end loop
+}
 
-# clean up webservice
+# Check headers.
+@Tests = (
+    {
+        Name   => 'Standard response header',
+        Config => {},
+        Header => {
+            'Content-Type' => 'text/xml; charset=UTF-8',
+        },
+    },
+    {
+        Name   => 'Additional response headers',
+        Config => {
+            AdditionalHeaders => {
+                Key1 => 'Value1',
+                Key2 => 'Value2',
+            },
+        },
+        Header => {
+            'Content-Type' => 'text/xml; charset=UTF-8',
+            Key1           => 'Value1',
+            Key2           => 'Value2',
+        },
+    },
+);
+
+# Create debugger object.
+my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
+    DebuggerConfig => {
+        DebugThreshold => 'debug',
+        TestMode       => 1,
+    },
+    CommunicationType => 'Provider',
+    WebserviceID      => $WebserviceID,
+);
+
+for my $Test (@Tests) {
+
+    # Create SOAP transport object with test configuration.
+    my $TransportObject = Kernel::GenericInterface::Transport->new(
+        DebuggerObject  => $DebuggerObject,
+        TransportConfig => {
+            Type   => 'HTTP::SOAP',
+            Config => $Test->{Config},
+        },
+    );
+    $Self->Is(
+        ref $TransportObject,
+        'Kernel::GenericInterface::Transport',
+        "$Test->{Name} - TransportObject instantiated with SOAP backend"
+    );
+
+    my $Response = '';
+    my $Result;
+    {
+
+        # Redirect STDOUT from string so that the transport layer will write there.
+        local *STDOUT;
+        open STDOUT, '>:utf8', \$Response;    ## no critic
+
+        # Discard request object to prevent errors.
+        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
+
+        # Create response.
+        $Result = $TransportObject->ProviderGenerateResponse(
+            Success => 1,
+            Data    => {},
+        );
+    }
+    $Self->True(
+        $Result,
+        "$Test->{Name} - Response created"
+    );
+
+    # Analyze headers.
+    for my $Key ( sort keys %{ $Test->{Header} } ) {
+        $Self->True(
+            index( $Response, "$Key: $Test->{Header}->{$Key}\r\n" ) != -1,
+            "$Test->{Name} - Found header '$Key' with value '$Test->{Header}->{$Key}'"
+        );
+    }
+}
+
+# cleanup webservice
 my $WebserviceDelete = $WebserviceObject->WebserviceDelete(
     ID     => $WebserviceID,
     UserID => 1,

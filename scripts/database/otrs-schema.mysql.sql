@@ -48,7 +48,7 @@ CREATE TABLE valid (
 CREATE TABLE users (
     id INTEGER NOT NULL AUTO_INCREMENT,
     login VARCHAR (200) NOT NULL,
-    pw VARCHAR (64) NOT NULL,
+    pw VARCHAR (128) NOT NULL,
     title VARCHAR (50) NULL,
     first_name VARCHAR (100) NOT NULL,
     last_name VARCHAR (100) NOT NULL,
@@ -91,7 +91,6 @@ CREATE TABLE group_user (
     user_id INTEGER NOT NULL,
     group_id INTEGER NOT NULL,
     permission_key VARCHAR (20) NOT NULL,
-    permission_value SMALLINT NOT NULL,
     create_time DATETIME NOT NULL,
     create_by INTEGER NOT NULL,
     change_time DATETIME NOT NULL,
@@ -128,6 +127,22 @@ CREATE TABLE group_customer_user (
     change_by INTEGER NOT NULL,
     INDEX group_customer_user_group_id (group_id),
     INDEX group_customer_user_user_id (user_id)
+);
+# ----------------------------------------------------------
+#  create table group_customer
+# ----------------------------------------------------------
+CREATE TABLE group_customer (
+    customer_id VARCHAR (150) NOT NULL,
+    group_id INTEGER NOT NULL,
+    permission_key VARCHAR (20) NOT NULL,
+    permission_value SMALLINT NOT NULL,
+    permission_context VARCHAR (100) NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    INDEX group_customer_customer_id (customer_id),
+    INDEX group_customer_group_id (group_id)
 );
 # ----------------------------------------------------------
 #  create table roles
@@ -458,6 +473,7 @@ CREATE TABLE ticket_history (
     change_time DATETIME NOT NULL,
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
+    INDEX ticket_history_article_id (article_id),
     INDEX ticket_history_create_time (create_time),
     INDEX ticket_history_history_type_id (history_type_id),
     INDEX ticket_history_owner_id (owner_id),
@@ -527,21 +543,6 @@ CREATE TABLE ticket_loop_protection (
     INDEX ticket_loop_protection_sent_to (sent_to)
 );
 # ----------------------------------------------------------
-#  create table article_type
-# ----------------------------------------------------------
-CREATE TABLE article_type (
-    id SMALLINT NOT NULL AUTO_INCREMENT,
-    name VARCHAR (200) NOT NULL,
-    comments VARCHAR (250) NULL,
-    valid_id SMALLINT NOT NULL,
-    create_time DATETIME NOT NULL,
-    create_by INTEGER NOT NULL,
-    change_time DATETIME NOT NULL,
-    change_by INTEGER NOT NULL,
-    PRIMARY KEY(id),
-    UNIQUE INDEX article_type_name (name)
-);
-# ----------------------------------------------------------
 #  create table article_sender_type
 # ----------------------------------------------------------
 CREATE TABLE article_sender_type (
@@ -569,60 +570,86 @@ CREATE TABLE article_flag (
     INDEX article_flag_article_id_create_by (article_id, create_by)
 );
 # ----------------------------------------------------------
-#  create table article
+#  create table communication_channel
 # ----------------------------------------------------------
-CREATE TABLE article (
+CREATE TABLE communication_channel (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    ticket_id BIGINT NOT NULL,
-    article_type_id SMALLINT NOT NULL,
-    article_sender_type_id SMALLINT NOT NULL,
-    a_from TEXT NULL,
-    a_reply_to TEXT NULL,
-    a_to TEXT NULL,
-    a_cc TEXT NULL,
-    a_subject TEXT NULL,
-    a_message_id TEXT NULL,
-    a_message_id_md5 VARCHAR (32) NULL,
-    a_in_reply_to TEXT NULL,
-    a_references TEXT NULL,
-    a_content_type VARCHAR (250) NULL,
-    a_body MEDIUMTEXT NOT NULL,
-    incoming_time INTEGER NOT NULL,
-    content_path VARCHAR (250) NULL,
+    name VARCHAR (200) NOT NULL,
+    module VARCHAR (200) NOT NULL,
+    package_name VARCHAR (200) NOT NULL,
+    channel_data LONGBLOB NOT NULL,
     valid_id SMALLINT NOT NULL,
     create_time DATETIME NOT NULL,
     create_by INTEGER NOT NULL,
     change_time DATETIME NOT NULL,
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
+    UNIQUE INDEX communication_channel_name (name)
+);
+# ----------------------------------------------------------
+#  create table article
+# ----------------------------------------------------------
+CREATE TABLE article (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    ticket_id BIGINT NOT NULL,
+    article_sender_type_id SMALLINT NOT NULL,
+    communication_channel_id BIGINT NOT NULL,
+    is_visible_for_customer SMALLINT NOT NULL,
+    search_index_needs_rebuild SMALLINT NOT NULL DEFAULT 1,
+    insert_fingerprint VARCHAR (64) NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    PRIMARY KEY(id),
     INDEX article_article_sender_type_id (article_sender_type_id),
-    INDEX article_article_type_id (article_type_id),
-    INDEX article_message_id_md5 (a_message_id_md5),
+    INDEX article_communication_channel_id (communication_channel_id),
+    INDEX article_search_index_needs_rebuild (search_index_needs_rebuild),
     INDEX article_ticket_id (ticket_id)
 );
 # ----------------------------------------------------------
-#  create table article_search
+#  create table article_data_mime
 # ----------------------------------------------------------
-CREATE TABLE article_search (
-    id BIGINT NOT NULL,
-    ticket_id BIGINT NOT NULL,
-    article_type_id SMALLINT NOT NULL,
-    article_sender_type_id SMALLINT NOT NULL,
-    a_from TEXT NULL,
-    a_to TEXT NULL,
-    a_cc TEXT NULL,
+CREATE TABLE article_data_mime (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    article_id BIGINT NOT NULL,
+    a_from MEDIUMTEXT NULL,
+    a_reply_to MEDIUMTEXT NULL,
+    a_to MEDIUMTEXT NULL,
+    a_cc MEDIUMTEXT NULL,
     a_subject TEXT NULL,
-    a_body MEDIUMTEXT NOT NULL,
+    a_message_id TEXT NULL,
+    a_message_id_md5 VARCHAR (32) NULL,
+    a_in_reply_to MEDIUMTEXT NULL,
+    a_references MEDIUMTEXT NULL,
+    a_content_type VARCHAR (250) NULL,
+    a_body MEDIUMTEXT NULL,
     incoming_time INTEGER NOT NULL,
+    content_path VARCHAR (250) NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
-    INDEX article_search_article_sender_type_id (article_sender_type_id),
-    INDEX article_search_article_type_id (article_type_id),
-    INDEX article_search_ticket_id (ticket_id)
+    INDEX article_data_mime_message_id_md5 (a_message_id_md5)
 );
 # ----------------------------------------------------------
-#  create table article_plain
+#  create table article_search_index
 # ----------------------------------------------------------
-CREATE TABLE article_plain (
+CREATE TABLE article_search_index (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    ticket_id BIGINT NOT NULL,
+    article_id BIGINT NOT NULL,
+    article_key VARCHAR (200) NOT NULL,
+    article_value MEDIUMTEXT NULL,
+    PRIMARY KEY(id),
+    INDEX article_search_index_article_id (article_id, article_key),
+    INDEX article_search_index_ticket_id (ticket_id, article_key)
+);
+# ----------------------------------------------------------
+#  create table article_data_mime_plain
+# ----------------------------------------------------------
+CREATE TABLE article_data_mime_plain (
     id BIGINT NOT NULL AUTO_INCREMENT,
     article_id BIGINT NOT NULL,
     body LONGBLOB NOT NULL,
@@ -631,12 +658,12 @@ CREATE TABLE article_plain (
     change_time DATETIME NOT NULL,
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
-    INDEX article_plain_article_id (article_id)
+    INDEX article_data_mime_plain_article_id (article_id)
 );
 # ----------------------------------------------------------
-#  create table article_attachment
+#  create table article_data_mime_attachment
 # ----------------------------------------------------------
-CREATE TABLE article_attachment (
+CREATE TABLE article_data_mime_attachment (
     id BIGINT NOT NULL AUTO_INCREMENT,
     article_id BIGINT NOT NULL,
     filename VARCHAR (250) NULL,
@@ -645,13 +672,28 @@ CREATE TABLE article_attachment (
     content_id VARCHAR (250) NULL,
     content_alternative VARCHAR (50) NULL,
     disposition VARCHAR (15) NULL,
-    content LONGBLOB NOT NULL,
+    content LONGBLOB NULL,
     create_time DATETIME NOT NULL,
     create_by INTEGER NOT NULL,
     change_time DATETIME NOT NULL,
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
-    INDEX article_attachment_article_id (article_id)
+    INDEX article_data_mime_attachment_article_id (article_id)
+);
+# ----------------------------------------------------------
+#  create table article_data_otrs_chat
+# ----------------------------------------------------------
+CREATE TABLE article_data_otrs_chat (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    article_id BIGINT NOT NULL,
+    chat_participant_id VARCHAR (255) NOT NULL,
+    chat_participant_name VARCHAR (255) NOT NULL,
+    chat_participant_type VARCHAR (255) NOT NULL,
+    message_text TEXT NULL,
+    system_generated SMALLINT NOT NULL,
+    create_time DATETIME NOT NULL,
+    PRIMARY KEY(id),
+    INDEX article_data_otrs_chat_article_id (article_id)
 );
 # ----------------------------------------------------------
 #  create table time_accounting
@@ -871,7 +913,7 @@ CREATE TABLE customer_user (
     login VARCHAR (200) NOT NULL,
     email VARCHAR (150) NOT NULL,
     customer_id VARCHAR (150) NOT NULL,
-    pw VARCHAR (64) NULL,
+    pw VARCHAR (128) NULL,
     title VARCHAR (50) NULL,
     first_name VARCHAR (100) NOT NULL,
     last_name VARCHAR (100) NOT NULL,
@@ -919,6 +961,19 @@ CREATE TABLE customer_company (
     change_by INTEGER NOT NULL,
     PRIMARY KEY(customer_id),
     UNIQUE INDEX customer_company_name (name)
+);
+# ----------------------------------------------------------
+#  create table customer_user_customer
+# ----------------------------------------------------------
+CREATE TABLE customer_user_customer (
+    user_id VARCHAR (100) NOT NULL,
+    customer_id VARCHAR (150) NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    INDEX customer_user_customer_customer_id (customer_id),
+    INDEX customer_user_customer_user_id (user_id)
 );
 # ----------------------------------------------------------
 #  create table mail_account
@@ -1142,7 +1197,7 @@ CREATE TABLE virtual_fs_preferences (
 CREATE TABLE virtual_fs_db (
     id BIGINT NOT NULL AUTO_INCREMENT,
     filename TEXT NOT NULL,
-    content LONGBLOB NOT NULL,
+    content LONGBLOB NULL,
     create_time DATETIME NOT NULL,
     PRIMARY KEY(id),
     INDEX virtual_fs_db_filename (filename(255))
@@ -1172,14 +1227,12 @@ CREATE TABLE gi_webservice_config (
     id INTEGER NOT NULL AUTO_INCREMENT,
     name VARCHAR (200) NOT NULL,
     config LONGBLOB NOT NULL,
-    config_md5 VARCHAR (32) NOT NULL,
     valid_id SMALLINT NOT NULL,
     create_time DATETIME NOT NULL,
     create_by INTEGER NOT NULL,
     change_time DATETIME NOT NULL,
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
-    UNIQUE INDEX gi_webservice_config_config_md5 (config_md5),
     UNIQUE INDEX gi_webservice_config_name (name)
 );
 # ----------------------------------------------------------
@@ -1226,20 +1279,6 @@ CREATE TABLE gi_debugger_entry_content (
     INDEX gi_debugger_entry_content_debug_level (debug_level)
 );
 # ----------------------------------------------------------
-#  create table gi_object_lock_state
-# ----------------------------------------------------------
-CREATE TABLE gi_object_lock_state (
-    webservice_id INTEGER NOT NULL,
-    object_type VARCHAR (30) NOT NULL,
-    object_id BIGINT NOT NULL,
-    lock_state VARCHAR (30) NOT NULL,
-    lock_state_counter INTEGER NOT NULL,
-    create_time DATETIME NOT NULL,
-    change_time DATETIME NOT NULL,
-    UNIQUE INDEX gi_object_lock_state_list (webservice_id, object_type, object_id),
-    INDEX object_lock_state_list_state (webservice_id, object_type, object_id, lock_state)
-);
-# ----------------------------------------------------------
 #  create table smime_signer_cert_relations
 # ----------------------------------------------------------
 CREATE TABLE smime_signer_cert_relations (
@@ -1267,7 +1306,8 @@ CREATE TABLE dynamic_field_value (
     PRIMARY KEY(id),
     INDEX dynamic_field_value_field_values (object_id, field_id),
     INDEX dynamic_field_value_search_date (field_id, value_date),
-    INDEX dynamic_field_value_search_int (field_id, value_int)
+    INDEX dynamic_field_value_search_int (field_id, value_int),
+    INDEX dynamic_field_value_search_text (field_id, value_text(150))
 );
 # ----------------------------------------------------------
 #  create table dynamic_field
@@ -1288,6 +1328,16 @@ CREATE TABLE dynamic_field (
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
     UNIQUE INDEX dynamic_field_name (name)
+);
+# ----------------------------------------------------------
+#  create table dynamic_field_obj_id_name
+# ----------------------------------------------------------
+CREATE TABLE dynamic_field_obj_id_name (
+    object_id INTEGER NOT NULL AUTO_INCREMENT,
+    object_name VARCHAR (200) NOT NULL,
+    object_type VARCHAR (200) NOT NULL,
+    PRIMARY KEY(object_id),
+    UNIQUE INDEX dynamic_field_object_name (object_name, object_type)
 );
 # ----------------------------------------------------------
 #  create table pm_process
@@ -1442,13 +1492,211 @@ CREATE TABLE cloud_service_config (
     id INTEGER NOT NULL AUTO_INCREMENT,
     name VARCHAR (200) NOT NULL,
     config LONGBLOB NOT NULL,
-    config_md5 VARCHAR (32) NOT NULL,
     valid_id SMALLINT NOT NULL,
     create_time DATETIME NOT NULL,
     create_by INTEGER NOT NULL,
     change_time DATETIME NOT NULL,
     change_by INTEGER NOT NULL,
     PRIMARY KEY(id),
-    UNIQUE INDEX cloud_service_config_config_md5 (config_md5),
     UNIQUE INDEX cloud_service_config_name (name)
+);
+# ----------------------------------------------------------
+#  create table sysconfig_default
+# ----------------------------------------------------------
+CREATE TABLE sysconfig_default (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    name VARCHAR (250) NOT NULL,
+    description LONGBLOB NOT NULL,
+    navigation VARCHAR (200) NOT NULL,
+    is_invisible SMALLINT NOT NULL,
+    is_readonly SMALLINT NOT NULL,
+    is_required SMALLINT NOT NULL,
+    is_valid SMALLINT NOT NULL,
+    has_configlevel SMALLINT NOT NULL,
+    user_modification_possible SMALLINT NOT NULL,
+    user_modification_active SMALLINT NOT NULL,
+    user_preferences_group VARCHAR (250) NULL,
+    xml_content_raw LONGBLOB NOT NULL,
+    xml_content_parsed LONGBLOB NOT NULL,
+    xml_filename VARCHAR (250) NOT NULL,
+    effective_value LONGBLOB NOT NULL,
+    is_dirty SMALLINT NOT NULL,
+    exclusive_lock_guid VARCHAR (32) NOT NULL,
+    exclusive_lock_user_id INTEGER NULL,
+    exclusive_lock_expiry_time DATETIME NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    PRIMARY KEY(id),
+    UNIQUE INDEX sysconfig_default_name (name)
+);
+# ----------------------------------------------------------
+#  create table sysconfig_default_version
+# ----------------------------------------------------------
+CREATE TABLE sysconfig_default_version (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    sysconfig_default_id INTEGER NULL,
+    name VARCHAR (250) NOT NULL,
+    description LONGBLOB NOT NULL,
+    navigation VARCHAR (200) NOT NULL,
+    is_invisible SMALLINT NOT NULL,
+    is_readonly SMALLINT NOT NULL,
+    is_required SMALLINT NOT NULL,
+    is_valid SMALLINT NOT NULL,
+    has_configlevel SMALLINT NOT NULL,
+    user_modification_possible SMALLINT NOT NULL,
+    user_modification_active SMALLINT NOT NULL,
+    user_preferences_group VARCHAR (250) NULL,
+    xml_content_raw LONGBLOB NOT NULL,
+    xml_content_parsed LONGBLOB NOT NULL,
+    xml_filename VARCHAR (250) NOT NULL,
+    effective_value LONGBLOB NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    PRIMARY KEY(id)
+);
+# ----------------------------------------------------------
+#  create table sysconfig_modified
+# ----------------------------------------------------------
+CREATE TABLE sysconfig_modified (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    sysconfig_default_id INTEGER NOT NULL,
+    name VARCHAR (250) NOT NULL,
+    user_id INTEGER NULL,
+    is_valid SMALLINT NOT NULL,
+    user_modification_active SMALLINT NOT NULL,
+    effective_value LONGBLOB NOT NULL,
+    is_dirty SMALLINT NOT NULL,
+    reset_to_default SMALLINT NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    PRIMARY KEY(id),
+    UNIQUE INDEX sysconfig_modified_per_user (sysconfig_default_id, user_id)
+);
+# ----------------------------------------------------------
+#  create table sysconfig_modified_version
+# ----------------------------------------------------------
+CREATE TABLE sysconfig_modified_version (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    sysconfig_default_version_id INTEGER NOT NULL,
+    name VARCHAR (250) NOT NULL,
+    user_id INTEGER NULL,
+    is_valid SMALLINT NOT NULL,
+    user_modification_active SMALLINT NOT NULL,
+    effective_value LONGBLOB NOT NULL,
+    reset_to_default SMALLINT NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    PRIMARY KEY(id)
+);
+# ----------------------------------------------------------
+#  create table sysconfig_deployment_lock
+# ----------------------------------------------------------
+CREATE TABLE sysconfig_deployment_lock (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    exclusive_lock_guid VARCHAR (32) NULL,
+    exclusive_lock_user_id INTEGER NULL,
+    exclusive_lock_expiry_time DATETIME NULL,
+    PRIMARY KEY(id)
+);
+# ----------------------------------------------------------
+#  create table sysconfig_deployment
+# ----------------------------------------------------------
+CREATE TABLE sysconfig_deployment (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    comments VARCHAR (250) NULL,
+    user_id INTEGER NULL,
+    effective_value LONGBLOB NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    PRIMARY KEY(id)
+);
+# ----------------------------------------------------------
+#  create table calendar
+# ----------------------------------------------------------
+CREATE TABLE calendar (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    group_id INTEGER NOT NULL,
+    name VARCHAR (200) NOT NULL,
+    salt_string VARCHAR (64) NOT NULL,
+    color VARCHAR (7) NOT NULL,
+    ticket_appointments LONGBLOB NULL,
+    valid_id SMALLINT NOT NULL,
+    create_time DATETIME NOT NULL,
+    create_by INTEGER NOT NULL,
+    change_time DATETIME NOT NULL,
+    change_by INTEGER NOT NULL,
+    PRIMARY KEY(id),
+    UNIQUE INDEX calendar_name (name)
+);
+# ----------------------------------------------------------
+#  create table calendar_appointment
+# ----------------------------------------------------------
+CREATE TABLE calendar_appointment (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    parent_id BIGINT NULL,
+    calendar_id BIGINT NOT NULL,
+    unique_id VARCHAR (255) NOT NULL,
+    title VARCHAR (255) NOT NULL,
+    description TEXT NULL,
+    location VARCHAR (255) NULL,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME NOT NULL,
+    all_day SMALLINT NULL,
+    notify_time DATETIME NULL,
+    notify_template VARCHAR (255) NULL,
+    notify_custom VARCHAR (255) NULL,
+    notify_custom_unit_count BIGINT NULL,
+    notify_custom_unit VARCHAR (255) NULL,
+    notify_custom_unit_point VARCHAR (255) NULL,
+    notify_custom_date DATETIME NULL,
+    team_id TEXT NULL,
+    resource_id TEXT NULL,
+    recurring SMALLINT NULL,
+    recur_type VARCHAR (20) NULL,
+    recur_freq VARCHAR (255) NULL,
+    recur_count INTEGER NULL,
+    recur_interval INTEGER NULL,
+    recur_until DATETIME NULL,
+    recur_id DATETIME NULL,
+    recur_exclude TEXT NULL,
+    ticket_appointment_rule_id VARCHAR (32) NULL,
+    create_time DATETIME NULL,
+    create_by INTEGER NULL,
+    change_time DATETIME NULL,
+    change_by INTEGER NULL,
+    PRIMARY KEY(id)
+);
+# ----------------------------------------------------------
+#  create table calendar_appointment_ticket
+# ----------------------------------------------------------
+CREATE TABLE calendar_appointment_ticket (
+    calendar_id BIGINT NOT NULL,
+    ticket_id BIGINT NOT NULL,
+    rule_id VARCHAR (32) NOT NULL,
+    appointment_id BIGINT NOT NULL,
+    UNIQUE INDEX calendar_appointment_ticket_calendar_id_ticket_id_rule_id (calendar_id, ticket_id, rule_id),
+    INDEX calendar_appointment_ticket_appointment_id (appointment_id),
+    INDEX calendar_appointment_ticket_calendar_id (calendar_id),
+    INDEX calendar_appointment_ticket_rule_id (rule_id),
+    INDEX calendar_appointment_ticket_ticket_id (ticket_id)
+);
+# ----------------------------------------------------------
+#  create table ticket_number_counter
+# ----------------------------------------------------------
+CREATE TABLE ticket_number_counter (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    counter BIGINT NOT NULL,
+    counter_uid VARCHAR (32) NOT NULL,
+    create_time DATETIME NULL,
+    PRIMARY KEY(id),
+    UNIQUE INDEX ticket_number_counter_uid (counter_uid),
+    INDEX ticket_number_counter_create_time (create_time)
 );

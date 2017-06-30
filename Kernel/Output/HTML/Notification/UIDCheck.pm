@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,31 +8,24 @@
 
 package Kernel::Output::HTML::Notification::UIDCheck;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
 
 our @ObjectDependencies = (
-    'Kernel::Output::HTML::Layout'
+    'Kernel::Config',
+    'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
 
     # return if it's not root@localhost
     return '' if $Self->{UserID} != 1;
+
+    # get the product name
+    my $ProductName = $Kernel::OM->Get('Kernel::Config')->Get('ProductName') || 'OTRS';
 
     # get layout object
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
@@ -41,10 +34,10 @@ sub Run {
     return $LayoutObject->Notify(
         Priority => 'Error',
         Link     => $LayoutObject->{Baselink} . 'Action=AdminUser',
-        Data =>
-            $LayoutObject->{LanguageObject}->Translate(
-            "Don't use the Superuser account to work with OTRS! Create new Agents and work with these accounts instead."
-            ),
+        Info     => $LayoutObject->{LanguageObject}->Translate(
+            'Don\'t use the Superuser account to work with %s! Create new Agents and work with these accounts instead.',
+            $ProductName
+        ),
     );
 }
 

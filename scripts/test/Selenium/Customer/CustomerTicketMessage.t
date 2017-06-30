@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,46 +19,44 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # do not check RichText
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
         # do not check Service
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 0
         );
 
         # do not check Type
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Type',
             Value => 0
         );
 
-        my $TestUserLogin = $Helper->TestCustomerUserCreate(
-            Groups => ['admin'],
-        ) || die "Did not get test user";
+        # create test customer user and login
+        my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate(
+        ) || die "Did not get test customer user";
 
         $Selenium->Login(
             Type     => 'Customer',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
+            User     => $TestCustomerUserLogin,
+            Password => $TestCustomerUserLogin,
         );
 
+        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}customer.pl?Action=CustomerTicketMessage");
+
+        # navigate to CustomerTicketMessage screen
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketMessage");
 
         # check CustomerTicketMessage overview screen
         for my $ID (
@@ -72,7 +70,7 @@ $Selenium->RunTest(
 
         # check client side validation
         $Selenium->find_element( "#Subject", 'css' )->clear();
-        $Selenium->find_element( "#Subject", 'css' )->submit();
+        $Selenium->find_element( "#Subject", 'css' )->VerifiedSubmit();
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#Subject').hasClass('Error')"
@@ -81,50 +79,90 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value',
         );
 
-        $Selenium->get("${ScriptAlias}customer.pl?Action=CustomerTicketMessage");
-
         # input fields and create ticket
         my $SubjectRandom = "Subject" . $Helper->GetRandomID();
         my $TextRandom    = "Text" . $Helper->GetRandomID();
         $Selenium->execute_script("\$('#Dest').val('2||Raw').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Subject",                     'css' )->send_keys($SubjectRandom);
-        $Selenium->find_element( "#RichText",                    'css' )->send_keys($TextRandom);
-        $Selenium->find_element( "#submitRichText",              'css' )->click();
+        $Selenium->find_element( "#Subject",        'css' )->send_keys($SubjectRandom);
+        $Selenium->find_element( "#RichText",       'css' )->send_keys($TextRandom);
+        $Selenium->find_element( "#submitRichText", 'css' )->VerifiedClick();
 
-        # Wait until form has loaded, if neccessary
-        sleep 3;
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("div#MainBox").length' );
+        # get ticket object
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-        # search for new created ticket on CustomerTicketOverview screen
-        my %TicketIDs = $Kernel::OM->Get('Kernel::System::Ticket')->TicketSearch(
+        # get test created ticket ID and number
+        my %TicketIDs = $TicketObject->TicketSearch(
             Result         => 'HASH',
             Limit          => 1,
-            CustomerUserID => $TestUserLogin,
+            CustomerUserID => $TestCustomerUserLogin,
         );
-        my $TicketNumber = (%TicketIDs)[1];
         my $TicketID     = (%TicketIDs)[0];
+        my $TicketNumber = (%TicketIDs)[1];
 
         $Self->True(
             $TicketID,
             "Ticket was created and found",
         ) || die;
 
+        # search for new created ticket on CustomerTicketOverview screen
         $Self->True(
             index( $Selenium->get_page_source(), $TicketNumber ) > -1,
-            "Ticket with ticket id $TicketID is created"
+            "Ticket with ticket ID $TicketID - found on CustomerTicketOverview screen"
         ) || die;
 
+        # Check URL preselection of queue
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketMessage;Dest=3||Junk");
+
+        $Self->Is(
+            $Selenium->execute_script("return \$('#Dest').val();"),
+            '3||Junk',
+            "Queue preselected in URL"
+        );
+
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'CustomerPanelOwnSelection',
+            Value => {
+                Junk => 'First Queue',
+            },
+        );
+
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketMessage;Dest=3||Junk");
+
+        $Self->Is(
+            $Selenium->execute_script("return \$('#Dest').val();"),
+            '3||First Queue',
+            "Queue preselected in URL"
+        );
+
+        # test prefilling of some parameters with StoreNew
+        $Selenium->VerifiedGet(
+            "${ScriptAlias}customer.pl?Action=CustomerTicketMessage;Subject=TestSubject;Body=TestBody;Subaction=StoreNew;Expand=1"
+        );
+
+        $Self->Is(
+            $Selenium->execute_script("return \$('#Subject').val();"),
+            'TestSubject',
+            "Subject preselected in URL"
+        );
+
+        $Self->Is(
+            $Selenium->execute_script("return \$('#RichText').val();"),
+            'TestBody',
+            "Subject preselected in URL"
+        );
+
         # clean up test data from the DB
-        my $Success = $Kernel::OM->Get('Kernel::System::Ticket')->TicketDelete(
+        my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => 1,
         );
         $Self->True(
             $Success,
-            "Ticket with ticket id $TicketID is deleted"
+            "Ticket with ticket ID $TicketID is deleted"
         );
 
-        # make sure the cache is correct.
+        # make sure the cache is correct
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Ticket' );
     }
 );

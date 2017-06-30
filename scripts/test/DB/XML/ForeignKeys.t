@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,14 @@ use vars (qw($Self));
 # get needed objects
 my $DBObject  = $Kernel::OM->Get('Kernel::System::DB');
 my $XMLObject = $Kernel::OM->Get('Kernel::System::XML');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # ------------------------------------------------------------ #
 # check foreign keys
@@ -93,7 +101,30 @@ for my $SQL (@SQL) {
 @SQL = $DBObject->SQLProcessorPost();
 $Self->True(
     $SQL[0],
-    'SQLProcessorPost() ALTER TABLE',
+    'SQLProcessorPost() CREATE TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() CREATE TABLE ($SQL)",
+    );
+}
+
+# try to add the same foreign key again
+$XML = '
+<TableAlter Name="test_foreignkeys_2">
+    <ForeignKeyCreate ForeignTable="test_foreignkeys_1">
+        <Reference Local="name_a" Foreign="name_a"/>
+    </ForeignKeyCreate>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
 );
 
 for my $SQL (@SQL) {
@@ -104,6 +135,29 @@ for my $SQL (@SQL) {
 }
 
 # remove the foreign key
+$XML = '
+<TableAlter Name="test_foreignkeys_2">
+    <ForeignKeyDrop ForeignTable="test_foreignkeys_1">
+        <Reference Local="name_a" Foreign="name_a"/>
+    </ForeignKeyDrop>
+</TableAlter>
+';
+@XMLARRAY = $XMLObject->XMLParse( String => $XML );
+
+@SQL = $DBObject->SQLProcessor( Database => \@XMLARRAY );
+$Self->True(
+    $SQL[0],
+    'SQLProcessor() ALTER TABLE',
+);
+
+for my $SQL (@SQL) {
+    $Self->True(
+        $DBObject->Do( SQL => $SQL ) || 0,
+        "Do() ALTER TABLE ($SQL)",
+    );
+}
+
+# remove the same foreign key again (should be fine)
 $XML = '
 <TableAlter Name="test_foreignkeys_2">
     <ForeignKeyDrop ForeignTable="test_foreignkeys_1">
@@ -167,5 +221,7 @@ for my $SQL (@SQL) {
         "Do() DROP TABLE ($SQL)",
     );
 }
+
+# cleanup cache is done by RestoreDatabase.
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,28 +8,20 @@
 
 package Kernel::Output::HTML::TicketMenu::TicketWatcher;
 
+use parent 'Kernel::Output::HTML::Base';
+
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::Config',
+    'Kernel::System::Group',
     'Kernel::System::Ticket',
     'Kernel::Output::HTML::Layout',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    # get UserID param
-    $Self->{UserID} = $Param{UserID} || die "Got no UserID!";
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -68,14 +60,16 @@ sub Run {
     my $Access = 1;
     if (@Groups) {
         $Access = 0;
+        my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
         GROUP:
         for my $Group (@Groups) {
 
-            # get layout object
-            my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-
-            next GROUP if !$LayoutObject->{"UserIsGroup[$Group]"};
-            if ( $LayoutObject->{"UserIsGroup[$Group]"} eq 'Yes' ) {
+            my $HasPermission = $GroupObject->PermissionCheck(
+                UserID    => $Self->{UserID},
+                GroupName => $Group,
+                Type      => 'rw',
+            );
+            if ($HasPermission) {
                 $Access = 1;
                 last GROUP;
             }
@@ -94,8 +88,8 @@ sub Run {
             %{ $Param{Config} },
             %{ $Param{Ticket} },
             %Param,
-            Name        => 'Unwatch',
-            Description => 'Remove from list of watched tickets',
+            Name        => Translatable('Unwatch'),
+            Description => Translatable('Remove from list of watched tickets'),
             Link =>
                 'Action=AgentTicketWatcher;Subaction=Unsubscribe;TicketID=[% Data.TicketID | uri %];[% Env("ChallengeTokenParam") | html %]',
         };
@@ -106,8 +100,8 @@ sub Run {
         %{ $Param{Config} },
         %{ $Param{Ticket} },
         %Param,
-        Name        => 'Watch',
-        Description => 'Add to list of watched tickets',
+        Name        => Translatable('Watch'),
+        Description => Translatable('Add to list of watched tickets'),
         Link =>
             'Action=AgentTicketWatcher;Subaction=Subscribe;TicketID=[% Data.TicketID | uri %];[% Env("ChallengeTokenParam") | html %]',
     };

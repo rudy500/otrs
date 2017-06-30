@@ -1,11 +1,12 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
+## no critic (Modules::RequireExplicitPackage)
 use strict;
 use warnings;
 use utf8;
@@ -14,16 +15,28 @@ use vars (qw($Self));
 
 use Kernel::System::PostMaster;
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $MainObject   = $Kernel::OM->Get('Kernel::System::Main');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Email',
+);
 
-my @Tickets;
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# define needed variable
+my $RandomID = $Helper->GetRandomID();
+
 for my $File (qw(1 2 3 5 6 11 21)) {
 
     # create random message ID
-    my $MessageID = '<message' . time() . ( int rand 1000000 ) . '@example.com>';
+    my $MessageID = '<message' . $RandomID . $File . '@example.com>';
 
     # new ticket check
     my $Location = $ConfigObject->Get('Home')
@@ -65,30 +78,18 @@ for my $File (qw(1 2 3 5 6 11 21)) {
         ' Run() - NewTicket',
     );
 
-    my $TicketID = $TicketObject->ArticleGetTicketIDOfMessageID(
+    my %Article = $ArticleBackendObject->ArticleGetByMessageID(
         MessageID => $MessageID,
+        UserID    => 1,
     );
 
     $Self->Is(
-        $TicketID,
+        $Article{TicketID},
         $Return[1],
-        "ArticleGetTicketIDOfMessageID - TicketID for message ID $MessageID"
-    );
-
-    push @Tickets, $Return[1];
-}
-
-for my $TicketID (@Tickets) {
-
-    my $Success = $TicketObject->TicketDelete(
-        TicketID => $TicketID,
-        UserID   => 1,
-    );
-
-    $Self->True(
-        $Success,
-        "TicketDelete - removed ticket $TicketID",
+        "ArticleGetByMessageID - TicketID for message ID $MessageID"
     );
 }
+
+# cleanup is done by RestoreDatabase.
 
 1;

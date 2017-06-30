@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,66 +13,89 @@ use utf8;
 use vars (qw($Self));
 
 # get selenium object
-$Kernel::OM->ObjectParamAdd(
-    'Kernel::System::UnitTest::Selenium' => {
-        Verbose => 1,
-        }
-);
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
+        # get needed objects
+        my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
+        my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
+        my $TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
+
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-                }
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+        # disable check email addresses
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
 
         # do not check RichText
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
         # do not check service and type
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 0
         );
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Type',
             Value => 0
         );
 
-        # create test user and login
+        # create test user
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
-
-        $Selenium->Login(
-            Type     => 'Agent',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
-        );
 
         # get test user ID
         my $TestUserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        # get ticket object
-        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+        # get needed variables
+        my $RandomID = $Helper->GetRandomID();
+        my $DFName   = 'DF' . $RandomID;
 
-        # create test ticcket
+        # create a test dynamic field
+        my $FieldID = $DynamicFieldObject->DynamicFieldAdd(
+            Name       => $DFName,
+            Label      => 'TestDF',
+            FieldOrder => 9991,
+            FieldType  => 'Multiselect',
+            ObjectType => 'Ticket',
+            Config     => {
+                DefaultValue   => '',
+                PossibleNone   => '0',
+                PossibleValues => {
+                    Key1 => '1',
+                    Key2 => '2',
+                },
+                TranslatableValues => '0',
+                TreeView           => '0',
+            },
+            ValidID => 1,
+            UserID  => $TestUserID,
+        );
+
+        # enable test dynamic field to show in AgentTicketEmailOutbound screen
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::AgentTicketEmailOutbound###DynamicField',
+            Value => {
+                $DFName => 1,
+            },
+        );
+
+        # create test ticket
         my $TicketID = $TicketObject->TicketCreate(
             TN           => $TicketObject->TicketCreateNumber(),
             Title        => "Selenium Test Ticket",
@@ -85,15 +108,14 @@ $Selenium->RunTest(
             OwnerID      => $TestUserID,
             UserID       => $TestUserID,
         );
-
         $Self->True(
             $TicketID,
             "Ticket is created - $TicketID",
         );
 
         # add test customer for testing
-        my $TestCustomer = 'Customer' . $Helper->GetRandomID();
-        my $UserLogin    = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
+        my $TestCustomer       = 'Customer' . $Helper->GetRandomID();
+        my $TestCustomerUserID = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserAdd(
             Source         => 'CustomerUser',
             UserFirstname  => $TestCustomer,
             UserLastname   => $TestCustomer,
@@ -103,37 +125,85 @@ $Selenium->RunTest(
             ValidID        => 1,
             UserID         => $TestUserID,
         );
+        $Self->True(
+            $TestCustomerUserID,
+            "CustomerUserAdd - $TestCustomerUserID"
+        );
 
-        # naviage to zoom view of created test ticket
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketEmailOutbound;TicketID=$TicketID");
+        # login
+        $Selenium->Login(
+            Type     => 'Agent',
+            User     => $TestUserLogin,
+            Password => $TestUserLogin,
+        );
+
+        # get script alias
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+
+        # navigate to AgentTicketEmailOutbound screen of created test ticket
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketEmailOutbound;TicketID=$TicketID");
+
+        my $TestDynamicField = 'DynamicField_' . $DFName;
+        my @Elements         = (
+            'ToCustomer',
+            'Subject',
+            'RichText',
+            'FileUpload',
+            'ComposeStateID',
+            'submitRichText',
+            $TestDynamicField
+        );
 
         # check page
-        for my $ID (
-            qw(ToCustomer Subject RichText FileUpload ComposeStateID ArticleTypeID submitRichText)
-            )
-        {
+        for my $ID (@Elements) {
             my $Element = $Selenium->find_element( "#$ID", 'css' );
             $Element->is_enabled();
             $Element->is_displayed();
         }
 
-        # fill in customer
-        my $AutoCompleteString = "\"$TestCustomer $TestCustomer\" <$TestCustomer\@localhost.com> ($TestCustomer)";
-        $Selenium->find_element( "#ToCustomer", 'css' )->send_keys($TestCustomer);
-        sleep 1;
-        $Selenium->find_element("//*[text()='$AutoCompleteString']")->click();
-        $Selenium->find_element( "#Subject",    'css' )->send_keys("TestSubject");
-        $Selenium->find_element( "#ToCustomer", 'css' )->submit();
+        # get state ID for 'open' state
+        my $StateObject = $Kernel::OM->Get('Kernel::System::State');
+        my $StateID     = $StateObject->StateLookup(
+            State => 'open',
+        );
 
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
+        # check update form with JS for dynamic field
+        $Self->Is(
+            $Selenium->execute_script("return \$('#AJAXLoaderDynamicField_$DFName').length"),
+            0,
+            "AJAX Loader for '$DFName' does not exist",
+        );
+        $Selenium->execute_script(
+            "\$('#ComposeStateID').val('$StateID').trigger('redraw.InputField').trigger('change')"
+        );
+
+        # wait for appearance of ajax update field
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('#AJAXLoaderDynamicField_$DFName').length"
+        );
+        $Self->Is(
+            $Selenium->execute_script("return \$('#AJAXLoaderDynamicField_$DFName').length"),
+            1,
+            "AJAX Loader for '$DFName' exists - JS function was run",
+        );
+
+        # fill in customer
+        $Selenium->find_element( "#ToCustomer", 'css' )->send_keys($TestCustomer);
+
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
+
+        $Selenium->find_element("//*[text()='$TestCustomer']")->VerifiedClick();
+        $Selenium->find_element( "#Subject",    'css' )->send_keys("TestSubject");
+        $Selenium->find_element( "#ToCustomer", 'css' )->VerifiedSubmit();
+
+        # navigate to AgentTicketHistory of created test ticket
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
 
         # confirm email outbound action
-        my $PriorityMsg = "Email sent to customer.";
         $Self->True(
-            index( $Selenium->get_page_source(), $PriorityMsg ) > -1,
+            index( $Selenium->get_page_source(), "Email sent to customer." ) > -1,
             "Ticket email outbound completed",
-        );
+        ) || die "Ticket email outbound not completed";
 
         # delete created test tickets
         my $Success = $TicketObject->TicketDelete(
@@ -142,7 +212,17 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Delete ticket - $TicketID"
+            "TicketID $TicketID is deleted",
+        );
+
+        # delete test created dynamic field
+        $Success = $DynamicFieldObject->DynamicFieldDelete(
+            ID     => $FieldID,
+            UserID => $TestUserID,
+        );
+        $Self->True(
+            $Success,
+            "DynamicFieldID $FieldID is deleted",
         );
 
         # delete created test customer user
@@ -154,13 +234,11 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Delete customer user - $TestCustomer",
+            "CustomerUser $TestCustomer is deleted",
         );
 
-        # make sure the cache is correct.
-        for my $Cache (
-            qw (Ticket CustomerUser )
-            )
+        # make sure the cache is correct
+        for my $Cache (qw(Ticket CustomerUser))
         {
             $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
                 Type => $Cache,

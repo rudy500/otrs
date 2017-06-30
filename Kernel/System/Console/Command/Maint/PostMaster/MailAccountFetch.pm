@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Maint::PostMaster::MailAccountFetch;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
@@ -91,12 +91,34 @@ sub Run {
         next KEY if ( $MailAccountID && $Key != $MailAccountID );
         my %Data = $MailAccountObject->MailAccountGet( ID => $Key );
         $Self->Print("<yellow>$Data{Host} ($Data{Type})...</yellow>\n");
-        my $Status = $MailAccountObject->MailAccountFetch(
-            %Data,
-            Debug  => $Self->GetOption('debug'),
-            CMD    => 1,
-            UserID => 1,
-        );
+        my $Status;
+
+        # It is needed for capture the standard error.
+        my $ErrorMessage;
+
+        eval {
+
+            # Localize the standard error, everything will be restored after the eval block.
+            local *STDERR;
+
+            # Redirect the standard error to a variable.
+            open STDERR, ">>", \$ErrorMessage;
+
+            $Status = $MailAccountObject->MailAccountFetch(
+                %Data,
+                Debug  => $Self->GetOption('debug'),
+                CMD    => 1,
+                UserID => 1,
+            );
+        };
+
+        # Hide password contained in error message and print message back to standard error.
+        # Please see bug#12829 for more information.
+        if ($ErrorMessage) {
+            $ErrorMessage =~ s/\Q$Data{Password}\E/********/g;
+            print STDERR $ErrorMessage;
+        }
+
         if ($Status) {
             $FetchedCount++;
         }
@@ -137,15 +159,3 @@ sub PostRun {
 }
 
 1;
-
-=back
-
-=head1 TERMS AND CONDITIONS
-
-This software is part of the OTRS project (L<http://otrs.org/>).
-
-This software comes with ABSOLUTELY NO WARRANTY. For details, see
-the enclosed file COPYING for license information (AGPL). If you
-did not receive this file, see L<http://www.gnu.org/licenses/agpl.txt>.
-
-=cut

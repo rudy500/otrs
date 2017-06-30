@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,8 @@ use strict;
 use warnings;
 
 our $ObjectManagerDisabled = 1;
+
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -144,7 +146,7 @@ sub Run {
             if ( !$Param{Bcc} ) {
                 $Note = $LayoutObject->Notify(
                     Priority => 'Error',
-                    Info     => 'Select at least one recipient.'
+                    Info     => Translatable('Select at least one recipient.'),
                 );
                 $Errors{BccInvalid} = 'ServerError';
             }
@@ -180,9 +182,16 @@ sub Run {
                     return $LayoutObject->ErrorScreen();
                 }
 
+                my $BccText = $Param{Bcc};
+                $BccText =~ s{(.*?),\s$}{$1}gsmx;
+                $BccText .= ".";
+
                 $LayoutObject->Block(
                     Name => 'Sent',
-                    Data => \%Param,
+                    Data => {
+                        %Param,
+                        Bcc => $BccText,
+                    },
                 );
                 my $Output = $LayoutObject->Header();
                 $Output .= $LayoutObject->NavigationBar();
@@ -202,18 +211,24 @@ sub Run {
 
     # add rich text editor
     if ( $LayoutObject->{BrowserRichText} ) {
-        $LayoutObject->Block(
-            Name => 'RichText',
+
+        # set up rich text editor
+        $LayoutObject->SetRichTextParameters(
             Data => \%Param,
         );
     }
     $Param{UserOption} = $LayoutObject->BuildSelection(
-        Data        => { $UserObject->UserList( Valid => 1 ) },
+        Data => {
+            $UserObject->UserList(
+                Valid => 1,
+                Type  => 'Long',
+            ),
+        },
         Name        => 'UserIDs',
         Size        => 6,
         Multiple    => 1,
         Translation => 0,
-        Class => 'Modernize ' . ( $Errors{BccInvalid} || '' ),
+        Class       => 'Modernize ' . ( $Errors{BccInvalid} || '' ),
     );
 
     $Param{GroupOption} = $LayoutObject->BuildSelection(

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,54 +14,53 @@ use vars (qw($Self));
 
 use Kernel::System::VariableCheck qw(:all);
 
-# get needed objects
+# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+$ConfigObject->Set(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
+
+$ConfigObject->Set(
+    Key   => 'Ticket::Article::Backend::MIMEBase###ArticleStorage',
+    Value => 'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorageDB',
+);
 
 my $UserID = 1;
 
-# ticket index accelerator tests
-for my $Module ( 'RuntimeDB', 'StaticDB' ) {
+# get a random id
+my $RandomID = $Helper->GetRandomID();
 
-    # get a random id
-    my $RandomID = $HelperObject->GetRandomID();
+# Make sure that the ticket and article objects get recreated for each loop.
+$Kernel::OM->ObjectsDiscard(
+    Objects => [
+        'Kernel::System::Ticket',
+        'Kernel::System::Ticket::Article',
+    ],
+);
 
-    # Make sure that the TicketObject gets recreated for each loop.
-    $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Ticket'] );
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel(
+    ChannelName => 'Internal',
+);
 
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+my @TicketIDs;
 
-    $ConfigObject->Set(
-        Key   => 'Ticket::IndexModule',
-        Value => "Kernel::System::Ticket::IndexAccelerator::$Module",
-    );
-
-    $ConfigObject->Set(
-        Key   => 'CheckEmailAddresses',
-        Value => 0,
-    );
-
-    $ConfigObject->Set(
-        Key   => 'Ticket::StorageModule',
-        Value => 'Kernel::System::Ticket::ArticleStorageDB',
-    );
-
-    # create test ticket object
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-
-    $Self->True(
-        $TicketObject->isa("Kernel::System::Ticket::IndexAccelerator::$Module"),
-        "TicketObject loaded the correct backend",
-    );
-
-    # ticket id container
-    my @TicketIDs;
-
-    # create 2 tickets
-    # create ticket 1
-    my $TicketID1 = $TicketObject->TicketCreate(
-        Title => 'Ticket One Title' . $RandomID,
-        ,
+# create tickets
+for my $TitleDataItem ( 'Ticket One Title', 'Ticket Two Title' ) {
+    my $TicketID = $TicketObject->TicketCreate(
+        Title        => "$TitleDataItem$RandomID",
         Queue        => 'Raw',
         Lock         => 'unlock',
         Priority     => '3 normal',
@@ -74,198 +73,110 @@ for my $Module ( 'RuntimeDB', 'StaticDB' ) {
 
     # sanity check
     $Self->True(
-        $TicketID1,
-        "$Module TicketCreate() successful for Ticket One ID $TicketID1",
+        $TicketID,
+        "TicketCreate() successful for Ticket ID $TicketID",
     );
 
     # get the Ticket entry
-    my %TicketEntryOne = $TicketObject->TicketGet(
-        TicketID      => $TicketID1,
+    my %TicketEntry = $TicketObject->TicketGet(
+        TicketID      => $TicketID,
         DynamicFields => 0,
         UserID        => $UserID,
     );
 
     $Self->True(
-        IsHashRefWithData( \%TicketEntryOne ),
-        "$Module TicketGet() successful for Local TicketGet One ID $TicketID1",
+        IsHashRefWithData( \%TicketEntry ),
+        "TicketGet() successful for Local TicketGet ID $TicketID",
     );
 
-    # add ticket id
-    push @TicketIDs, $TicketID1;
+    push @TicketIDs, $TicketID;
+}
 
-    # create ticket 2
-    my $TicketID2 = $TicketObject->TicketCreate(
-        Title        => 'Ticket Two Title ' . $RandomID,
-        Queue        => 'Raw',
-        Lock         => 'unlock',
-        Priority     => '3 normal',
-        State        => 'new',
-        CustomerID   => '123465' . $RandomID,
-        CustomerUser => 'customerOne@example.com',
-        OwnerID      => 1,
-        UserID       => 1,
-    );
-
-    # sanity check
-    $Self->True(
-        $TicketID2,
-        "$Module TicketCreate() successful for Ticket Two ID $TicketID2",
-    );
-
-    # get the Ticket entry
-    my %TicketEntryTwo = $TicketObject->TicketGet(
-        TicketID      => $TicketID2,
-        DynamicFields => 0,
-        UserID        => $UserID,
-    );
-
-    $Self->True(
-        IsHashRefWithData( \%TicketEntryTwo ),
-        "$Module TicketGet() successful for Local TicketGet Two ID $TicketID2",
-    );
-
-    # add ticket id
-    push @TicketIDs, $TicketID2;
-
-    my $TicketCounter = 1;
-
-    # create article
-    my $ArticleID = $TicketObject->ArticleCreate(
-        TicketID       => $TicketID1,
-        ArticleType    => 'note-internal',
-        SenderType     => 'agent',
-        From           => 'Agent Some Agent Some Agent <email@example.com>',
-        To             => 'Customer A <customer-a@example.com>',
-        Cc             => 'Customer B <customer-b@example.com>',
-        ReplyTo        => 'Customer B <customer-b@example.com>',
-        Subject        => 'Kumbala' . $RandomID,
-        Body           => 'A text for the body, Title äöüßÄÖÜ€ис',
-        ContentType    => 'text/plain; charset=ISO-8859-15',
-        HistoryType    => 'OwnerUpdate',
-        HistoryComment => 'first article',
-        UserID         => 1,
-        NoAgentNotify  => 1,
-    );
-    $Self->IsNot(
-        $ArticleID,
-        undef,
-        "$Module ArticleCreate() for $TicketID1 | ArticleID is not undef"
-    );
-
-    $ArticleID = $TicketObject->ArticleCreate(
-        TicketID       => $TicketID2,
-        ArticleType    => 'note-external',
-        SenderType     => 'agent',
-        From           => 'Agent Some Agent Some Agent <email@example.com>',
-        To             => 'Customer A <customer-a@example.com>',
-        Cc             => 'Customer B <customer-b@example.com>',
-        ReplyTo        => 'Customer B <customer-b@example.com>',
-        Subject        => 'Kumbala' . $RandomID,
-        Body           => 'A text for the body, Title äöüßÄÖÜ€ис',
-        ContentType    => 'text/plain; charset=ISO-8859-15',
-        HistoryType    => 'OwnerUpdate',
-        HistoryComment => 'first article',
-        UserID         => 1,
-        NoAgentNotify  => 1,
-    );
-    $Self->IsNot(
-        $ArticleID,
-        undef,
-        "$Module ArticleCreate() for $TicketID2 | ArticleID is not undef"
-    );
-
-    # create a common article
-    for my $TicketID ( $TicketID1, $TicketID2 ) {
-        my $ArticleID = $TicketObject->ArticleCreate(
-            TicketID       => $TicketID,
-            ArticleType    => 'note-external',
-            SenderType     => 'agent',
-            From           => 'Agent Some Agent Some Agent <email@example.com>',
-            To             => 'Customer A <customer-a@example.com>',
-            Cc             => 'Customer B <customer-b@example.com>',
-            ReplyTo        => 'Customer B <customer-b@example.com>',
-            Subject        => 'Acua' . $RandomID,
-            Body           => 'A text for the body, Title äöüßÄÖÜ€ис',
-            ContentType    => 'text/plain; charset=ISO-8859-15',
-            HistoryType    => 'OwnerUpdate',
-            HistoryComment => 'first article',
-            UserID         => 1,
-            NoAgentNotify  => 1,
+# Create articles (article not visible for customer only for first article of first ticket).
+for my $Item ( 0 .. 1 ) {
+    for my $SubjectDataItem (qw( Kumbala Acua )) {
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $TicketIDs[$Item],
+            IsVisibleForCustomer => ( $Item == 0 && $SubjectDataItem eq 'Kumbala' ) ? 1 : 0,
+            SenderType           => 'agent',
+            From                 => 'Agent Some Agent Some Agent <email@example.com>',
+            To                   => 'Customer A <customer-a@example.com>',
+            Cc                   => 'Customer B <customer-b@example.com>',
+            ReplyTo              => 'Customer B <customer-b@example.com>',
+            Subject              => "$SubjectDataItem$RandomID",
+            Body                 => 'A text for the body, Title äöüßÄÖÜ€ис',
+            ContentType          => 'text/plain; charset=ISO-8859-15',
+            HistoryType          => 'OwnerUpdate',
+            HistoryComment       => 'first article',
+            UserID               => 1,
+            NoAgentNotify        => 1,
         );
-        $Self->IsNot(
-            $ArticleID,
-            undef,
-            "$Module ArticleCreate() for $TicketID | ArticleID is not undef"
-        );
-    }
-
-    # actual tests
-    my @Tests = (
-        {
-            Name   => 'Agent Interface (Internal/External)',
-            Config => {
-                Subject => 'Kumbala' . $RandomID,
-                UserID  => 1,
-            },
-            ExpectedResults => [ $TicketID1, $TicketID2 ],
-        },
-        {
-            Name   => 'Customer Interface (Internal/External)',
-            Config => {
-                Subject        => 'Kumbala' . $RandomID,
-                CustomerUserID => 'customerOne@example.com',
-            },
-            ExpectedResults => [$TicketID2],
-            ForBothStorages => 1,
-        },
-        {
-            Name   => 'Customer Interface (External/External)',
-            Config => {
-                Subject => 'Acua' . $RandomID,
-                UserID  => 1,
-            },
-            ExpectedResults => [ $TicketID1, $TicketID2 ],
-        },
-    );
-
-    for my $Test (@Tests) {
-
-        my @FoundTicketIDs = $TicketObject->TicketSearch(
-            Result              => 'ARRAY',
-            SortBy              => 'Age',
-            OrderBy             => 'Down',
-            Limit               => 100,
-            UserID              => 1,
-            ConditionInline     => 0,
-            ContentSearchPrefix => '*',
-            ContentSearchSuffix => '*',
-            FullTextIndex       => 1,
-            %{ $Test->{Config} },
-        );
-
-        @FoundTicketIDs = sort @FoundTicketIDs;
-
-        $Self->IsDeeply(
-            \@FoundTicketIDs,
-            $Test->{ExpectedResults},
-            "$Module $Test->{Name} TicketSearch() -"
-        );
-    }
-
-    for my $TicketID (@TicketIDs) {
-
-        # delete the ticket Three
-        my $TicketDelete = $TicketObject->TicketDelete(
-            TicketID => $TicketID,
-            UserID   => 1,
-        );
-
-        # sanity check
         $Self->True(
-            $TicketDelete,
-            "$Module TicketDelete() successful for Ticket ID $TicketID",
+            $ArticleID,
+            "Article is created - $ArticleID "
+        );
+
+        $ArticleObject->ArticleSearchIndexBuild(
+            TicketID  => $TicketIDs[$Item],
+            ArticleID => $ArticleID,
+            UserID    => 1,
         );
     }
 }
+
+# actual tests
+my @Tests = (
+    {
+        Name   => 'Agent Interface (Internal/External)',
+        Config => {
+            MIMEBase_Subject => 'Kumbala' . $RandomID,
+            UserID           => 1,
+        },
+        ExpectedResults => [ $TicketIDs[0], $TicketIDs[1] ],
+    },
+    {
+        Name   => 'Customer Interface (Internal/External)',
+        Config => {
+            MIMEBase_Subject => 'Kumbala' . $RandomID,
+            CustomerUserID   => 'customerOne@example.com',
+        },
+        ExpectedResults => [ $TicketIDs[0] ],
+        ForBothStorages => 1,
+    },
+    {
+        Name   => 'Customer Interface (External/External)',
+        Config => {
+            MIMEBase_Subject => 'Acua' . $RandomID,
+            UserID           => 1,
+        },
+        ExpectedResults => [ $TicketIDs[0], $TicketIDs[1] ],
+    },
+);
+
+for my $Test (@Tests) {
+
+    my @FoundTicketIDs = $TicketObject->TicketSearch(
+        Result              => 'ARRAY',
+        SortBy              => 'Age',
+        OrderBy             => 'Down',
+        Limit               => 100,
+        UserID              => 1,
+        ConditionInline     => 0,
+        ContentSearchPrefix => '*',
+        ContentSearchSuffix => '*',
+        FullTextIndex       => 1,
+        %{ $Test->{Config} },
+    );
+
+    @FoundTicketIDs = sort @FoundTicketIDs;
+
+    $Self->IsDeeply(
+        \@FoundTicketIDs,
+        $Test->{ExpectedResults},
+        "$Test->{Name} TicketSearch() -"
+    );
+}
+
+# cleanup is done by RestoreDatabase.
 
 1;

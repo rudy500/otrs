@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -34,8 +34,7 @@ sub Send {
     my $Emails = $Kernel::OM->Get('Kernel::System::Cache')->Get(
         Key  => $Self->{CacheKey},
         Type => $Self->{CacheType},
-    );
-    $Emails //= [];
+    ) // [];
 
     push @{$Emails}, \%Param;
 

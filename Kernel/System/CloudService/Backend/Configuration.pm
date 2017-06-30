@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,7 +19,6 @@ our @ObjectDependencies = (
     'Kernel::System::DB',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
     'Kernel::System::Valid',
     'Kernel::System::YAML',
 );
@@ -28,22 +27,16 @@ our @ObjectDependencies = (
 
 Kernel::System::CloudService::Backend::Configuration
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 CloudService configuration backend.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $CloudServiceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::CloudService');
 
 =cut
@@ -58,7 +51,7 @@ sub new {
     return $Self;
 }
 
-=item CloudServiceAdd()
+=head2 CloudServiceAdd()
 
 add new CloudServices
 
@@ -96,13 +89,17 @@ sub CloudServiceAdd {
         return;
     }
 
+    my %ExistingCloudServices = reverse %{ $Self->CloudServiceList( Valid => 0 ) };
+    if ( $ExistingCloudServices{ $Param{Name} } ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "A CloudService with the name $Param{Name} already exists.",
+        );
+        return;
+    }
+
     # dump config as string
     my $Config = $Kernel::OM->Get('Kernel::System::YAML')->Dump( Data => $Param{Config} );
-
-    # md5 of content
-    my $MD5 = $Kernel::OM->Get('Kernel::System::Main')->MD5sum(
-        String => $Kernel::OM->Get('Kernel::System::Time')->SystemTime() . int( rand(1000000) ),
-    );
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -110,18 +107,18 @@ sub CloudServiceAdd {
     # sql
     return if !$DBObject->Do(
         SQL =>
-            'INSERT INTO cloud_service_config (name, config, config_md5, valid_id, '
+            'INSERT INTO cloud_service_config (name, config, valid_id, '
             . ' create_time, create_by, change_time, change_by)'
-            . ' VALUES (?, ?, ?, ?, current_timestamp, ?, current_timestamp, ?)',
+            . ' VALUES (?, ?, ?, current_timestamp, ?, current_timestamp, ?)',
         Bind => [
-            \$Param{Name}, \$Config, \$MD5, \$Param{ValidID},
+            \$Param{Name}, \$Config, \$Param{ValidID},
             \$Param{UserID}, \$Param{UserID},
         ],
     );
 
     return if !$DBObject->Prepare(
-        SQL  => 'SELECT id FROM cloud_service_config WHERE config_md5 = ?',
-        Bind => [ \$MD5 ],
+        SQL  => 'SELECT id FROM cloud_service_config WHERE name = ?',
+        Bind => [ \$Param{Name} ],
     );
 
     my $ID;
@@ -137,7 +134,7 @@ sub CloudServiceAdd {
     return $ID;
 }
 
-=item CloudServiceGet()
+=head2 CloudServiceGet()
 
 get CloudServices attributes
 
@@ -245,7 +242,7 @@ sub CloudServiceGet {
     return \%Data;
 }
 
-=item CloudServiceUpdate()
+=head2 CloudServiceUpdate()
 
 update CloudService attributes
 
@@ -284,13 +281,17 @@ sub CloudServiceUpdate {
         return;
     }
 
+    my %ExistingCloudServices = reverse %{ $Self->CloudServiceList( Valid => 0 ) };
+    if ( $ExistingCloudServices{ $Param{Name} } != $Param{ID} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "A CloudService with the name $Param{Name} already exists.",
+        );
+        return;
+    }
+
     # dump config as string
     my $Config = $Kernel::OM->Get('Kernel::System::YAML')->Dump( Data => $Param{Config} );
-
-    # md5 of content
-    my $MD5 = $Kernel::OM->Get('Kernel::System::Main')->MD5sum(
-        String => $Kernel::OM->Get('Kernel::System::Time')->SystemTime() . int( rand(1000000) ),
-    );
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -318,10 +319,10 @@ sub CloudServiceUpdate {
     # sql
     return if !$DBObject->Do(
         SQL => 'UPDATE cloud_service_config SET name = ?, config = ?, '
-            . ' config_md5 = ?, valid_id = ?, change_time = current_timestamp, '
+            . ' valid_id = ?, change_time = current_timestamp, '
             . ' change_by = ? WHERE id = ?',
         Bind => [
-            \$Param{Name}, \$Config, \$MD5, \$Param{ValidID}, \$Param{UserID},
+            \$Param{Name}, \$Config, \$Param{ValidID}, \$Param{UserID},
             \$Param{ID},
         ],
     );
@@ -334,7 +335,7 @@ sub CloudServiceUpdate {
     return 1;
 }
 
-=item CloudServiceDelete()
+=head2 CloudServiceDelete()
 
 delete a CloudService
 
@@ -381,7 +382,7 @@ sub CloudServiceDelete {
     return 1;
 }
 
-=item CloudServiceList()
+=head2 CloudServiceList()
 
 get CloudService list
 
@@ -451,8 +452,6 @@ sub CloudServiceList {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

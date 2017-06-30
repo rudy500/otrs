@@ -36,12 +36,14 @@
     padding: 10px;
     width: 350px;
     min-height: 150px;
+    max-height: 400px;
+    overflow-y: auto;
 }
 
 .AdminSupportDataCollector .CheckResults > li h3.Heading {
     position: relative;
     padding-left: 28px;
-    line-height: 130%;
+    font-size: 13px;
     margin-bottom: 0px;
 }
 
@@ -109,7 +111,7 @@
 .AdminSupportDataCollector .Flag {
     position: absolute;
     left: 0px;
-    top: 5px;
+    top: 2px;
 }
 
 .AdminSupportDataCollector .DataTable .Flag {
@@ -139,7 +141,6 @@
 
 #SupportBundleOptionsDialog legend {
     color: #333333;
-    border-bottom: 1px solid #ccc;
     padding-bottom: 5px;
     margin-bottom: 5px;
     display: block;

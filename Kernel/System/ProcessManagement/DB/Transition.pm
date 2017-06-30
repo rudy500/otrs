@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,22 +25,16 @@ our @ObjectDependencies = (
 
 Kernel::System::ProcessManagement::DB::Transition
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Process Management DB Transition backend
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $TransitionObject = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::Transition');
 
 =cut
@@ -64,7 +58,7 @@ sub new {
     return $Self;
 }
 
-=item TransitionAdd()
+=head2 TransitionAdd()
 
 add new Trnsition
 
@@ -190,7 +184,7 @@ sub TransitionAdd {
     return $ID;
 }
 
-=item TransitionDelete()
+=head2 TransitionDelete()
 
 delete an Transition
 
@@ -238,7 +232,7 @@ sub TransitionDelete {
     return 1;
 }
 
-=item TransitionGet()
+=head2 TransitionGet()
 
 get Transition attributes
 
@@ -356,7 +350,7 @@ sub TransitionGet {
     return \%Data;
 }
 
-=item TransitionUpdate()
+=head2 TransitionUpdate()
 
 update Transition attributes
 
@@ -493,7 +487,7 @@ sub TransitionUpdate {
     return 1;
 }
 
-=item TransitionList()
+=head2 TransitionList()
 
 get an Transition list
 
@@ -515,6 +509,7 @@ get an Transition list
     $List = {
         'T1' => 'NameOfTransition',
     }
+
 =cut
 
 sub TransitionList {
@@ -575,7 +570,7 @@ sub TransitionList {
     return \%Data;
 }
 
-=item TransitionListGet()
+=head2 TransitionListGet()
 
 get a Transition list with all Transition details
 
@@ -668,8 +663,6 @@ sub TransitionListGet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

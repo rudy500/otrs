@@ -264,10 +264,6 @@
     height: auto;
 }
 
-#Messages .MessageBody div.Label.Switchable {
-    cursor: pointer;
-}
-
 #NoArticles {
     border: 1px solid #E9E9E9;
     border-bottom: 1px solid #DDD;
@@ -349,6 +345,9 @@
     padding: 13px 8px;
     background: #FFF;
     border-bottom: 1px solid #E9E9E9;
+    -webkit-overflow-scrolling: touch;
+    overflow: auto;
+    width: 98%;
 }
 
 .TicketZoom iframe {

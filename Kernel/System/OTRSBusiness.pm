@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,10 +20,10 @@ our @ObjectDependencies = (
     'Kernel::System::DynamicField',
     'Kernel::System::DynamicField::Backend',
     'Kernel::System::Log',
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::Package',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
 );
 
 # If we cannot connect to cloud.otrs.com for more than the first period, show a warning.
@@ -32,22 +32,19 @@ my $NoConnectWarningPeriod = 60 * 60 * 24 * 5;    # 5 days
 # If we cannot connect to cloud.otrs.com for more than the second period, show an error.
 my $NoConnectErrorPeriod = 60 * 60 * 24 * 15;     # 15 days
 
+# If we cannot connect to cloud.otrs.com for more than the second period, block the system.
+my $NoConnectBlockPeriod = 60 * 60 * 24 * 25;     # 25 days
+
 # If the contract is about to expire in less than this time, show a hint
-my $ContractExpiryWarningPeriod = 60 * 60 * 24 * 30;
+my $ContractExpiryWarningPeriod = 60 * 60 * 24 * 28;    # 28 days
 
 =head1 NAME
 
 Kernel::System::OTRSBusiness - OTRSBusiness deployment backend
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create an object. Do not use it directly, instead use:
 
@@ -67,17 +64,23 @@ sub new {
 
     #$Self->{APIVersion} = 1;
 
+    # Get config object
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
     # Get OTRSBusiness::ReleaseChannel from SysConfig (Stable = 1, Development = 0)
-    $Self->{OnlyStable} = $Kernel::OM->Get('Kernel::Config')->Get('OTRSBusiness::ReleaseChannel') // 1;
+    $Self->{OnlyStable} = $ConfigObject->Get('OTRSBusiness::ReleaseChannel') // 1;
 
     # Set cache params
     $Self->{CacheType} = 'OTRSBusiness';
     $Self->{CacheTTL}  = 60 * 60 * 24 * 30;    # 30 days
 
+    # Check if cloud services are disabled
+    $Self->{CloudServicesDisabled} = $ConfigObject->Get('CloudServices::Disabled') || 0;
+
     return $Self;
 }
 
-=item OTRSBusinessIsInstalled()
+=head2 OTRSBusinessIsInstalled()
 
 checks if OTRSBusiness is installed in the current system.
 That does not necessarily mean that it is also active, for
@@ -114,14 +117,16 @@ sub OTRSBusinessIsInstalled {
     return $IsInstalled;
 }
 
-=item OTRSBusinessIsAvailable()
+=head2 OTRSBusinessIsAvailable()
 
-checks with cloud.otrs.com if OTRSBusiness is available for the current framework.
+checks with C<cloud.otrs.com> if OTRSBusiness is available for the current framework.
 
 =cut
 
 sub OTRSBusinessIsAvailable {
     my ( $Self, %Param ) = @_;
+
+    return if $Self->{CloudServicesDisabled};
 
     my $CloudServiceObject = $Kernel::OM->Get('Kernel::System::CloudService::Backend::Run');
     my $RequestResult      = $CloudServiceObject->Request(
@@ -158,7 +163,7 @@ sub OTRSBusinessIsAvailable {
     return;
 }
 
-=item OTRSBusinessIsAvailableOffline()
+=head2 OTRSBusinessIsAvailableOffline()
 
 retrieves the latest result of the BusinessVersionCheck cloud service
 that was stored in the system_data table.
@@ -177,7 +182,7 @@ sub OTRSBusinessIsAvailableOffline {
     return $BusinessVersionCheck{LatestVersionForCurrentFramework} ? 1 : 0;
 }
 
-=item OTRSBusinessIsCorrectlyDeployed()
+=head2 OTRSBusinessIsCorrectlyDeployed()
 
 checks if the OTRSBusiness package is correctly
 deployed or if it needs to be reinstalled.
@@ -219,7 +224,7 @@ sub OTRSBusinessIsCorrectlyDeployed {
     return 1;
 }
 
-=item OTRSBusinessIsReinstallable()
+=head2 OTRSBusinessIsReinstallable()
 
 checks if the OTRSBusiness package can be reinstalled
 (if it supports the current framework version). If not,
@@ -235,14 +240,15 @@ sub OTRSBusinessIsReinstallable {
     # Package not found -> return failure
     return if !$Package;
 
-    return $Kernel::OM->Get('Kernel::System::Package')->_CheckFramework(
+    my %Check = $Kernel::OM->Get('Kernel::System::Package')->AnalyzePackageFrameworkRequirements(
         Framework => $Package->{Framework},
     );
+    return $Check{Success};
 }
 
-=item OTRSBusinessIsUpdateable()
+=head2 OTRSBusinessIsUpdateable()
 
-checks with cloud.otrs.com if the OTRSBusiness package is available in a newer version
+checks with C<cloud.otrs.com> if the OTRSBusiness package is available in a newer version
 than the one currently installed. The result of this check will be stored in the
 system_data table for offline usage.
 
@@ -250,6 +256,8 @@ system_data table for offline usage.
 
 sub OTRSBusinessIsUpdateable {
     my ( $Self, %Param ) = @_;
+
+    return 0 if $Self->{CloudServicesDisabled};
 
     my $Package = $Self->_GetOTRSBusinessPackageFromRepository();
     return if !$Package;
@@ -293,7 +301,7 @@ sub OTRSBusinessIsUpdateable {
     return 0;
 }
 
-=item OTRSBusinessVersionCheckOffline()
+=head2 OTRSBusinessVersionCheckOffline()
 
 retrieves the latest result of the BusinessVersionCheck cloud service
 that was stored in the system_data table.
@@ -334,7 +342,7 @@ sub OTRSBusinessVersionCheckOffline {
     return %Result;
 }
 
-=item OTRSBusinessGetDependencies()
+=head2 OTRSBusinessGetDependencies()
 
 checks if there are any active dependencies on OTRSBusiness.
 
@@ -373,9 +381,9 @@ sub OTRSBusinessGetDependencies {
     return \@DependentPackages;
 }
 
-=item OTRSBusinessEntitlementCheck()
+=head2 OTRSBusinessEntitlementCheck()
 
-determines the OTRSBusiness entitlement status of this system as reported by cloud.otrs.com
+determines the OTRSBusiness entitlement status of this system as reported by C<cloud.otrs.com>
 and stores it in the system_data cache.
 
 Returns 1 if the cloud call was successful.
@@ -384,6 +392,8 @@ Returns 1 if the cloud call was successful.
 
 sub OTRSBusinessEntitlementCheck {
     my ( $Self, %Param ) = @_;
+
+    return if $Self->{CloudServicesDisabled};
 
     my $CloudServiceObject = $Kernel::OM->Get('Kernel::System::CloudService::Backend::Run');
     my $RequestResult      = $CloudServiceObject->Request(
@@ -439,26 +449,23 @@ sub OTRSBusinessEntitlementCheck {
     return 0;
 }
 
-=item OTRSBusinessEntitlementStatus()
+=head2 OTRSBusinessEntitlementStatus()
 
 Returns the current entitlement status.
 
     my $Status = $OTRSBusinessObject->OTRSBusinessEntitlementStatus(
-        CallCloudService => 1,  # 0 or 1, call the cloud service before looking at the cache
+        CallCloudService => 1,              # 0 or 1, call the cloud service before looking at the cache
     );
 
-    $Status = 'entitled';   # everything is OK
-    $Status = 'warning';    # last check was OK, and we are in the waiting period
-    $Status = 'forbidden';  # not entitled (either because the server said so or because the last check was too long ago)
+    $Status = 'entitled';      # everything is OK
+    $Status = 'warning';       # last check was OK, and we are in the waiting period - show warning
+    $Status = 'warning-error'; # last check was OK, and we are past waiting period - show error message
+    $Status = 'forbidden';     # not entitled (either because the server said so or because the last check was too long ago)
 
 =cut
 
 sub OTRSBusinessEntitlementStatus {
     my ( $Self, %Param ) = @_;
-
-    if ( $Param{CallCloudService} ) {
-        $Self->OTRSBusinessEntitlementCheck();
-    }
 
     # If the system is not registered, it cannot have an OB permission.
     #   Also, the BusinessPermissionChecks will not work any more, so the permission
@@ -471,6 +478,10 @@ sub OTRSBusinessEntitlementStatus {
         return 'forbidden';
     }
 
+    if ( $Param{CallCloudService} ) {
+        $Self->OTRSBusinessEntitlementCheck();
+    }
+
     # OK. Let's look at the system_data cache now and use it if appropriate
     my %EntitlementData = $Kernel::OM->Get('Kernel::System::SystemData')->SystemDataGroupGet(
         Group => 'OTRSBusiness',
@@ -481,23 +492,31 @@ sub OTRSBusinessEntitlementStatus {
     }
 
     # Check when the last successful BusinessPermission check was made.
-    my $LastUpdateSystemTime = $Kernel::OM->Get('Kernel::System::Time')->TimeStamp2SystemTime(
-        String => $EntitlementData{LastUpdateTime},
+    my $DateTimeObject = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $EntitlementData{LastUpdateTime},
+            }
     );
 
-    my $SecondsSinceLastUpdate = $Kernel::OM->Get('Kernel::System::Time')->SystemTime() - $LastUpdateSystemTime;
+    my $Delta = $Kernel::OM->Create('Kernel::System::DateTime')->Delta(
+        DateTimeObject => $DateTimeObject,
+    );
 
-    if ( $SecondsSinceLastUpdate > $NoConnectErrorPeriod ) {
+    if ( $Delta->{AbsoluteSeconds} > $NoConnectBlockPeriod ) {
         return 'forbidden';
     }
-    if ( $SecondsSinceLastUpdate > $NoConnectWarningPeriod ) {
+    if ( $Delta->{AbsoluteSeconds} > $NoConnectErrorPeriod ) {
+        return 'warning-error';
+    }
+    if ( $Delta->{AbsoluteSeconds} > $NoConnectWarningPeriod ) {
         return 'warning';
     }
 
     return 'entitled';
 }
 
-=item OTRSBusinessContractExpiryDateCheck()
+=head2 OTRSBusinessContractExpiryDateCheck()
 
 checks for the warning period before the contract expires
 
@@ -526,13 +545,20 @@ sub OTRSBusinessContractExpiryDateCheck {
         return;
     }
 
-    my $ExpiryDateSystemTime = $Kernel::OM->Get('Kernel::System::Time')->TimeStamp2SystemTime(
-        String => $EntitlementData{ExpiryDate},
+    my $ExpiryDateTimeObj = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $EntitlementData{ExpiryDate},
+            }
     );
 
-    my $SecondsUntilExpiryDate = $ExpiryDateSystemTime - $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-    if ( $SecondsUntilExpiryDate < $ContractExpiryWarningPeriod ) {
+    my $Delta = $ExpiryDateTimeObj->Delta(
+        DateTimeObject => $DateTimeObject
+    );
+
+    if ( $Delta->{AbsoluteSeconds} < $ContractExpiryWarningPeriod ) {
         return $EntitlementData{ExpiryDate};
     }
 
@@ -551,16 +577,19 @@ sub HandleBusinessPermissionCloudServiceResult {
     #   to determine if the results can still be used later, if a connection to
     #   cloud.otrs.com cannot be made temporarily.
     my %StoreData = (
-        BusinessPermission => $OperationResult->{Data}->{BusinessPermission} // 0,
-        ExpiryDate         => $OperationResult->{Data}->{ExpiryDate}         // '',
-        LastUpdateTime     => $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-            SystemTime => $Kernel::OM->Get('Kernel::System::Time')->SystemTime()
-        ),
+        BusinessPermission            => $OperationResult->{Data}->{BusinessPermission}            // 0,
+        ExpiryDate                    => $OperationResult->{Data}->{ExpiryDate}                    // '',
+        LastUpdateTime                => $Kernel::OM->Create('Kernel::System::DateTime')->ToString(),
+        AgentSessionLimit             => $OperationResult->{Data}->{AgentSessionLimit}             // 0,
+        AgentSessionLimitPriorWarning => $OperationResult->{Data}->{AgentSessionLimitPriorWarning} // 0,
     );
 
     my $SystemDataObject = $Kernel::OM->Get('Kernel::System::SystemData');
 
+    KEY:
     for my $Key ( sort keys %StoreData ) {
+        next KEY if !defined $StoreData{$Key};
+
         my $FullKey = 'OTRSBusiness::' . $Key;
 
         if ( defined $SystemDataObject->SystemDataGet( Key => $FullKey ) ) {
@@ -621,6 +650,8 @@ sub HandleBusinessVersionCheckCloudServiceResult {
 sub _OTRSBusinessFileGet {
     my ( $Self, %Param ) = @_;
 
+    return if $Self->{CloudServicesDisabled};
+
     my $CloudServiceObject = $Kernel::OM->Get('Kernel::System::CloudService::Backend::Run');
     my $RequestResult      = $CloudServiceObject->Request(
         RequestData => {
@@ -651,7 +682,7 @@ sub _OTRSBusinessFileGet {
     return;
 }
 
-=item OTRSBusinessInstall()
+=head2 OTRSBusinessInstall()
 
 downloads and installs OTRSBusiness.
 
@@ -660,15 +691,37 @@ downloads and installs OTRSBusiness.
 sub OTRSBusinessInstall {
     my ( $Self, %Param ) = @_;
 
+    my %Response = (
+        Success => 0,
+    );
+
     my $PackageString = $Self->_OTRSBusinessFileGet();
-    return if !$PackageString;
+    return %Response if !$PackageString;
+
+    my $PackageObject = $Kernel::OM->Get('Kernel::System::Package');
+
+    # Parse package structure.
+    my %Structure = $PackageObject->PackageParse(
+        String    => $PackageString,
+        FromCloud => 1,
+    );
+
+    my %FrameworkCheck = $PackageObject->AnalyzePackageFrameworkRequirements(
+        Framework => $Structure{Framework},
+        NoLog     => 1,
+    );
+
+    if ( !$FrameworkCheck{Success} ) {
+        $FrameworkCheck{ShowBlock} = 'IncompatibleInfo';
+        return %FrameworkCheck;
+    }
 
     my $Install = $Kernel::OM->Get('Kernel::System::Package')->PackageInstall(
         String    => $PackageString,
         FromCloud => 1,
     );
 
-    return $Install if !$Install;
+    return %Response if !$Install;
 
     # now that we know that OTRSBusiness has been installed,
     # we can just preset the cache instead of just swiping it.
@@ -679,12 +732,14 @@ sub OTRSBusinessInstall {
         Value => 1,
     );
 
-    return $Install;
+    $Response{Success} = 1;
+
+    return %Response;
 }
 
-=item OTRSBusinessReinstall()
+=head2 OTRSBusinessReinstall()
 
-reinstalls OTRSBusiness from local repository.
+re-installs OTRSBusiness from local repository.
 
 =cut
 
@@ -706,7 +761,7 @@ sub OTRSBusinessReinstall {
     );
 }
 
-=item OTRSBusinessUpdate()
+=head2 OTRSBusinessUpdate()
 
 downloads and updates OTRSBusiness.
 
@@ -715,16 +770,42 @@ downloads and updates OTRSBusiness.
 sub OTRSBusinessUpdate {
     my ( $Self, %Param ) = @_;
 
+    my %Response = (
+        Success => 0,
+    );
     my $PackageString = $Self->_OTRSBusinessFileGet();
     return if !$PackageString;
 
-    return $Kernel::OM->Get('Kernel::System::Package')->PackageUpgrade(
+    my $PackageObject = $Kernel::OM->Get('Kernel::System::Package');
+
+    # Parse package structure.
+    my %Structure = $PackageObject->PackageParse(
         String    => $PackageString,
         FromCloud => 1,
     );
+
+    my %FrameworkCheck = $PackageObject->AnalyzePackageFrameworkRequirements(
+        Framework => $Structure{Framework},
+        NoLog     => 1,
+    );
+
+    if ( !$FrameworkCheck{Success} ) {
+        $FrameworkCheck{ShowBlock} = 'IncompatibleInfo';
+        return %FrameworkCheck;
+    }
+
+    my $Upgrade = $Kernel::OM->Get('Kernel::System::Package')->PackageUpgrade(
+        String    => $PackageString,
+        FromCloud => 1,
+    );
+
+    return %Response if !$Upgrade;
+
+    $Response{Success} = 1;
+    return %Response;
 }
 
-=item OTRSBusinessUninstall()
+=head2 OTRSBusinessUninstall()
 
 removes OTRSBusiness from the system.
 
@@ -811,6 +892,67 @@ sub OTRSBusinessUninstall {
     return $Uninstall;
 }
 
+=head2 OTRSBusinessCommandNextUpdateTimeSet()
+
+Set the next update time for the given command in the system data table storage.
+
+    my $Success = $OTRSBusinessObject->OTRSBusinessCommandNextUpdateTimeSet(
+        Command => 'AvailabilityCheck',
+    );
+
+Returns 1 if the next update time was set successfully.
+
+=cut
+
+sub OTRSBusinessCommandNextUpdateTimeSet {
+    my ( $Self, %Param ) = @_;
+
+    return if !$Param{Command};
+
+    my $Key = "OTRSBusiness::$Param{Command}::NextUpdateTime";
+
+    my $SystemDataObject = $Kernel::OM->Get('Kernel::System::SystemData');
+
+    my $NextUpdateTime = $SystemDataObject->SystemDataGet(
+        Key => $Key,
+    );
+
+    # set the default next update seconds offset
+    my $NextUpdateSecondsOffset = 60 * 60 * 24;
+
+    # generate a random seconds offset, if no next update time exists
+    if ( !$NextUpdateTime ) {
+
+        # create the random numbers
+        my $RandomHour   = int 20 + rand 23 - 20;
+        my $RandomMinute = int rand 60;
+
+        # create the random seconds offset
+        $NextUpdateSecondsOffset = 60 * 60 * $RandomHour + ( 60 * $RandomMinute );
+    }
+
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    $DateTimeObject->Add( Seconds => $NextUpdateSecondsOffset );
+    my $CalculatedNextUpdateTime = $DateTimeObject->ToString();
+
+    if ( defined $NextUpdateTime ) {
+        $SystemDataObject->SystemDataUpdate(
+            Key    => $Key,
+            Value  => $CalculatedNextUpdateTime,
+            UserID => 1,
+        );
+    }
+    else {
+        $SystemDataObject->SystemDataAdd(
+            Key    => $Key,
+            Value  => $CalculatedNextUpdateTime,
+            UserID => 1,
+        );
+    }
+
+    return 1;
+}
+
 sub _GetOTRSBusinessPackageFromRepository {
     my ( $Self, %Param ) = @_;
 
@@ -826,8 +968,6 @@ sub _GetOTRSBusinessPackageFromRepository {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,6 +7,8 @@
 # --
 
 package Kernel::Output::HTML::Notification::DaemonCheck;
+
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -19,18 +21,6 @@ our @ObjectDependencies = (
     'Kernel::System::Cache',
     'Kernel::System::Group',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    $Self->{UserID} = $Param{UserID};
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -74,10 +64,10 @@ sub Run {
         $NotificationDetails{LinkClass} = 'DaemonInfo';
     }
 
-    # if user is not admin, add 'Please contact your administrator' to error message
+    # if user is not admin, add 'Please contact the administrator.' to error message
     else {
         $NotificationDetails{Data}
-            .= ' ' . $LayoutObject->{LanguageObject}->Translate("Please contact your administrator!");
+            .= ' ' . $LayoutObject->{LanguageObject}->Translate("Please contact the administrator.");
     }
 
     # show error notification

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,28 +12,23 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $Selenium     = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+# get selenium object
+my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # do not check RichText
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -44,16 +39,40 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminAutoResponse");
+        # get script alias
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+
+        # navigate to AdminAutoResponse screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminAutoResponse");
 
         # check overview AdminAutoResponse
         $Selenium->find_element( "table",             'css' );
         $Selenium->find_element( "table thead tr th", 'css' );
         $Selenium->find_element( "table tbody tr td", 'css' );
 
+        # check breadcrumb on Overview screen
+        $Self->True(
+            $Selenium->find_element( '.BreadCrumb', 'css' ),
+            "Breadcrumb is found on Overview screen.",
+        );
+
         # click 'Add auto response'
-        $Selenium->find_element("//a[contains(\@href, \'Action=AdminAutoResponse;Subaction=Add' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Action=AdminAutoResponse;Subaction=Add' )]")->VerifiedClick();
+
+        # get needed variables
+        my $Count;
+
+        # check breadcrumb on Add screen
+        $Count = 1;
+        for my $BreadcrumbText ( 'Auto Response Management', 'Add Auto Response' ) {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
 
         # check page
         for my $ID (
@@ -68,7 +87,7 @@ $Selenium->RunTest(
         # check client side validation
         my $Element = $Selenium->find_element( "#Name", 'css' );
         $Element->send_keys("");
-        $Element->submit();
+        $Element->VerifiedSubmit();
 
         $Self->Is(
             $Selenium->execute_script(
@@ -78,65 +97,140 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value',
         );
 
-        # create a real test Auto Response
-        my $RandomID = 'AutoResponse' . $Helper->GetRandomID();
-        my $Text     = "Seleniumn auto response text";
-
-        $Selenium->find_element( "#Name",     'css' )->send_keys($RandomID);
-        $Selenium->find_element( "#Subject",  'css' )->send_keys($RandomID);
-        $Selenium->find_element( "#RichText", 'css' )->send_keys($Text);
-        $Selenium->execute_script("\$('#TypeID').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->execute_script("\$('#AddressID').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->execute_script("\$('#ValidID').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Name", 'css' )->submit();
-
-        # check if test auto resposne show on AdminAutoResponse screen
+        # check form action
         $Self->True(
-            index( $Selenium->get_page_source(), $RandomID ) > -1,
-            "$RandomID job found on page",
+            $Selenium->find_element( '#Submit', 'css' ),
+            "Submit is found on Add screen.",
         );
 
+        # get needed variables
+        my $RandomNumber = $Helper->GetRandomNumber();
+        my @AutoResponseNames;
+
+        # create a real test auto responses
+        for my $Item (qw(First Second)) {
+
+            # navigate to 'Add auto response' screen in second case
+            if ( $Item eq 'Second' ) {
+                $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminAutoResponse;Subaction=Add");
+            }
+
+            my $AutoResponseName = $Item . 'AutoResponse' . $RandomNumber;
+            my $Text             = "Selenium auto response text";
+
+            $Selenium->find_element( "#Name",     'css' )->send_keys($AutoResponseName);
+            $Selenium->find_element( "#Subject",  'css' )->send_keys($AutoResponseName);
+            $Selenium->find_element( "#RichText", 'css' )->send_keys($Text);
+            $Selenium->execute_script("\$('#TypeID').val('1').trigger('redraw.InputField').trigger('change');");
+            $Selenium->execute_script("\$('#AddressID').val('1').trigger('redraw.InputField').trigger('change');");
+            $Selenium->execute_script("\$('#ValidID').val('1').trigger('redraw.InputField').trigger('change');");
+            $Selenium->find_element( "#Name", 'css' )->VerifiedSubmit();
+
+            # check if test auto response show on AdminAutoResponse screen
+            $Self->Is(
+                $Selenium->execute_script(
+                    "return \$('table tbody tr td:contains($AutoResponseName)').length"
+                ),
+                1,
+                "Auto response job '$AutoResponseName' is found in the table",
+            );
+
+            push @AutoResponseNames, $AutoResponseName;
+        }
+
         # edit test job and set it to invalid
-        $Selenium->find_element( $RandomID, 'link_text' )->click();
-        my $RandomID2 = 'AutoResponseUpdate' . $Helper->GetRandomID();
+        $Selenium->find_element( $AutoResponseNames[0], 'link_text' )->VerifiedClick();
+
+        # check breadcrumb on Edit screen
+        $Count = 1;
+        for my $BreadcrumbText (
+            'Auto Response Management',
+            'Edit Auto Response: ' . $AutoResponseNames[0]
+            )
+        {
+            $Self->Is(
+                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
+                $BreadcrumbText,
+                "Breadcrumb text '$BreadcrumbText' is found on screen"
+            );
+
+            $Count++;
+        }
+
+        # check form actions
+        for my $Action (qw(Submit SubmitAndContinue)) {
+            $Self->True(
+                $Selenium->find_element( "#$Action", 'css' ),
+                "$Action is found on Edit screen.",
+            );
+        }
+
+        $AutoResponseNames[0] = 'Update' . $AutoResponseNames[0];
         $Selenium->find_element( "#Name", 'css' )->clear();
-        $Selenium->find_element( "#Name", 'css' )->send_keys($RandomID2);
+        $Selenium->find_element( "#Name", 'css' )->send_keys( $AutoResponseNames[0] );
         $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Name", 'css' )->submit();
+        $Selenium->find_element( "#Name", 'css' )->VerifiedSubmit();
 
         # check if edited auto response show on AdminAutoResponse
-        $Self->True(
-            index( $Selenium->get_page_source(), $RandomID2 ) > -1,
-            "$RandomID2 auto response found on page",
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('table tbody tr td:contains($AutoResponseNames[0])').length"
+            ),
+            1,
+            "Auto response job '$AutoResponseNames[0]' is found in the table",
         );
 
         # check class of invalid AutoResponse in the overview table
-        $Self->True(
+        $Self->Is(
             $Selenium->execute_script(
-                "return \$('tr.Invalid td a:contains($RandomID2)').length"
+                "return \$('tr.Invalid td a:contains($AutoResponseNames[0])').length"
             ),
-            "There is a class 'Invalid' for test AutoResponse",
+            1,
+            "There is a class 'Invalid' for auto response $AutoResponseNames[0]",
         );
 
-        # since there are no tickets that rely on our test auto response, we can remove them
-        # again from the DB.
-        if ($RandomID2) {
-            my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-            $RandomID2 = $DBObject->Quote($RandomID2);
-            my $Success = $DBObject->Do(
+        # navigate to AdminAutoResponse screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminAutoResponse");
+
+        # filter auto responses
+        $Selenium->find_element( "#FilterAutoResponses", 'css' )->clear();
+        $Selenium->find_element( "#FilterAutoResponses", 'css' )->send_keys( $AutoResponseNames[0], "\N{U+E007}" );
+        sleep 1;
+
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('table tbody tr td:contains($AutoResponseNames[0])').parent().css('display')"
+            ),
+            'table-row',
+            "Auto response '$AutoResponseNames[0]' is found in the table"
+        );
+
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('table tbody tr td:contains($AutoResponseNames[1])').parent().css('display')"
+            ),
+            'none',
+            "Auto response '$AutoResponseNames[1]' is not found in the table"
+        );
+
+        # cleanup
+        # since there are no tickets that rely on our test auto response,
+        # we can remove them from the DB
+        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+        my $Success;
+
+        for my $TestARName (@AutoResponseNames) {
+            $TestARName = $DBObject->Quote($TestARName);
+            $Success    = $DBObject->Do(
                 SQL  => "DELETE FROM auto_response WHERE name = ?",
-                Bind => [ \$RandomID2 ],
+                Bind => [ \$TestARName ],
             );
-            if ($Success) {
-                $Self->True(
-                    $Success,
-                    "AutoResponseDelete - $RandomID2",
-                );
-            }
+            $Self->True(
+                $Success,
+                "Auto response '$TestARName' is deleted",
+            );
         }
-
     }
-
 );
 
 1;

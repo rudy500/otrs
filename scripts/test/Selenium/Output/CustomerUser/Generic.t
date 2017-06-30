@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,45 +19,36 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-                }
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
 
         # enable CustomerUserGenericTicket sysconfig
         my @CustomerSysConfig = ( '1-GoogleMaps', '2-Google', '2-LinkedIn', '3-XING' );
         my @CustomerUserGenericText;
         for my $SysConfigChange (@CustomerSysConfig) {
 
-            # get sysconfig object
-            my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
             # get default sysconfig
             my $SysConfigName  = 'Frontend::CustomerUser::Item###' . $SysConfigChange;
-            my %CustomerConfig = $SysConfigObject->ConfigItemGet(
+            my %CustomerConfig = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
                 Name    => $SysConfigName,
                 Default => 1,
             );
 
             # get default link text for each CustomerUserGenericTicket module
-            for my $DefaultText ( $CustomerConfig{Setting}->[1]->{Hash}->[1]->{Item}->[7]->{Content} ) {
-                push @CustomerUserGenericText, $DefaultText;
-            }
+            push @CustomerUserGenericText, $CustomerConfig{EffectiveValue}->{Text};
 
-            # set CustomerUserGenericTicket modules to valid
-            %CustomerConfig = map { $_->{Key} => $_->{Content} }
-                grep { defined $_->{Key} } @{ $CustomerConfig{Setting}->[1]->{Hash}->[1]->{Item} };
-
-            $SysConfigObject->ConfigItemUpdate(
+            $Helper->ConfigSettingChange(
                 Valid => 1,
                 Key   => $SysConfigName,
-                Value => \%CustomerConfig,
+                Value => $CustomerConfig{EffectiveValue},
             );
         }
 
-        # create and log in test user
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -89,6 +80,11 @@ $Selenium->RunTest(
             UserID         => $TestUserID,
         );
 
+        $Self->True(
+            $TestCustomerUser,
+            "Created customer user - $TestCustomerUser",
+        );
+
         # get ticket object
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
@@ -111,14 +107,20 @@ $Selenium->RunTest(
 
         # go to zoom view of created test ticket
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
+
+        # Wait until customer info widget has loaded, if necessary.
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return typeof($) === "function" && $(".WidgetIsLoading").length === 0;',
+        );
 
         # check for CustomerUserGeneric link text
         for my $TestText (@CustomerUserGenericText) {
             $Self->True(
                 index( $Selenium->get_page_source(), $TestText ) > -1,
                 "Link text $TestText - found on screen"
-            );
+            ) || die;
         }
 
         # delete created test ticket
@@ -140,6 +142,11 @@ $Selenium->RunTest(
             $Success,
             "Deleted CustomerUser - $TestCustomerUser",
         );
+
+        # make sure the cache is correct
+        for my $Cache (qw(Ticket CustomerUser)) {
+            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => $Cache );
+        }
     }
 );
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,18 +19,10 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
         # activate Service
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 1
@@ -47,17 +39,18 @@ $Selenium->RunTest(
         );
 
         # enable ServicePreferences
-        $Kernel::OM->Get('Kernel::Config')->Set(
+        $Helper->ConfigSettingChange(
             Key   => 'ServicePreferences###Comment2',
             Value => \%ServicePreferences,
         );
 
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'ServicePreferences###Comment2',
             Value => \%ServicePreferences,
         );
 
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -71,10 +64,10 @@ $Selenium->RunTest(
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         # go to service admin
-        $Selenium->get("${ScriptAlias}index.pl?Action=AdminService");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminService");
 
         # click "Add service"
-        $Selenium->find_element("//a[contains(\@href, \'Subaction=ServiceEdit' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Subaction=ServiceEdit' )]")->VerifiedClick();
 
         # check add page, and especially included service attribute Comment2
         for my $ID (
@@ -93,7 +86,7 @@ $Selenium->RunTest(
 
         # set included service attribute Comment2
         $Selenium->find_element( "#Comment2", 'css' )->send_keys('ServicePreferences Comment2');
-        $Selenium->find_element( "#Name",     'css' )->submit();
+        $Selenium->find_element( "#Name",     'css' )->VerifiedSubmit();
 
         # check if test service is created
         $Self->True(
@@ -102,7 +95,7 @@ $Selenium->RunTest(
         );
 
         # go to new service again
-        $Selenium->find_element( $RandomServiceName, 'link_text' )->click();
+        $Selenium->find_element( $RandomServiceName, 'link_text' )->VerifiedClick();
 
         # check service value
         $Self->Is(
@@ -122,10 +115,10 @@ $Selenium->RunTest(
 
         $Selenium->find_element( "#Comment2", 'css' )->clear();
         $Selenium->find_element( "#Comment2", 'css' )->send_keys($UpdatedComment);
-        $Selenium->find_element( "#Comment2", 'css' )->submit();
+        $Selenium->find_element( "#Comment2", 'css' )->VerifiedSubmit();
 
         # check updated values
-        $Selenium->find_element( $RandomServiceName, 'link_text' )->click();
+        $Selenium->find_element( $RandomServiceName, 'link_text' )->VerifiedClick();
 
         $Self->Is(
             $Selenium->find_element( '#Comment2', 'css' )->get_value(),
@@ -138,6 +131,7 @@ $Selenium->RunTest(
             Name => $RandomServiceName,
         );
 
+        # get DB object
         my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
         my $Success = $DBObject->Do(

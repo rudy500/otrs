@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,22 +24,16 @@ our @ObjectDependencies = (
 
 Kernel::System::SLA - sla lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All sla functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $SLAObject = $Kernel::OM->Get('Kernel::System::SLA');
 
 =cut
@@ -64,7 +58,7 @@ sub new {
     return $Self;
 }
 
-=item SLAList()
+=head2 SLAList()
 
 return a hash list of slas
 
@@ -139,7 +133,7 @@ sub SLAList {
     return %SLAList;
 }
 
-=item SLAGet()
+=head2 SLAGet()
 
 Returns an SLA as a hash
 
@@ -154,17 +148,13 @@ Returns:
           'SLAID'               => '2',
           'Name'                => 'Diamond Pacific - S2',
           'Calendar'            => '2',
-          'FirstResponseTime'   => '60',  # in minutes according to business hours
-          'FirstResponseNotify' => '70',  # in percent
-          'UpdateTime'          => '360', # in minutes according to business hours
-          'UpdateNotify'        => '70',  # in percent
-          'SolutionTime'        => '960', # in minutes according to business hours
-          'SolutionNotify'      => '80',  # in percent
-          'ServiceIDs'          => [
-                                     '4'
-                                     '7'
-                                     '8'
-                                   ],
+          'FirstResponseTime'   => '60',   # in minutes according to business hours
+          'FirstResponseNotify' => '70',   # in percent
+          'UpdateTime'          => '360',  # in minutes according to business hours
+          'UpdateNotify'        => '70',   # in percent
+          'SolutionTime'        => '960',  # in minutes according to business hours
+          'SolutionNotify'      => '80',   # in percent
+          'ServiceIDs'          => [ '4', '7', '8' ],
           'ValidID'             => '1',
           'Comment'             => 'Some Comment',
           'CreateBy'            => '93',
@@ -284,7 +274,7 @@ sub SLAGet {
     return %SLAData;
 }
 
-=item SLALookup()
+=head2 SLALookup()
 
 returns the name or the sla id
 
@@ -395,7 +385,7 @@ sub SLALookup {
     }
 }
 
-=item SLAAdd()
+=head2 SLAAdd()
 
 add a sla
 
@@ -543,7 +533,7 @@ sub SLAAdd {
     return $SLAID;
 }
 
-=item SLAUpdate()
+=head2 SLAUpdate()
 
 update a existing sla
 
@@ -686,15 +676,15 @@ sub SLAUpdate {
     return 1;
 }
 
-=item SLAPreferencesSet()
+=head2 SLAPreferencesSet()
 
 set SLA preferences
 
     $SLAObject->SLAPreferencesSet(
-        SLAID => 123,
-        Key       => 'UserComment',
-        Value     => 'some comment',
-        UserID    => 123,
+        SLAID  => 123,
+        Key    => 'UserComment',
+        Value  => 'some comment',
+        UserID => 123,
     );
 
 =cut
@@ -705,13 +695,13 @@ sub SLAPreferencesSet {
     return $Self->{PreferencesObject}->SLAPreferencesSet(@_);
 }
 
-=item SLAPreferencesGet()
+=head2 SLAPreferencesGet()
 
 get SLA preferences
 
     my %Preferences = $SLAObject->SLAPreferencesGet(
-        SLAID => 123,
-        UserID    => 123,
+        SLAID  => 123,
+        UserID => 123,
     );
 
 =cut
@@ -723,8 +713,6 @@ sub SLAPreferencesGet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

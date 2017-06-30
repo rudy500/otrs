@@ -1,10 +1,11 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
+
 use strict;
 use warnings;
 use utf8;
@@ -15,64 +16,48 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
+
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
         # do not check RichText
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
         # do not check service and type
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Service',
             Value => 0
         );
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Ticket::Type',
             Value => 0
         );
 
         # set download type to inline
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'AttachmentDownloadType',
             Value => 'inline'
         );
 
         # create test customer user and login
-        my $TestUserLogin = $Helper->TestCustomerUserCreate(
-            Groups => ['admin'],
-        ) || die "Did not get test user";
+        my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate(
+        ) || die "Did not get test customer user";
 
         $Selenium->Login(
             Type     => 'Customer',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
-        );
-
-        # get customer user object
-        my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
-
-        # get customer user ID
-        my %CustomerUser = $CustomerUserObject->CustomerUserDataGet(
-            User => $TestUserLogin,
+            User     => $TestCustomerUserLogin,
+            Password => $TestCustomerUserLogin,
         );
 
         # click on 'Create your first ticket'
-        $Selenium->find_element( ".Button", 'css' )->click();
+        $Selenium->find_element( ".Button", 'css' )->VerifiedClick();
 
         # create needed variables
         my $SubjectRandom  = "Subject" . $Helper->GetRandomID();
@@ -87,25 +72,18 @@ $Selenium->RunTest(
         $Selenium->find_element( "#RichText",   'css' )->send_keys($TextRandom);
         $Selenium->find_element( "#Attachment", 'css' )->send_keys($Location);
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".Attachment").length' );
-        $Selenium->find_element( "#submitRichText", 'css' )->click();
-
-        # Wait until form has loaded, if neccessary
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("div#MainBox").length' );
-
-        # obtain ticket number
-        my @User = $CustomerUserObject->CustomerIDs(
-            User => $TestUserLogin,
-        );
-        my $UserID = $User[0];
+        $Selenium->find_element( "#submitRichText", 'css' )->VerifiedClick();
 
         # get ticket object
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
+        # get test created ticket ID and number
         my %TicketIDs = $TicketObject->TicketSearch(
             Result         => 'HASH',
             Limit          => 1,
-            CustomerUserID => $UserID,
+            CustomerUserID => $TestCustomerUserLogin,
         );
+        my $TicketID     = (%TicketIDs)[0];
         my $TicketNumber = (%TicketIDs)[1];
 
         $Self->True(
@@ -114,39 +92,36 @@ $Selenium->RunTest(
         );
 
         # click on test created ticket on CustomerTicketOverview screen
-        $Selenium->find_element( $TicketNumber, 'link_text' )->click();
-
-        # get article id
-        my @ArticleIDs = $TicketObject->ArticleIndex(
-            TicketID => (%TicketIDs)[0],
-        );
+        $Selenium->find_element( $TicketNumber, 'link_text' )->VerifiedClick();
 
         # click on attachment to open it
-        $Selenium->find_element("//*[text()=\"$AttachmentName\"]")->click();
+        $Selenium->find_element("//*[text()=\"$AttachmentName\"]")->VerifiedClick();
 
         # switch to another window
+        $Selenium->WaitFor( WindowCount => 2 );
         my $Handles = $Selenium->get_window_handles();
         $Selenium->switch_to_window( $Handles->[1] );
 
+        sleep 3;
+
         # check if attachment is genuine
-        my $ExpectedAttachmentContent = "Some German Text with Umlaut: ÄÖÜß";
+        my $ExpectedAttachmentContent = "Some German Text with Umlaut";
         $Self->True(
             index( $Selenium->get_page_source(), $ExpectedAttachmentContent ) > -1,
             "$AttachmentName opened successfully",
-        );
+        ) || die;
 
         # clean up test data from the DB
-        my $TicketID = (%TicketIDs)[0];
-        my $Success  = $Kernel::OM->Get('Kernel::System::Ticket')->TicketDelete(
+        my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
-            UserID   => $UserID,
+            UserID   => 1,
         );
         $Self->True(
             $Success,
             "Ticket with ticket number $TicketNumber is deleted"
         );
 
-        # make sure the cache is correct.
+        # make sure the cache is correct
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Ticket' );
 
     }

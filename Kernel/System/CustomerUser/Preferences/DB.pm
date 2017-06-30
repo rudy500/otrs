@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -94,18 +94,18 @@ sub SetPreferences {
     return 1;
 }
 
-=item RenamePreferences()
-
-rename the old userid with the new userid in the preferences
-
-returns 1 if success or undef otherwise
-
-    my $Success = $PreferencesObject->RenamePreferences(
-        NewUserID => 2,
-        OldUserID => 1,
-    );
-
-=cut
+# =item RenamePreferences()
+#
+# rename the old userid with the new userid in the preferences
+#
+# returns 1 if success or undef otherwise
+#
+#     my $Success = $PreferencesObject->RenamePreferences(
+#         NewUserID => 2,
+#         OldUserID => 1,
+#     );
+#
+# =cut
 
 sub RenamePreferences {
     my ( $Self, %Param ) = @_;

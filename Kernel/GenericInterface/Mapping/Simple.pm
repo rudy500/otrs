@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,15 +19,9 @@ our $ObjectManagerDisabled = 1;
 
 Kernel::GenericInterface::Mapping::Simple - GenericInterface simple data mapping backend
 
-=head1 SYNOPSIS
-
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 usually, you want to create an instance of this
 by using Kernel::GenericInterface::Mapping->new();
@@ -77,10 +71,10 @@ sub new {
     return $Self;
 }
 
-=item Map()
+=head2 Map()
 
 provides 1:1 and regex mapping for keys and values
-also the use of a default for unmapped keys and values is possible
+also the use of a default for keys and values that were not mapped is possible
 
 we need the config to be in the following format
 
@@ -101,7 +95,7 @@ we need the config to be in the following format
                                    # 'MapTo' (use provided value as default)
             MapTo => 'new_value',  # only used if 'MapType' is 'MapTo'. then required
         },
-        ValueMap => {
+        ValueMap => {              # optional.
             'new_key_name' => {    # optional. Replacement for a specific key
                 ValueMapExact => { # optional. key/value pairs for direct replacement
                     'old_value'         => 'new_value',
@@ -243,7 +237,11 @@ sub Map {
         }
 
         # check if we have a value mapping for the specific key
-        my $ValueMap = $Config->{ValueMap}->{$NewKey};
+        my $ValueMap;
+        if ( $Config->{ValueMap} && $Config->{ValueMap}->{$NewKey} ) {
+            $ValueMap = $Config->{ValueMap}->{$NewKey}
+        }
+
         if ($ValueMap) {
 
             # first check in exact (1:1) map
@@ -289,7 +287,7 @@ sub Map {
 
 =begin Internal:
 
-=item _ConfigCheck()
+=head2 _ConfigCheck()
 
 does checks to make sure the config is sane
 
@@ -413,42 +411,44 @@ sub _ConfigCheck {
     }
 
     # check ValueMap
-    for my $KeyName ( sort keys %{ $Config->{ValueMap} } ) {
+    if ( IsHashRefWithData( $Config->{ValueMap} ) ) {
+        for my $KeyName ( sort keys %{ $Config->{ValueMap} } ) {
 
-        # require values to be hash ref
-        if ( !IsHashRefWithData( $Config->{ValueMap}->{$KeyName} ) ) {
-            return $Self->{DebuggerObject}->Error(
-                Summary => "Got $KeyName in ValueMap, but it is no hash ref with content!",
-            );
-        }
-
-        # possible sub-values are ValueMapExact or ValueMapRegEx and need to be hash ref if defined
-        SUBKEY:
-        for my $SubKeyName (qw(ValueMapExact ValueMapRegEx)) {
-            my $ValueMapType = $Config->{ValueMap}->{$KeyName}->{$SubKeyName};
-            next SUBKEY if !defined $ValueMapType;
-            if ( !IsHashRefWithData($ValueMapType) ) {
+            # require values to be hash ref
+            if ( !IsHashRefWithData( $Config->{ValueMap}->{$KeyName} ) ) {
                 return $Self->{DebuggerObject}->Error(
-                    Summary =>
-                        "Got $SubKeyName in $KeyName in ValueMap,"
-                        . ' but it is no hash ref with content!',
+                    Summary => "Got $KeyName in ValueMap, but it is no hash ref with content!",
                 );
             }
 
-            # key/value pairs of ValueMapExact and ValueMapRegEx must be strings
-            for my $ValueMapTypeKey ( sort keys %{$ValueMapType} ) {
-                if ( !IsString($ValueMapTypeKey) ) {
+            # possible sub-values are ValueMapExact or ValueMapRegEx and need to be hash ref if defined
+            SUBKEY:
+            for my $SubKeyName (qw(ValueMapExact ValueMapRegEx)) {
+                my $ValueMapType = $Config->{ValueMap}->{$KeyName}->{$SubKeyName};
+                next SUBKEY if !defined $ValueMapType;
+                if ( !IsHashRefWithData($ValueMapType) ) {
                     return $Self->{DebuggerObject}->Error(
                         Summary =>
-                            "Got key in $SubKeyName in $KeyName in ValueMap which is not a string!",
+                            "Got $SubKeyName in $KeyName in ValueMap,"
+                            . ' but it is no hash ref with content!',
                     );
                 }
-                if ( !IsString( $ValueMapType->{$ValueMapTypeKey} ) ) {
-                    return $Self->{DebuggerObject}->Error(
-                        Summary =>
-                            "Got value for $ValueMapTypeKey in $SubKeyName in $KeyName in ValueMap"
-                            . ' which is not a string!',
-                    );
+
+                # key/value pairs of ValueMapExact and ValueMapRegEx must be strings
+                for my $ValueMapTypeKey ( sort keys %{$ValueMapType} ) {
+                    if ( !IsString($ValueMapTypeKey) ) {
+                        return $Self->{DebuggerObject}->Error(
+                            Summary =>
+                                "Got key in $SubKeyName in $KeyName in ValueMap which is not a string!",
+                        );
+                    }
+                    if ( !IsString( $ValueMapType->{$ValueMapTypeKey} ) ) {
+                        return $Self->{DebuggerObject}->Error(
+                            Summary =>
+                                "Got value for $ValueMapTypeKey in $SubKeyName in $KeyName in ValueMap"
+                                . ' which is not a string!',
+                        );
+                    }
                 }
             }
         }
@@ -463,8 +463,6 @@ sub _ConfigCheck {
 1;
 
 =end Internal:
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

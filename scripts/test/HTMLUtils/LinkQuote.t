@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,10 +13,7 @@ use utf8;
 use vars (qw($Self));
 
 # get needed objects
-my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
 my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-my $MainObject      = $Kernel::OM->Get('Kernel::System::Main');
-my $TimeObject      = $Kernel::OM->Get('Kernel::System::Time');
 
 # LinkQuote tests
 my @Tests = (
@@ -44,6 +41,13 @@ my @Tests = (
         Result =>
             'Some Text with url <a href="http://xwww.example.com" title="http://xwww.example.com">http://xwww.example.com</a>',
         Name   => 'LinkQuote - simple',
+        Target => '',
+    },
+    {
+        Input => 'Some Text with nested url http://www.example.com/redirect?location=www.example2.com',
+        Result =>
+            'Some Text with nested url <a href="http://www.example.com/redirect?location=www.example2.com" title="http://www.example.com/redirect?location=www.example2.com">http://www.example.com/redirect?location=www.example2.com</a>',
+        Name   => 'LinkQuote - nested URL bug#8761',
         Target => '',
     },
     {
@@ -310,6 +314,60 @@ my @Tests = (
         Name   => 'LinkQuote - just TLD given;',
         Target => '',
     },
+    {
+        Input =>
+            '<br />http://www.server.nl:80/%7Eguido/Python.html<br />',
+        Result =>
+            '<br /><a href="http://www.server.nl:80/%7Eguido/Python.html" title="http://www.server.nl:80/%7Eguido/Python.html">http://www.server.nl:80/%7Eguido/Python.html</a><br />',
+        Name   => 'LinkQuote - address with port given;',
+        Target => '',
+    },
+    {
+        Input =>
+            '<br />https://aa.bb.com/wiki/Obs%C5%82uga_ABC#Sekcja<br />',
+        Result =>
+            '<br /><a href="https://aa.bb.com/wiki/Obs%C5%82uga_ABC#Sekcja" title="https://aa.bb.com/wiki/Obs%C5%82uga_ABC#Sekcja">https://aa.bb.com/wiki/Obs%C5%82uga_ABC#Sekcja</a><br />',
+        Name   => 'LinkQuote - address with URL encodings and hash; ',
+        Target => '',
+    },
+    {
+        Input =>
+            '<br />http://msdn.microsoft.com/en-us/library/windows/hardware/ff557211%28v=vs.85%29.aspx<br />',
+        Result =>
+            '<br /><a href="http://msdn.microsoft.com/en-us/library/windows/hardware/ff557211%28v=vs.85%29.aspx" title="http://msdn.microsoft.com/en-us/library/windows/hardware/ff557211%28v=vs.85%29.aspx">http://msdn.microsoft.com/en-us/library/windows/hardware/ff557211%28v=vs.85%29.aspx</a><br />',
+        Name   => 'LinkQuote - address with =; ',
+        Target => '',
+    },
+    {
+        Input =>
+            '<img title="00073905.TMH_plausible-921733-edited.jpg" alt="00073905.TMH_plausible-921733-edited.jpg" src="http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=96" data-constrained="true" style="vertical-align:bottom; -ms-interpolation-mode:bicubic; width:96px; max-width:96px; margin:0px 0px 10px 10px; float:right" align="right" width="96" srcset="http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=48 48w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=96 96w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=144 144w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=192 192w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=240 240w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=288 288w" sizes="(max-width: 96px) 100vw, 96px">',
+        Result =>
+            '<img title="00073905.TMH_plausible-921733-edited.jpg" alt="00073905.TMH_plausible-921733-edited.jpg" src="http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=96" data-constrained="true" style="vertical-align:bottom; -ms-interpolation-mode:bicubic; width:96px; max-width:96px; margin:0px 0px 10px 10px; float:right" align="right" width="96" srcset="http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=48 48w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=96 96w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=144 144w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=192 192w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=240 240w, http://info.isightpartners.com/hs-fs/hubfs/00073905.TMH_plausible-921733-edited.jpg?t=1467377990501&width=288 288w" sizes="(max-width: 96px) 100vw, 96px">',
+        Name   => 'Complex tag with nested URLs',
+        Target => '',
+    },
+    {
+        Input =>
+            '<img src="http://www.test.com" data-link="http://www.test.com, http://www.test2.com">Test</img>',
+        Result =>
+            '<img src="http://www.test.com" data-link="http://www.test.com, http://www.test2.com">Test</img>',
+        Name   => 'Complex tag with nested URLs',
+        Target => '',
+    },
+    {
+        Input => 'Following unquoted link looks strangely like an ftp URL: www.ftp.de',
+        Result =>
+            'Following unquoted link looks strangely like an ftp URL: <a href="http://www.ftp.de" title="http://www.ftp.de">www.ftp.de</a>',
+        Name   => 'Text with HTTP url (bug#12472)',
+        Target => '',
+    },
+    {
+        Input => 'Following unquoted link is an actual ftp URL: ftp.my.de',
+        Result =>
+            'Following unquoted link is an actual ftp URL: <a href="ftp://ftp.my.de" title="ftp://ftp.my.de">ftp.my.de</a>',
+        Name   => 'Text with FTP url (bug#12472)',
+        Target => '',
+    },
 );
 
 for my $Test (@Tests) {
@@ -328,19 +386,19 @@ for my $Test (@Tests) {
 #
 # Special performance test for a large amount of data
 #
-my $XML = $MainObject->FileRead(
-    Location => $ConfigObject->Get('Home')
+my $XML = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
+    Location => $Kernel::OM->Get('Kernel::Config')->Get('Home')
         . '/scripts/test/sample/HTMLUtils/obstacles_upd2.xml',
 );
 $XML = ${$XML};
 
-my $StartSeconds = $TimeObject->SystemTime();
+my $StartSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
 my $HTML = $HTMLUtilsObject->LinkQuote(
-    String => \$XML,
+    String => $XML,
 );
 
-my $EndSeconds = $TimeObject->SystemTime();
+my $EndSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 $Self->True(
     ( $EndSeconds - $StartSeconds ) < 10,
     'LinkQuote - Performance on large data set',

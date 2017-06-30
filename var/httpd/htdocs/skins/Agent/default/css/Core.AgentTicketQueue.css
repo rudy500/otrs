@@ -10,6 +10,17 @@
  * @subsection  AgentTicketQueue
  */
 
+@keyframes blinking {
+    to {
+        color: transparent;
+    }
+}
+@-webkit-keyframes blinking {
+    to {
+        color: transparent;
+    }
+}
+
 @media screen,projection,tv,handheld {
 
 /**
@@ -81,6 +92,50 @@
     margin-left: 100px;
 }
 
+.RTL .QueueOverviewList.Level_1 {
+    margin-right: 10px;
+}
+
+.RTL .QueueOverviewList.Level_2 {
+    margin-right: 20px;
+}
+
+.RTL .QueueOverviewList.Level_3 {
+    margin-right: 30px;
+}
+
+.RTL .QueueOverviewList.Level_4 {
+    margin-right: 40px;
+}
+
+.RTL .QueueOverviewList.Level_5 {
+    margin-right: 50px;
+}
+
+.RTL .QueueOverviewList.Level_6 {
+    margin-right: 60px;
+}
+
+.RTL .QueueOverviewList.Level_7 {
+    margin-right: 70px;
+}
+
+.RTL .QueueOverviewList.Level_8 {
+    margin-right: 80px;
+}
+
+.RTL .QueueOverviewList.Level_9 {
+    margin-right: 90px;
+}
+
+.RTL .QueueOverviewList.Level_10 {
+    margin-right: 100px;
+}
+
+.RTL .QueueOverviewList.Level_X {
+    margin-right: 100px;
+}
+
 .QueueOverviewList li {
     float: left;
     list-style: none;
@@ -103,6 +158,8 @@
 
 .QueueOverview .Oldest {
     color: red;
+    animation: blinking 1s steps(10, start) infinite;
+    -webkit-animation: blinking 1s steps(10, start) infinite;
 }
 
 .QueueOverview .Active {

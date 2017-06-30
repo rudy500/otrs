@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,24 +20,18 @@ our @ObjectDependencies = (
 
 =head1 NAME
 
-Kernel::System::StandardTemplate - std template lib
+Kernel::System::StandardTemplate - standard template lib
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
-All std template functions. E. g. to add std template or other functions.
+All standard template functions. E. g. to add standard template or other functions.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create an object
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $StandardTemplateObject = $Kernel::OM->Get('Kernel::System::StandardTemplate');
 
 =cut
@@ -52,9 +46,9 @@ sub new {
     return $Self;
 }
 
-=item StandardTemplateAdd()
+=head2 StandardTemplateAdd()
 
-add new std template
+add new standard template
 
     my $ID = $StandardTemplateObject->StandardTemplateAdd(
         Name         => 'New Standard Template',
@@ -123,9 +117,9 @@ sub StandardTemplateAdd {
     return $ID;
 }
 
-=item StandardTemplateGet()
+=head2 StandardTemplateGet()
 
-get std template attributes
+get standard template attributes
 
     my %StandardTemplate = $StandardTemplateObject->StandardTemplateGet(
         ID => 123,
@@ -194,7 +188,7 @@ sub StandardTemplateGet {
     return %Data;
 }
 
-=item StandardTemplateDelete()
+=head2 StandardTemplateDelete()
 
 delete a standard template
 
@@ -245,9 +239,9 @@ sub StandardTemplateDelete {
     return 1;
 }
 
-=item StandardTemplateUpdate()
+=head2 StandardTemplateUpdate()
 
-update std template attributes
+update standard template attributes
 
     $StandardTemplateObject->StandardTemplateUpdate(
         ID           => 123,
@@ -311,9 +305,9 @@ sub StandardTemplateUpdate {
     return 1;
 }
 
-=item StandardTemplateLookup()
+=head2 StandardTemplateLookup()
 
-return the name or the std template id
+return the name or the standard template id
 
     my $StandardTemplateName = $StandardTemplateObject->StandardTemplateLookup(
         StandardTemplateID => 123,
@@ -389,9 +383,9 @@ sub StandardTemplateLookup {
     return $Self->{"StandardTemplate$Suffix"};
 }
 
-=item StandardTemplateList()
+=head2 StandardTemplateList()
 
-get all valid std templatess
+get all valid standard templates
 
     my %StandardTemplates = $StandardTemplatesObject->StandardTemplateList();
 
@@ -402,7 +396,7 @@ Returns:
         3 => 'Some Name3',
     );
 
-get all std templates
+get all standard templates
 
     my %StandardTemplates = $StandardTemplateObject->StandardTemplateList(
         Valid => 0,
@@ -414,7 +408,7 @@ Returns:
         2 => 'Some Name2',
     );
 
-get std templates from a certain type
+get standard templates from a certain type
     my %StandardTemplates = $StandardTemplateObject->StandardTemplateList(
         Valid => 0,
         Type  => 'Answer',
@@ -472,7 +466,7 @@ sub StandardTemplateList {
     return %Data;
 }
 
-=item NameExistsCheck()
+=head2 NameExistsCheck()
 
     return 1 if another standard template with this name already exists
 
@@ -508,8 +502,6 @@ sub NameExistsCheck {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

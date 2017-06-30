@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,46 +18,61 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
-        my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
         # get needed objects
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-        my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
+        my $Helper       = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-        # Use a calendar with the same business hours for every day so that the UT runs correctly
+        # use a calendar with the same business hours for every day so that the UT runs correctly
         # on every day of the week and outside usual business hours.
         my %Week;
         my @Days = qw(Sun Mon Tue Wed Thu Fri Sat);
         for my $Day (@Days) {
             $Week{$Day} = [ 0 .. 23 ];
         }
-        $Kernel::OM->Get('Kernel::Config')->Set(
+        $Helper->ConfigSettingChange(
             Key   => 'TimeWorkingHours',
             Value => \%Week,
         );
-        $SysConfigObject->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'TimeWorkingHours',
             Value => \%Week,
         );
 
+        # disable default Vacation days
+        $Helper->ConfigSettingChange(
+            Key   => 'TimeVacationDays',
+            Value => {},
+        );
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'TimeVacationDays',
+            Value => {},
+        );
+
         # disable other dashboard modules
-        my $Config = $Kernel::OM->Get('Kernel::Config')->Get('DashboardBackend');
-        $SysConfigObject->ConfigItemUpdate(
+        my $Config = $ConfigObject->Get('DashboardBackend');
+        $Helper->ConfigSettingChange(
             Valid => 0,
             Key   => 'DashboardBackend',
             Value => \%$Config,
         );
 
         # restore ticket calendar sysconfig
-        $SysConfigObject->ConfigItemReset(
-            Name => 'DashboardBackend###0260-TicketCalendar',
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'DashboardBackend###0260-TicketCalendar',
+            Value => {
+                'Block'      => 'ContentSmall',
+                'CacheTTL'   => '2',
+                'Default'    => '1',
+                'Group'      => '',
+                'Limit'      => '6',
+                'Module'     => 'Kernel::Output::HTML::Dashboard::Calendar',
+                'OwnerOnly'  => '',
+                'Permission' => 'rw',
+                'Title'      => 'Upcoming Events'
+            },
         );
 
         # create test user and login
@@ -91,7 +106,7 @@ $Selenium->RunTest(
         );
         $Self->True(
             $QueueID,
-            "Queue add $QueueName - ID $QueueID",
+            "Queue is created - ID $QueueID",
         );
 
         # get ticket object
@@ -106,7 +121,7 @@ $Selenium->RunTest(
             Lock         => 'unlock',
             Priority     => '3 normal',
             State        => 'open',
-            CustomerID   => '123465',
+            CustomerID   => 'TestCustomers',
             CustomerUser => 'customer@example.com',
             OwnerID      => $TestUserID,
             UserID       => $TestUserID,
@@ -116,18 +131,30 @@ $Selenium->RunTest(
             "Ticket is created - $TicketID",
         );
 
-        # clean up dashboard cache
-        $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Dashboard' );
+        #  Discard TicketObject to let event handlers run also for transaction mode 1.
+        $Kernel::OM->ObjectsDiscard(
+            Objects => ['Kernel::System::Ticket']
+        );
 
-        # go to dashboard screen
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
-        $Selenium->get("${ScriptAlias}index.pl?Action=AgentDashboard");
+        # get cache object
+        my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
+
+        # clean up dashboard cache
+        $CacheObject->CleanUp( Type => 'Dashboard' );
+
+        # get script alias
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+
+        # navigate to AgentDashboard screen
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentDashboard");
 
         # check for created test ticket on dashboard screen
         $Self->True(
             index( $Selenium->get_page_source(), $TicketNumber ) > -1,
             "$TicketNumber - found on screen"
-        );
+        ) || die "$TicketNumber - found NOT on screen";
+
+        $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
         # delete test ticket
         my $Success = $TicketObject->TicketDelete(
@@ -136,7 +163,7 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Delete ticket - $TicketID"
+            "Ticket is deleted - ID $TicketID"
         );
 
         # delete created test queue
@@ -145,8 +172,18 @@ $Selenium->RunTest(
         );
         $Self->True(
             $Success,
-            "Delete queue - $QueueID",
+            "Queue is deleted - ID $QueueID",
         );
+
+        # make sure the cache is correct
+        for my $Cache (
+            qw (Ticket Queue)
+            )
+        {
+            $CacheObject->CleanUp(
+                Type => $Cache,
+            );
+        }
 
     }
 );

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,6 +18,14 @@ use Digest::MD5 qw(md5_hex);
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 my $MainObject   = $Kernel::OM->Get('Kernel::System::Main');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 for my $Module (qw(DB FS)) {
 
@@ -52,7 +60,7 @@ for my $Module (qw(DB FS)) {
         $EncodeObject->EncodeOutput( \$Content );
 
         my $MD5         = md5_hex($Content);
-        my $ContentID   = ( int rand 99999 ) + 1;
+        my $ContentID   = $Helper->GetRandomID();
         my $Disposition = 'inline';
 
         if ( $File eq 'txt' ) {
@@ -236,4 +244,7 @@ for my $Module (qw(DB FS)) {
         "#$Module - FormIDRemove()",
     );
 }
+
+# cleanup is done by RestoreDatabase
+
 1;

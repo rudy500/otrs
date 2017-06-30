@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,10 +12,12 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::PostMaster::LoopProtection;
-
 # get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $LoopProtectionObject = $Kernel::OM->Get('Kernel::System::PostMaster::LoopProtection');
+
+# define needed variable
+my $RandomID = $Kernel::OM->Get('Kernel::System::UnitTest::Helper')->GetRandomID();
 
 for my $Module (qw(DB FS)) {
 
@@ -24,10 +26,16 @@ for my $Module (qw(DB FS)) {
         Value => "Kernel::System::PostMaster::LoopProtection::$Module",
     );
 
-    my $LoopProtectionObject = Kernel::System::PostMaster::LoopProtection->new();
-
     # get rand sender address
-    my $UserRand1 = 'example-user' . int( rand(1000000) ) . '@example.com';
+    my $UserRand1 = 'example-user' . $RandomID . '@example.com';
+    my $UserRand2 = 'example-user' . $RandomID . '@example.org';
+
+    $ConfigObject->Set(
+        Key   => 'PostmasterMaxEmailsPerAddress',
+        Value => { $UserRand2 => 5 },
+    );
+
+    my $LoopProtectionObject = Kernel::System::PostMaster::LoopProtection->new();
 
     my $Check = $LoopProtectionObject->Check( To => $UserRand1 );
 
@@ -49,6 +57,23 @@ for my $Module (qw(DB FS)) {
     $Self->False(
         $Check || 0,
         "#$Module - Check() - $UserRand1",
+    );
+
+    # now test with per-address limit
+    my $SendEmail = $LoopProtectionObject->SendEmail( To => $UserRand2 );
+    for ( 1 .. 6 ) {
+        my $SendEmail = $LoopProtectionObject->SendEmail( To => $UserRand2 );
+        $Self->True(
+            $SendEmail || 0,
+            "#$Module - SendEmail() - $UserRand2 #$_ (with custom limit)",
+        );
+        $Check = $LoopProtectionObject->Check( To => $UserRand2 );
+    }
+
+    $Check = $LoopProtectionObject->Check( To => $UserRand2 );
+    $Self->False(
+        $Check || 0,
+        "#$Module - Check() - $UserRand2 (with custom limit)",
     );
 }
 

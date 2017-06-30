@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,7 @@ use warnings;
 our $ObjectManagerDisabled = 1;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::Language qw(Translatable);
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -48,8 +49,12 @@ sub Run {
 
     # check needed CustomerID
     if ( !$Self->{UserCustomerID} ) {
-        my $Output = $LayoutObject->CustomerHeader( Title => 'Error' );
-        $Output .= $LayoutObject->CustomerError( Message => 'Need CustomerID!!!' );
+        my $Output = $LayoutObject->CustomerHeader(
+            Title => Translatable('Error'),
+        );
+        $Output .= $LayoutObject->CustomerError(
+            Message => Translatable('Need CustomerID!'),
+        );
         $Output .= $LayoutObject->CustomerFooter();
         return $Output;
     }
@@ -106,15 +111,44 @@ sub Run {
 
     my $UserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
 
-    # add filter for customer company if not disabled
+    # Add filter for customer company if the company tickets are not disabled.
     if ( !$DisableCompanyTickets ) {
+        my @CustomerIDs;
+        my %AccessibleCustomers = $Kernel::OM->Get('Kernel::System::CustomerGroup')->GroupContextCustomers(
+            CustomerUserID => $Self->{UserID},
+        );
+
+        # Show customer companies as additional filter selection.
+        if ( $Self->{Subaction} eq 'CompanyTickets' && scalar keys %AccessibleCustomers > 1 ) {
+
+            @CustomerIDs = $ParamObject->GetArray( Param => 'CustomerIDs' );
+            $Param{CustomerIDStrg} = $LayoutObject->BuildSelection(
+                Data       => \%AccessibleCustomers,
+                Name       => 'CustomerIDs',
+                Multiple   => 1,
+                Size       => 1,
+                SelectedID => \@CustomerIDs,
+                Class      => 'Modernize',
+            );
+
+            # Remember the active customer ID filter.
+            $Param{CustomerIDs} = '';
+            for my $CustomerID (@CustomerIDs) {
+                $Param{CustomerIDs} .= ';CustomerIDs=' . $LayoutObject->LinkEncode($CustomerID);
+            }
+        }
+        else {
+
+            # Default behavior - use all available customer IDs.
+            @CustomerIDs = sort keys %AccessibleCustomers;
+        }
+
         $Filters{CompanyTickets} = {
             All => {
                 Name   => 'All',
                 Prio   => 1000,
                 Search => {
-                    CustomerIDRaw =>
-                        [ $UserObject->CustomerIDs( User => $Self->{UserLogin} ) ],
+                    CustomerIDRaw  => \@CustomerIDs,
                     OrderBy        => $OrderByCurrent,
                     SortBy         => $SortBy,
                     CustomerUserID => $Self->{UserID},
@@ -125,8 +159,7 @@ sub Run {
                 Name   => 'Open',
                 Prio   => 1100,
                 Search => {
-                    CustomerIDRaw =>
-                        [ $UserObject->CustomerIDs( User => $Self->{UserLogin} ) ],
+                    CustomerIDRaw  => \@CustomerIDs,
                     StateType      => 'Open',
                     OrderBy        => $OrderByCurrent,
                     SortBy         => $SortBy,
@@ -138,8 +171,7 @@ sub Run {
                 Name   => 'Closed',
                 Prio   => 1200,
                 Search => {
-                    CustomerIDRaw =>
-                        [ $UserObject->CustomerIDs( User => $Self->{UserLogin} ) ],
+                    CustomerIDRaw  => \@CustomerIDs,
                     StateType      => 'Closed',
                     OrderBy        => $OrderByCurrent,
                     SortBy         => $SortBy,
@@ -154,9 +186,11 @@ sub Run {
 
     # check if filter is valid
     if ( !$Filters{ $Self->{Subaction} }->{$FilterCurrent} ) {
-        my $Output = $LayoutObject->CustomerHeader( Title => 'Error' );
+        my $Output = $LayoutObject->CustomerHeader(
+            Title => Translatable('Error'),
+        );
         $Output .= $LayoutObject->CustomerError(
-            Message => "Invalid Filter: $FilterCurrent!",
+            Message => $LayoutObject->{LanguageObject}->Translate( 'Invalid Filter: %s!', $FilterCurrent ),
         );
         $Output .= $LayoutObject->CustomerFooter();
         return $Output;
@@ -185,7 +219,7 @@ sub Run {
             %{ $Filters{ $Self->{Subaction} }->{$Filter}->{Search} },
             %SearchInArchive,
             Result => 'COUNT',
-        );
+        ) || 0;
 
         my $ClassA = '';
         if ( $Filter eq $FilterCurrent ) {
@@ -279,8 +313,9 @@ sub Run {
         my $TitleSort  = '';
         my $AgeSort    = '';
         my $QueueSort  = '';
+        my $OwnerSort  = '';
 
-        # this sets the opposit to the $OrderBy
+        # this sets the opposite to the $OrderBy
         if ( $OrderBy eq 'Down' ) {
             $Sort = 'SortAscending';
         }
@@ -303,6 +338,9 @@ sub Run {
         elsif ( $SortBy eq 'Queue' ) {
             $QueueSort = $Sort;
         }
+        elsif ( $SortBy eq 'Owner' ) {
+            $OwnerSort = $Sort;
+        }
         $LayoutObject->Block(
             Name => 'Filled',
             Data => {
@@ -323,6 +361,11 @@ sub Run {
         if ($Owner) {
             $LayoutObject->Block(
                 Name => 'OverviewNavBarPageOwner',
+                Data => {
+                    OrderBy   => $OrderBy,
+                    OwnerSort => $OwnerSort,
+                    Filter    => $FilterCurrent,
+                },
             );
         }
 
@@ -342,6 +385,7 @@ sub Run {
             $LayoutObject->Block(
                 Name => 'FilterHeader',
                 Data => {
+                    %Param,
                     %{ $NavBarFilter{$Key} },
                 },
             );
@@ -526,12 +570,19 @@ sub Run {
     }
 
     # create & return output
+    my $Title = $Self->{Subaction};
+    if ( $Title eq 'MyTickets' ) {
+        $Title = Translatable('My Tickets');
+    }
+    elsif ( $Title eq 'CompanyTickets' ) {
+        $Title = Translatable('Company Tickets');
+    }
     my $Refresh = '';
     if ( $Self->{UserRefreshTime} ) {
         $Refresh = 60 * $Self->{UserRefreshTime};
     }
     my $Output = $LayoutObject->CustomerHeader(
-        Title   => $Self->{Subaction},
+        Title   => $Title,
         Refresh => $Refresh,
     );
 
@@ -553,46 +604,61 @@ sub Run {
 sub ShowTicketStatus {
     my ( $Self, %Param ) = @_;
 
-    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-    my $TicketID     = $Param{TicketID} || return;
+    my $LayoutObject               = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+    my $TicketObject               = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $ArticleObject              = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $CommunicationChannelObject = $Kernel::OM->Get('Kernel::System::CommunicationChannel');
+    my $TicketID                   = $Param{TicketID} || return;
 
     # contains last article (non-internal)
     my %Article;
+    my %LastNonInternalArticle;
 
-    # get whole article index
-    my @ArticleIDs = $TicketObject->ArticleIndex( TicketID => $Param{TicketID} );
+    my @ArticleList = $ArticleObject->ArticleList(
+        TicketID => $Param{TicketID},
+    );
 
-    # get article data
-    if (@ArticleIDs) {
-        my %LastNonInternalArticle;
+    my $CommunicationChannelPattern = qr{Internal|Chat}xms;
 
-        ARTICLEID:
-        for my $ArticleID ( reverse @ArticleIDs ) {
-            my %CurrentArticle = $TicketObject->ArticleGet( ArticleID => $ArticleID );
+    ARTICLEMETADATA:
+    for my $ArticleMetaData (@ArticleList) {
 
-            # check for non-internal and non-chat article
-            next ARTICLEID if $CurrentArticle{ArticleType} =~ m{internal|chat}smx;
+        next ARTICLEMETADATA if !$ArticleMetaData;
+        next ARTICLEMETADATA if !IsHashRefWithData($ArticleMetaData);
 
-            # check for customer article
-            if ( $CurrentArticle{SenderType} eq 'customer' ) {
-                %Article = %CurrentArticle;
-                last ARTICLEID;
-            }
+        my %CommunicationChannelData = $CommunicationChannelObject->ChannelGet(
+            ChannelID => $ArticleMetaData->{CommunicationChannelID},
+        );
 
-            # check for last non-internal article (sender type does not matter)
-            if ( !%LastNonInternalArticle ) {
-                %LastNonInternalArticle = %CurrentArticle;
-            }
+        # check for non-internal and non-chat article
+        next ARTICLEMETADATA if $CommunicationChannelData{ChannelName} =~ m{$CommunicationChannelPattern}xms;
+
+        my $ArticleBackendObject = $ArticleObject->BackendForArticle( %{$ArticleMetaData} );
+
+        my %CurrentArticle = $ArticleBackendObject->ArticleGet(
+            TicketID  => $Param{TicketID},
+            ArticleID => $ArticleMetaData->{ArticleID},
+            UserID    => $Self->{UserID},
+        );
+
+        # check for customer article
+        if ( $ArticleMetaData->{IsVisibleForCustomer} ) {
+            %Article = %CurrentArticle;
+            last ARTICLEMETADATA;
         }
 
-        if ( !%Article && %LastNonInternalArticle ) {
-            %Article = %LastNonInternalArticle;
+        # check for last non-internal article (sender type does not matter)
+        if ( !%LastNonInternalArticle ) {
+            %LastNonInternalArticle = %CurrentArticle;
         }
     }
 
+    if ( !IsHashRefWithData( \%Article ) && IsHashRefWithData( \%LastNonInternalArticle ) ) {
+        %Article = %LastNonInternalArticle;
+    }
+
     my $NoArticle;
-    if ( !%Article ) {
+    if ( !IsHashRefWithData( \%Article ) ) {
         $NoArticle = 1;
     }
 
@@ -643,12 +709,12 @@ sub ShowTicketStatus {
 
     # if there is no subject try with Ticket title or set to Untitled
     if ( !$Subject ) {
-        $Subject = $Ticket{Title} || 'Untitled!';
+        $Subject = $Ticket{Title} || Translatable('Untitled!');
     }
 
     # condense down the subject
     $Subject = $TicketObject->TicketSubjectClean(
-        TicketNumber => $Article{TicketNumber},
+        TicketNumber => $Ticket{TicketNumber},
         Subject      => $Subject,
     );
 

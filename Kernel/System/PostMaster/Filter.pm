@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,23 +20,17 @@ our @ObjectDependencies = (
 
 Kernel::System::PostMaster::Filter
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 All postmaster database filters
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
+Don't use the constructor directly, use the ObjectManager instead:
 
-=item new()
-
-create an object. Do not use it directly, instead use:
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
-    my $FilterObject = $Kernel::OM->Get('Kernel::System::PostMaster::Filter');
+    my $PMFilterObject = $Kernel::OM->Get('Kernel::System::PostMaster::Filter');
 
 =cut
 
@@ -50,7 +44,7 @@ sub new {
     return $Self;
 }
 
-=item FilterList()
+=head2 FilterList()
 
 get all filter
 
@@ -76,7 +70,7 @@ sub FilterList {
     return %Data;
 }
 
-=item FilterAdd()
+=head2 FilterAdd()
 
 add a filter
 
@@ -134,7 +128,7 @@ sub FilterAdd {
     return 1;
 }
 
-=item FilterDelete()
+=head2 FilterDelete()
 
 delete a filter
 
@@ -169,7 +163,7 @@ sub FilterDelete {
     return 1;
 }
 
-=item FilterGet()
+=head2 FilterGet()
 
 get filter properties, returns HASH ref Match and Set
 
@@ -217,8 +211,6 @@ sub FilterGet {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

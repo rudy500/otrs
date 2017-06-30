@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,33 +19,21 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get sysconfig object
-        my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
         # get dashboard IFrame plugin default sysconfig
-        my %IFrameConfig = $SysConfigObject->ConfigItemGet(
+        my %IFrameConfig = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
             Name    => 'DashboardBackend###0300-IFrame',
             Default => 1,
         );
 
-        # set dashboard IFrame plugin to valid
-        my %IFrameConfigUpdate = map { $_->{Key} => $_->{Content} }
-            grep { defined $_->{Key} } @{ $IFrameConfig{Setting}->[1]->{Hash}->[1]->{Item} };
-
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'DashboardBackend###0300-IFrame',
-            Value => \%IFrameConfigUpdate,
+            Value => $IFrameConfig{EffectiveValue},
         );
 
-        # # create test user and login
+        # create test user and login
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
@@ -57,7 +45,7 @@ $Selenium->RunTest(
         );
 
         # test if IFrame plugin shows correct link
-        my $IFrameLink = $IFrameConfig{Setting}->[1]->{Hash}->[1]->{Item}->[8]->{Content};
+        my $IFrameLink = $IFrameConfig{EffectiveValue}->{Link};
         $Self->True(
             index( $Selenium->get_page_source(), $IFrameLink ) > -1,
             "IFrame dashboard plugin link '$IFrameLink' - found",

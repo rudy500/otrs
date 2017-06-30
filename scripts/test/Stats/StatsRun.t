@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,8 +12,6 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::ObjectManager;
-
 # get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
@@ -22,6 +20,14 @@ my $StatsObject = $Kernel::OM->Get('Kernel::System::Stats');
 my $Stats = $StatsObject->StatsListGet(
     UserID => 1,
 );
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 $Self->True(
     scalar keys %{$Stats},
@@ -68,7 +74,7 @@ for my $StatID ( sort { $a <=> $b } keys %{$Stats} ) {
         "StatsRun preview result has same number of columns in Row 1 as live result (StatID $StatID) $Stat->{Object}",
     );
 
-    # Ticketlist stats make a ticket search and that could return identical results in preview and live
+    # TicketList stats make a ticket search and that could return identical results in preview and live
     #   if there are not enough tickets in the system (for example just one).
     if ( $Stat->{Object} ne 'TicketList' ) {
         $Self->IsNotDeeply(
@@ -78,5 +84,7 @@ for my $StatID ( sort { $a <=> $b } keys %{$Stats} ) {
         );
     }
 }
+
+# cleanup is done by RestoreDatabase.
 
 1;

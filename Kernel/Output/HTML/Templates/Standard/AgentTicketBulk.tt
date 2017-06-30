@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -44,6 +44,7 @@
                     <div class="Content">
 
                         <fieldset class="TableLike FixedLabel">
+
                             <label class="Mandatory" for="Subject"><span class="Marker">*</span> [% Translate("Subject") | html %]:</label>
                             <div class="Field">
                                 <input type="text" class="Validate_DependingRequiredAND Validate_Depending_Body [% Data.SubjectInvalid %] W75pc" id="Subject" name="Subject" value="[% Data.Subject | html %]" />
@@ -52,28 +53,17 @@
                             </div>
                             <div class="Clear"></div>
 
-[% RenderBlockStart("SpellCheck") %]
-                            <label>[% Translate("Options") | html %]:</label>
-                            <div class="Field">
-                                <a href="#" id="OptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-                            </div>
-                            <div class="Clear"></div>
-[% RenderBlockEnd("SpellCheck") %]
-
                             <label class="Mandatory" for="Body"><span class="Marker">*</span> [% Translate("Text") | html %]:</label>
                             <div class="RichTextField">
-[% RenderBlockStart("RichText") %]
-[% InsertTemplate("RichTextEditor.tt") %]
-[% RenderBlockEnd("RichText") %]
                                 <textarea id="Body" class="RichText Validate_DependingRequiredAND Validate_Depending_Subject [% Data.BodyInvalid %]" name="Body" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") %]">[% Data.Body | html %]</textarea>
                                 <div id="BodyError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                                 <div id="BodyServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                             </div>
                             <div class="Clear"></div>
 
-                            <label for="ArticleTypeID">[% Translate("Note type") | html %]:</label>
+                            <label for="IsVisibleForCustomer">[% Translate("Visible for customer") | html %]:</label>
                             <div class="Field">
-                                [% Data.NoteStrg %]
+                                <input type="checkbox" id="IsVisibleForCustomer" name="IsVisibleForCustomer" value="1" [% IF Data.IsVisibleForCustomer %]checked="checked"[% END %]/>
                             </div>
                             <div class="Clear"></div>
 [% RenderBlockStart("TimeUnitsLabel") %]
@@ -104,6 +94,13 @@
                     <div class="Content">
 
                         <fieldset class="TableLike FixedLabel">
+
+                            <label for="Recipients">[% Translate("Recipients") | html %]:</label>
+                            <div class="Field">
+                                <span id="EmailRecipientsList"><i class="fa fa-spinner fa-spin"></i></span>
+                            </div>
+                            <div class="Clear"></div>
+
                             <label class="Mandatory" for="EmailSubject"><span class="Marker">*</span> [% Translate("Subject") | html %]:</label>
                             <div class="Field">
                                 <input type="text" class="Validate_DependingRequiredAND Validate_Depending_EmailBody [% Data.SubjectInvalid %] W75pc" id="EmailSubject" name="EmailSubject" value="[% Data.EmailSubject | html %]" />
@@ -112,17 +109,8 @@
                             </div>
                             <div class="Clear"></div>
 
-[% RenderBlockStart("SpellCheckEmail") %]
-                            <label>[% Translate("Options") | html %]:</label>
-                            <div class="Field">
-                                <a href="#" id="EmailOptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-                            </div>
-                            <div class="Clear"></div>
-[% RenderBlockEnd("SpellCheckEmail") %]
-
                             <label class="Mandatory" for="EmailBody"><span class="Marker">*</span> [% Translate("Text") | html %]:</label>
                             <div class="RichTextField">
-# RichTextEditor has already been included previously (if enabled)
                                 <textarea id="EmailBody" class="RichText Validate_DependingRequiredAND Validate_Depending_EmailSubject [% Data.BodyInvalid %]" name="EmailBody" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") %]">[% Data.EmailBody | html %]</textarea>
                                 <div id="EmailBodyError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                                 <div id="EmailBodyServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
@@ -173,6 +161,12 @@
                     <div class="Clear"></div>
 [% RenderBlockEnd("Type") %]
 
+                    <label for="QueueID">[% Translate("Queue") | html %]:</label>
+                    <div class="Field">
+                        [% Data.MoveQueuesStrg %]
+                    </div>
+                    <div class="Clear"></div>
+
 [% RenderBlockStart("Owner") %]
                     <label for="OwnerID">[% Translate("Owner") | html %]:</label>
                     <div class="Field">
@@ -188,12 +182,6 @@
                     </div>
                     <div class="Clear"></div>
 [% RenderBlockEnd("Responsible") %]
-
-                    <label for="QueueID">[% Translate("Queue") | html %]:</label>
-                    <div class="Field">
-                        [% Data.MoveQueuesStrg %]
-                    </div>
-                    <div class="Clear"></div>
 
 [% RenderBlockStart("Priority") %]
                     <label for="PriorityID">[% Translate("Priority") | html %]:</label>
@@ -217,16 +205,6 @@
                         </div>
                     </div>
                     <div class="Clear"></div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('#MergeTo').bind('blur', function() {
-    if ($(this).val()) {
-        $('#OptionMergeTo').prop('checked', true);
-    }
-});
-//]]></script>
-[% END %]
-
 
                     <label for="LinkTogether">[% Translate("Link together") | html %]:</label>
                     <div class="Field">
@@ -254,24 +232,9 @@ $('#MergeTo').bind('blur', function() {
             </div>
         </div>
         <div class="Footer">
-            <button class="Primary" id="submitRichText" accesskey="g" title="[% Translate("Submit") | html %] (g)" type="submit" value="[% Translate("Submit") | html %]">[% Translate("Submit") | html %]</button>
+            <button class="Primary CallForAction" id="submitRichText" accesskey="g" title="[% Translate("Submit") | html %] (g)" type="submit" value="[% Translate("Execute Bulk Action") | html %]"><span>[% Translate("Execute Bulk Action") | html %]</span></button>
         </div>
     </div>
 </form>
-[% RenderBlockStart("ParentReload") %]
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.UI.Popup.ExecuteInParentWindow(function(WindowObject) {
-    WindowObject.Core.UI.Popup.FirePopupEvent('URL', { URL: '[% Env("Baselink") %][% Data.URL %]' });
-});
-//]]></script>
-[% END %]
-[% RenderBlockEnd("ParentReload") %]
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.Agent.TicketAction.Init();
-//]]></script>
-[% END %]
 
 [% RenderBlockEnd("BulkAction") %]

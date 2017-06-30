@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,6 +9,24 @@
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
     <h1>[% Translate("Manage Templates") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Manage Templates'),
+                Link => Env("Action"),
+            },
+        ]
+    %]
+
+    [% SWITCH Data.Action %]
+        [% CASE 'Add' %]
+            [% BreadcrumbPath.push({ Name => Translate("Add Template"),}) %]
+        [% CASE 'Change' %]
+            [% USE EditTitle = String(Translate("Edit Template")) %]
+            [% BreadcrumbPath.push({ Name => EditTitle.append( ': ', Data.Name ) }) %]
+    [% END %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
 [% RenderBlockStart("ActionList") %]
@@ -101,7 +119,7 @@
                             <td>[% Data.ChangeTime | Localize("TimeShort") %]</td>
                             <td>[% Data.CreateTime | Localize("TimeShort") %]</td>
                             <td class="Center">
-                                <a class="TrashCan" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=Delete;ID=[% Data.ID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Delete this entry") | html %]">
+                                <a class="TrashCan TemplateDelete" href="#" data-query-string="Action=[% Env("Action") %];Subaction=Delete;ID=[% Data.ID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Delete this entry") | html %]">
                                     [% Translate("Delete this entry") | html %]
                                     <i class="fa fa-trash-o"></i>
                                 </a>
@@ -112,32 +130,31 @@
                 </table>
             </div>
         </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-    Core.UI.Table.InitTableFilter($('#Filter'), $('#Templates'));
-//]]></script>
-[% END %]
+        <div class="Hidden" id="DeleteTemplateDialogContainer">
+            <div id ="DeleteTemplateDialog" class="InnerContent GenericInterfaceDialog">
+                <p class="Center Spacing">[% Translate("Do you really want to delete this template?") | html %]</p>
+                <div class="SpacingTop"></div>
+            </div>
+        </div>
 [% RenderBlockEnd("OverviewResult") %]
 [% RenderBlockStart("OverviewUpdate") %]
 
-[% RenderBlockStart("RichText") %]
-[% InsertTemplate("RichTextEditor.tt") %]
-[% RenderBlockEnd("RichText") %]
-
         <div class="WidgetSimple">
             <div class="Header">
-[% RenderBlockStart("HeaderAdd") %]
+            [% IF Data.Action == 'Add' %]
                 <h2>[% Translate("Add Template") | html %]</h2>
-[% RenderBlockEnd("HeaderAdd") %]
-[% RenderBlockStart("HeaderEdit") %]
+            [% ELSE %]
                 <h2>[% Translate("Edit Template") | html %]</h2>
-[% RenderBlockEnd("HeaderEdit") %]
+            [% END %]
             </div>
             <div class="Content">
                 <form action="[% Env("CGIHandle") %]" method="post" class="Validate PreventMultipleSubmits">
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="[% Data.Action | uri %]Action"/>
                     <input type="hidden" name="ID" value="[% Data.ID | html %]"/>
+                    [% IF Data.Action == 'Change' %]
+                        <input type="hidden" name="ContinueAfterSave" id="ContinueAfterSave" value=""/>
+                    [% END %]
                     <fieldset class="TableLike">
                         <label class="Mandatory" for="TemplateType"><span class="Marker">*</span> [% Translate("Type") | html %]:</label>
                         <div class="Field">
@@ -197,9 +214,15 @@
                         <div class="Clear"></div>
 
                         <div class="Field">
-                            <button class="Primary CallForAction" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+                            [% IF Data.Action == 'Change' %]
+                                <button class="CallForAction Primary" id="SubmitAndContinue" type="button" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                                [% Translate("or") | html %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
+                            [% ELSE %]
+                                <button class="CallForAction Primary" id="Submit" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
+                            [% END %]
                             [% Translate("or") | html %]
-                            <a href="[% Env("Baselink") %]Action=AdminTemplate">[% Translate("Cancel") | html %]</a>
+                            <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                         </div>
                         <div class="Clear"></div>
                     </fieldset>

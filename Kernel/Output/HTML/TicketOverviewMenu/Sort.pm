@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -121,7 +121,9 @@ sub Run {
         my @SplittedLinkFilters = split( /[;&]/, $Param{LinkFilter} );
         for my $CurrentLinkFilter ( sort @SplittedLinkFilters ) {
             my @KeyValue = split( /=/, $CurrentLinkFilter );
-            $RedirectParams{ $KeyValue[0] } = "\'$KeyValue[1]\'";
+            if ( defined $KeyValue[1] ) {
+                $RedirectParams{ $KeyValue[0] } = "\'$KeyValue[1]\'";
+            }
         }
     }
 

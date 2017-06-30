@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,34 +14,28 @@ use warnings;
 use IPC::Open3;
 use Symbol;
 
-use base qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
+use parent qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Daemon::SchedulerDB',
+    'Kernel::System::DateTime',
     'Kernel::System::Email',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
 
 Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::Cron - Scheduler daemon task handler module for cron like jobs
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 This task handler executes scheduler tasks based in cron notation.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
+=head2 new()
 
-=cut
-
-=item new()
-
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $TaskHandlerObject = $Kernel::OM-Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::Cron');
 
 =cut
@@ -58,16 +52,16 @@ sub new {
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
-performs the selected Cron task.
+Performs the selected Cron task.
 
     my $Success = $TaskHandlerObject->Run(
         TaskID   => 123,
         TaskName => 'some name',                                        # optional
         Data     => {
-            Module   => 'Kernel::System:::Console:Command::Help',       # Module or Command is mandatory
-            Function => 'Execute',                                      # required if module is used
+            Module   => 'Kernel::System:::Console:Command::Help',
+            Function => 'Execute',
             Params   => [                                               # parameters array reference
              '--force',
              '--option',
@@ -85,56 +79,26 @@ Returns:
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # check needed
-    for my $Needed (qw(TaskID Data)) {
-        if ( !$Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed!",
-            );
+    # Check task params.
+    my $CheckResult = $Self->_CheckTaskParams(
+        %Param,
+        NeededDataAttributes => [ 'Module', 'Function' ],
+        DataParamsRef        => 'ARRAY',
+    );
 
-            return;
-        }
-    }
+    # Stop execution if an error in params is detected.
+    return if !$CheckResult;
 
-    # check data
-    if ( ref $Param{Data} ne 'HASH' ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no valid Data!',
-        );
+    my $StartSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
-        return;
-    }
-    for my $Needed (qw(Module Function)) {
-        if ( !$Param{Data}->{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need Data->{$Needed}!",
-            );
-            return;
-        }
-    }
-    if ( defined $Param{Data}->{Params} && ref $Param{Data}->{Params} ne 'ARRAY' ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "Data->{Params} format is invalid",
-        );
-        return;
-    }
-
-    my $StartSystemTime = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
-
-    # get module object
     my $ModuleObject;
     eval {
         $ModuleObject = $Kernel::OM->Get( $Param{Data}->{Module} );
     };
-
     if ( !$ModuleObject ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "Can not create a new Object for Module: '$Param{Data}->{Module}'!",
+            Message  => "Can not create a new Object for Module: '$Param{Data}->{Module}'! - Task: $Param{TaskName}",
         );
 
         return;
@@ -142,12 +106,12 @@ sub Run {
 
     my $Function = $Param{Data}->{Function};
 
-    # check if the module provide the required function
+    # Check if the module provide the required function.
     return if !$ModuleObject->can($Function);
 
     my @Parameters = @{ $Param{Data}->{Params} || [] };
 
-    # to capture the standard error
+    # To capture the standard error.
     my $ErrorMessage;
 
     my $Result;
@@ -158,27 +122,32 @@ sub Run {
 
     eval {
 
-        # localize the standard error, everything will be restored after the eval block
+        # Restore child signal to default, main daemon set it to 'IGNORE' to be able to create
+        #   multiple process at the same time, but in workers this causes problems if function does
+        #   system calls (on linux), since system calls returns -1. See bug#12126.
+        local $SIG{CHLD} = 'DEFAULT';
+
+        # Localize the standard error, everything will be restored after the eval block.
         local *STDERR;
 
-        # redirect the standard error to a variable
+        # Redirect the standard error to a variable.
         open STDERR, ">>", \$ErrorMessage;
 
-        # disable ANSI terminal colors for console commands, then in case of an error the output
-        #   will be clean
-        # prevent used once warning, setting the variable as local and then assign the value
-        #   in the next statement
+        # Disable ANSI terminal colors for console commands, then in case of an error the output
+        #   will be clean.
+        # Prevent used once warning, setting the variable as local and then assign the value
+        #   in the next statement.
         local $Kernel::System::Console::BaseCommand::SuppressANSI;
         $Kernel::System::Console::BaseCommand::SuppressANSI = 1;
 
-        # run function on the module with the specified parameters in Data->{Params}
+        # Run function on the module with the specified parameters in Data->{Params}
         $Result = $ModuleObject->$Function(
             @Parameters,
         );
     };
 
-    # get current system time (as soon as the method has been called)
-    my $EndSystemTime = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    # Get current system time (as soon as the method has been called).
+    my $EndSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     my $IsConsoleCommand;
     if (
@@ -191,17 +160,17 @@ sub Run {
 
     my $ConsoleCommandFailure;
 
-    # console commands send 1 as result if fail
+    # Console commands send 1 as result if fail.
     if ( $IsConsoleCommand && $Result ) {
         $ConsoleCommandFailure = 1;
     }
 
     my $Success = 1;
 
-    # check if there are errors
+    # Check if there are errors.
     if ( $ErrorMessage || $ConsoleCommandFailure ) {
 
-        $ErrorMessage //= '';
+        $ErrorMessage //= "Console command '$Param{TaskName}' is failed.";
 
         $Self->_HandleError(
             TaskName     => $Param{TaskName},
@@ -213,7 +182,7 @@ sub Run {
         $Success = 0;
     }
 
-    # update worker task
+    # Update worker task.
     $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB')->RecurrentTaskWorkerInfoSet(
         LastWorkerTaskID      => $Param{TaskID},
         LastWorkerStatus      => $Success,
@@ -224,8 +193,6 @@ sub Run {
 }
 
 1;
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

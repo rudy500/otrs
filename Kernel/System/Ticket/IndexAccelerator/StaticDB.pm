@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,8 +18,16 @@ our @ObjectDependencies = (
     'Kernel::System::Lock',
     'Kernel::System::Log',
     'Kernel::System::State',
-    'Kernel::System::Time',
+    'Kernel::System::Ticket',
+    'Kernel::System::DateTime',
 );
+
+sub new {
+    my ($Type) = @_;
+
+    my $Self = {};
+    return bless( $Self, $Type );
+}
 
 sub TicketAcceleratorUpdate {
     my ( $Self, %Param ) = @_;
@@ -38,7 +46,7 @@ sub TicketAcceleratorUpdate {
     # check if ticket is shown or not
     my $IndexUpdateNeeded = 0;
     my $IndexSelected     = 0;
-    my %TicketData        = $Self->TicketGet(
+    my %TicketData        = $Kernel::OM->Get('Kernel::System::Ticket')->TicketGet(
         %Param,
         DynamicFields => 0,
     );
@@ -211,7 +219,7 @@ sub TicketAcceleratorAdd {
     }
 
     # get ticket data
-    my %TicketData = $Self->TicketGet(
+    my %TicketData = $Kernel::OM->Get('Kernel::System::Ticket')->TicketGet(
         %Param,
         DynamicFields => 0,
     );
@@ -293,7 +301,7 @@ sub TicketLockAcceleratorAdd {
     }
 
     # get ticket data
-    my %TicketData = $Self->TicketGet(
+    my %TicketData = $Kernel::OM->Get('Kernel::System::Ticket')->TicketGet(
         %Param,
         DynamicFields => 0,
     );
@@ -447,7 +455,7 @@ sub TicketAcceleratorIndex {
     );
 
     # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my %QueuesSeen;
     while ( my @Row = $DBObject->FetchrowArray() ) {
@@ -475,7 +483,7 @@ sub TicketAcceleratorIndex {
 
             $QueueData->{Count} += $Count;
 
-            my $MaxAge = $TimeObject->SystemTime() - $Row[2];
+            my $MaxAge = $DateTimeObject->ToEpoch() - $Row[2];
             $QueueData->{MaxAge} = $MaxAge if $MaxAge > $QueueData->{MaxAge};
 
             # get the oldest queue id

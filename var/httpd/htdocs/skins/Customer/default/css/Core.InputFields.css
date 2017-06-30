@@ -74,6 +74,10 @@ div.InputField_InputContainer {
     color: #aaa;
 }
 
+.InputField_Search[readonly=readonly]:focus {
+    box-shadow: none;
+}
+
 a.InputField_Action {
     position: absolute;
     display: block;
@@ -147,6 +151,11 @@ div.InputField_TreeContainer {
     overflow-y: auto !important;
     box-sizing: content-box;
     line-height: 18px;
+}
+
+.ExpandToTop div.InputField_TreeContainer {
+    border-top: 1px solid #ccc;
+    border-bottom: none;
 }
 
 div.InputField_ToolbarContainer {
@@ -224,7 +233,7 @@ div.InputField_ToolbarContainer ul li a:hover {
     line-height: 1.5em;
     width: 100%;
     font-size: 11px;
-}   
+}
 
 .InputField_FiltersList span {
     margin-right: 5px;
@@ -242,13 +251,13 @@ div.InputField_ToolbarContainer ul li a:hover {
  */
 .jstree-InputField {
     font-size: 11px !important;
-    overflow-x: hidden !important;
     border: none !important;
     box-shadow: none !important;
     height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
 }
+
 .jstree-InputField .jstree-node,
 .jstree-InputField .jstree-children,
 .jstree-InputField .jstree-container-ul {
@@ -263,11 +272,15 @@ div.InputField_ToolbarContainer ul li a:hover {
     white-space: nowrap;
 }
 
+.jstree-InputField .jstree-node.jstree-hidden {
+    display: none;
+}
+
 .jstree-InputField .jstree-anchor {
     display: inline-block;
     color: black;
     white-space: nowrap;
-    padding: 0 4px 0 1px; 
+    padding: 0 4px 0 1px;
     margin: 0;
     vertical-align: top;
 }

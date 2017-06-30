@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -31,6 +31,14 @@ if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     print 'Sleeping ' . $SleepTime . "s\n";
     sleep $SleepTime;
 }
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # get scheduler database object
 my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
@@ -183,7 +191,7 @@ my $Success2 = $SchedulerDBObject->TaskLock(
 
 $Self->True(
     $Success2,
-    "TaskLock() - Lock task 1 needs to be successfull",
+    "TaskLock() - Lock task 1 needs to be successful",
 );
 
 # try to lock task 1 with different PID
@@ -195,7 +203,7 @@ my $Success3 = $SchedulerDBObject->TaskLock(
 
 $Self->False(
     $Success3,
-    "TaskLock() - Lock task 1 needs to be unsuccessfull",
+    "TaskLock() - Lock task 1 needs to be unsuccessful",
 );
 
 # try to lock task 1 with different NodeID
@@ -207,7 +215,7 @@ my $Success4 = $SchedulerDBObject->TaskLock(
 
 $Self->False(
     $Success4,
-    "TaskLock() - Lock task 1 needs to be unsuccessfull",
+    "TaskLock() - Lock task 1 needs to be unsuccessful",
 );
 
 # add second task
@@ -349,7 +357,7 @@ my $Success6 = $SchedulerDBObject->TaskLock(
 
 $Self->True(
     $Success6,
-    "TaskLock() - Lock task 2 needs to be successfull",
+    "TaskLock() - Lock task 2 needs to be successful",
 );
 
 # try to lock task 2 with different PID
@@ -361,7 +369,7 @@ my $Success7 = $SchedulerDBObject->TaskLock(
 
 $Self->False(
     $Success7,
-    "TaskLock() - Lock task 2 needs to be unsuccessfull",
+    "TaskLock() - Lock task 2 needs to be unsuccessful",
 );
 
 # try to lock task 2 with different NodeID
@@ -373,7 +381,7 @@ my $Success8 = $SchedulerDBObject->TaskLock(
 
 $Self->False(
     $Success8,
-    "TaskLock() - Lock task 2 needs to be unsuccessfull",
+    "TaskLock() - Lock task 2 needs to be unsuccessful",
 );
 
 # get all existing tasks
@@ -506,11 +514,9 @@ for my $Task (@List) {
 }
 
 # TaskCleanup() tests
-# get helper object
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # freeze the current time
-$HelperObject->FixedTimeSet();
+$Helper->FixedTimeSet();
 
 my %TaskTemplate = (
     Type     => 'UnitTest',
@@ -567,7 +573,7 @@ my @Tests = (
 for my $Test (@Tests) {
 
     if ( $Test->{PastSecondsAdd} ) {
-        $HelperObject->FixedTimeAddSeconds( -$Test->{PastSecondsAdd} );
+        $Helper->FixedTimeAddSeconds( -$Test->{PastSecondsAdd} );
         print "  Set $Test->{PastSecondsAdd} seconds into the past.\n";
     }
 
@@ -595,7 +601,7 @@ for my $Test (@Tests) {
     }
 
     if ( $Test->{PastSecondsAdd} ) {
-        $HelperObject->FixedTimeAddSeconds( $Test->{PastSecondsAdd} );
+        $Helper->FixedTimeAddSeconds( $Test->{PastSecondsAdd} );
         print "  Restored time.\n";
     }
 
@@ -657,17 +663,14 @@ for my $Test (@Tests) {
     },
 );
 
-# get time object
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-my $OriginalTimeStamp = $TimeObject->CurrentTimestamp();
+my $OriginalTimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
 for my $Test (@Tests) {
     if ( $Test->{AddSeconds} ) {
-        $HelperObject->FixedTimeAddSeconds( $Test->{AddSeconds} );
+        $Helper->FixedTimeAddSeconds( $Test->{AddSeconds} );
     }
 
-    my $CurrentTimeStamp = $TimeObject->CurrentTimestamp();
+    my $CurrentTimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
     my $Success = $SchedulerDBObject->TaskLockUpdate(
         TaskIDs => $Test->{TaskIDs},
@@ -820,7 +823,7 @@ for my $Test (@Tests) {
             "$Test->{Name} TaskAdd() - result should not be undef",
         );
 
-        $HelperObject->FixedTimeAddSeconds(60);
+        $Helper->FixedTimeAddSeconds(60);
     }
 
     my @List = $SchedulerDBObject->TaskList(
@@ -866,27 +869,11 @@ $Self->Is(
     "TaskAdd() - MaximumParallelInstances without name should be -1",
 );
 
-# cleanup
-@List = $SchedulerDBObject->TaskList(
-    Type => 'UnitTest',
-);
-for my $Task (@List) {
-
-    my $TaskID = $Task->{TaskID};
-
-    my $Success = $SchedulerDBObject->TaskDelete(
-        TaskID => $TaskID,
-    );
-
-    $Self->True(
-        $Success,
-        "Worker TaskDelete() - for TaskID $TaskID with true",
-    );
-}
-
 # start daemon if it was already running before this test
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
     system("$Daemon start");
 }
+
+# cleanup is done by RestoreDatabase.
 
 1;

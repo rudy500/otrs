@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -122,7 +122,7 @@ Core.Installer = (function (TargetNS) {
      */
     function CheckMailConfigCallback(json) {
         if (parseInt(json.Successful, 10) === 1) {
-            alert(Core.Config.Get('Installer.CheckMailLabelOne'));
+            alert(Core.Language.Translate('Mail check successful.'));
             $('fieldset.errormsg').hide();
             $('input[name=Subaction]').val('Finish');
             $('form').submit();
@@ -130,7 +130,7 @@ Core.Installer = (function (TargetNS) {
         else {
             $('#FormMailResultMessage').html(json.Message);
             $('fieldset.ErrorMsg').show();
-            alert(Core.Config.Get('Installer.CheckMailLabelTwo'));
+            alert(Core.Language.Translate('Error in the mail settings. Please correct and try again.'));
         }
     }
 
@@ -150,6 +150,117 @@ Core.Installer = (function (TargetNS) {
         Data += 'CheckMode=Mail;';
         Core.AJAX.FunctionCall(Core.Config.Get('Baselink'), Data, CheckMailConfigCallback);
     };
+
+    /**
+     * @private
+     * @name SelectDBType
+     * @memberof Core.Installer
+     * @function
+     * @description
+     *      This function allows CreateDB only if selected database is not Oracle.
+     */
+     function InitDatabaseSelection() {
+        $('select#DBType').on('change', function(){
+            if (/oracle/.test($(this).val())) {
+                $("#DBInstallTypeUseDB").prop("checked", true);
+                $("#DBInstallTypeUseDB").prop("disabled", "disabled");
+                $("#DBInstallTypeCreateDB").prop("disabled", "disabled");
+            }
+            else {
+                $("#DBInstallTypeUseDB").removeAttr("disabled");
+                $("#DBInstallTypeCreateDB").removeAttr("disabled");
+                $("#DBInstallTypeCreateDB").prop("checked", true);
+            }
+        }).trigger('change');
+     }
+
+     /**
+     * @private
+     * @name DBSettingsButtons
+     * @memberof Core.Installer
+     * @function
+     * @description
+     *      This function creates click events for Database Settings screen.
+     */
+     function InitDatabaseButtons() {
+
+        // click event for checking values for the database configuration
+        $('#ButtonCheckDB').on('click', TargetNS.CheckDBData);
+
+        // click event for 'Back' button
+        $('#ButtonBack').on('click', function() {
+            parent.history.back();
+        });
+     }
+
+     /**
+     * @private
+     * @name ConfigureMail
+     * @memberof Core.Installer
+     * @function
+     * @description
+     *      This function configures mail settings.
+     */
+     function InitMailButtons() {
+        $('#ButtonCheckMail').on('click', TargetNS.CheckMailConfig);
+        $('#ButtonSkipMail').on('click', function() {
+            TargetNS.SkipMailConfig();
+            return false;
+        });
+        $('#SMTPAuth').on('change', function () {
+            TargetNS.CheckSMTPAuth($(this));
+        });
+        $('#OutboundMailType').on('change', function () {
+            TargetNS.SelectOutboundMailType($(this));
+        });
+        $('#OutboundMailType').trigger('change');
+     }
+
+     /**
+     * @private
+     * @name LogFileFieldLocation
+     * @memberof Core.Installer
+     * @function
+     * @description
+     *      This function shows Log File Location field only if log module File is selected.
+     */
+     function InitLogModuleSelection() {
+        $('select#LogModule').on('change', function(){
+            if (/Kernel::System::Log::File/.test($(this).val())) {
+                $('.Row_LogFile').show();
+            }
+            else {
+                $('.Row_LogFile').hide();
+            }
+        }).trigger('change');
+     }
+
+    /**
+     * @name Init
+     * @memberof Core.Installer
+     * @function
+     * @description
+     *      This function initializes JS functionality.
+     */
+    TargetNS.Init = function () {
+
+        // show 'Next' button
+        $('#InstallerContinueWithJS').show();
+
+        // allows CreateDB only if selected database is not Oracle
+        InitDatabaseSelection();
+
+        // button click events for Database Settings screen
+        InitDatabaseButtons();
+
+        // configure mail screen
+        InitMailButtons();
+
+        // show Log File Location field (only if log module File is selected)
+        InitLogModuleSelection();
+    };
+
+    Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 
     return TargetNS;
 }(Core.Installer || {}));

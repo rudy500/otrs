@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -107,7 +107,7 @@ my @Tests = (
         },
         SlaveDBAvailable => 1,
 
-        # Use many iterations so that also the invalid mirrir will be tried first at some point, probably.
+        # Use many iterations so that also the invalid mirror will be tried first at some point, probably.
         TestIterations => 10,
     },
 );

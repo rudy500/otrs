@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,8 +11,8 @@ package Kernel::System::UnitTest;
 use strict;
 use warnings;
 
-use Term::ANSIColor;
-use SOAP::Lite;
+use File::stat;
+use Term::ANSIColor();
 
 use Kernel::System::ObjectManager;
 ## nofilter(TidyAll::Plugin::OTRS::Perl::ObjectManagerCreation)
@@ -20,37 +20,34 @@ use Kernel::System::ObjectManager;
 # UnitTest helper must be loaded to override the builtin time functions!
 use Kernel::System::UnitTest::Helper;
 
+use Kernel::System::VariableCheck qw(DataIsDifferent);
+
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::DB',
     'Kernel::System::Encode',
-    'Kernel::System::Environment',
+    'Kernel::System::JSON',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
+    'Kernel::System::SupportDataCollector',
+    'Kernel::System::DateTime',
+    'Kernel::System::WebUserAgent',
 );
 
 =head1 NAME
 
-Kernel::System::UnitTest - global test interface
+Kernel::System::UnitTest - global unit test interface
 
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
-Functions to run existing unit tests, as well as
-functions to define test cases.
+Functions to run existing unit tests, as well as functions to define test cases.
 
 =head1 PUBLIC INTERFACE
 
-=over 4
-
-=cut
-
-=item new()
+=head2 new()
 
 create unit test object. Do not use it directly, instead use:
 
-    use Kernel::System::ObjectManager;
-    local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $UnitTestObject = $Kernel::OM->Get('Kernel::System::UnitTest');
 
 =cut
@@ -63,39 +60,33 @@ sub new {
     bless( $Self, $Type );
 
     $Self->{Debug} = $Param{Debug} || 0;
+    $Self->{ANSI} = $Param{ANSI};
 
-    $Self->{Output} = $Param{Output} || 'ASCII';
+    $Self->{ResultData} = undef;
+    $Self->{TestFile}   = '';
 
-    if ( $Self->{Output} eq 'HTML' ) {
-        print "
-<html>
-<head>
-    <title>"
-            . $Kernel::OM->Get('Kernel::Config')->Get('Product') . " "
-            . $Kernel::OM->Get('Kernel::Config')->Get('Version')
-            . " - Test Summary</title>
-</head>
-<a name='top'></a>
-<body>
-
-\n";
-    }
-
-    $Self->{XML}     = undef;
-    $Self->{XMLUnit} = '';
+    # Make sure stuff is always flushed to keep it in the right order.
+    *STDOUT->autoflush(1);
+    *STDERR->autoflush(1);
+    $Self->{OriginalSTDOUT} = *STDOUT;
+    $Self->{OriginalSTDOUT}->autoflush(1);
 
     return $Self;
 }
 
-=item Run()
+=head2 Run()
 
 Run all tests located in scripts/test/*.t and print result to stdout.
 
     $UnitTestObject->Run(
-        Name      => 'JSON:User:Auth',  # optional, control which tests to select
-        Directory => 'Selenium',        # optional, control which tests to select
-
-        SubmitURL => $URL,              # optional, send results to unit test result server
+        Name                   => ['JSON', 'User'],     # optional, execute certain test files only
+        Directory              => 'Selenium',           # optional, execute tests in subdirectory
+        Verbose                => 1,                    # optional (default 0), only show result details for all tests, not just failing
+        SubmitURL              => $URL,                 # optional, send results to unit test result server
+        SubmitAuth             => '0abc86125f0fd37baae' # optional authentication string for unit test result server
+        SubmitResultAsExitCode => 1,                    # optional, specify if exit code should not indicate if tests were ok/not ok, but if submission was successful instead
+        JobID                  => 12,                   # optional job ID for unit test submission to server
+        Scenario               => 'OTRS 6 git',         # optional scenario identifier for unit test submission to server
     );
 
 =cut
@@ -103,16 +94,26 @@ Run all tests located in scripts/test/*.t and print result to stdout.
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    my %ResultSummary;
-    my $Home = $Kernel::OM->Get('Kernel::Config')->Get('Home');
+    $Self->{Verbose} = $Param{Verbose};
 
+    my $Product
+        = $Kernel::OM->Get('Kernel::Config')->Get('Product') . " " . $Kernel::OM->Get('Kernel::Config')->Get('Version');
+
+    my $Home      = $Kernel::OM->Get('Kernel::Config')->Get('Home');
     my $Directory = "$Home/scripts/test";
-
-    # custom subdirectory passed
     if ( $Param{Directory} ) {
         $Directory .= "/$Param{Directory}";
         $Directory =~ s/\.//g;
     }
+
+    my @TestsToExecute = @{ $Param{Tests} // [] };
+
+    $Self->{TestCountOk}    = 0;
+    $Self->{TestCountNotOk} = 0;
+
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+    my $StartTime = $DateTimeObject->ToEpoch();
 
     my @Files = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
         Directory => $Directory,
@@ -120,144 +121,232 @@ sub Run {
         Recursive => 1,
     );
 
-    my $StartTime = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
-    my $Product   = $Param{Product}
-        || $Kernel::OM->Get('Kernel::Config')->Get('Product') . " "
-        . $Kernel::OM->Get('Kernel::Config')->Get('Version');
-    my @Names = split( /:/, $Param{Name} || '' );
-
-    $Self->{TestCountOk}    = 0;
-    $Self->{TestCountNotOk} = 0;
     FILE:
     for my $File (@Files) {
 
         # check if only some tests are requested
-        if (@Names) {
-            my $Use = 0;
-            for my $Name (@Names) {
-                if ( $Name && $File =~ /\/\Q$Name\E\.t$/ ) {
-                    $Use = 1;
-                }
-            }
-            if ( !$Use ) {
-                next FILE;
-            }
+        if ( @TestsToExecute && !grep { $File =~ /\/\Q$_\E\.t$/smx } @TestsToExecute ) {
+            next FILE;
         }
+
         $Self->{TestCount} = 0;
+
         my $UnitTestFile = $Kernel::OM->Get('Kernel::System::Main')->FileRead( Location => $File );
         if ( !$UnitTestFile ) {
             $Self->True( 0, "ERROR: $!: $File" );
             print STDERR "ERROR: $!: $File\n";
+            next FILE;
         }
-        else {
-            $Self->_PrintHeadlineStart($File);
 
-            # create a new scope to be sure to destroy local object of the test files
-            {
-                # Make sure every UT uses its own clean environment.
-                local $Kernel::OM = Kernel::System::ObjectManager->new(
-                    'Kernel::System::Log' => {
-                        LogPrefix => 'OTRS-otrs.UnitTest',
-                    },
-                );
+        print "+-------------------------------------------------------------------+\n";
+        print "$File:\n";
+        print "+-------------------------------------------------------------------+\n";
 
-                # Provide $Self as 'Kernel::System::UnitTest' for convenience.
-                $Kernel::OM->ObjectInstanceRegister(
-                    Package      => 'Kernel::System::UnitTest',
-                    Object       => $Self,
-                    Dependencies => [],
-                );
+        $Self->{TestFile} = $File;
 
-                push @{ $Self->{NotOkInfo} }, [$File];
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-                # HERE the actual tests are run!!!
-                if ( !eval ${$UnitTestFile} ) {    ## no critic
-                    if ($@) {
-                        $Self->True( 0, "ERROR: Error in $File: $@" );
-                        print STDERR "ERROR: Error in $File: $@\n";
-                    }
-                    else {
-                        $Self->True( 0, "ERROR: $File did not return a true value." );
-                        print STDERR "ERROR: $File did not return a true value.\n";
-                    }
-                }
+        my $FileStartTime = $DateTimeObject->ToEpoch();
+
+        # create a new scope to be sure to destroy local object of the test files
+        {
+            # Make sure every UT uses its own clean environment.
+            local $Kernel::OM = Kernel::System::ObjectManager->new(
+                'Kernel::System::Log' => {
+                    LogPrefix => 'OTRS-otrs.UnitTest',
+                },
+            );
+
+            # Provide $Self as 'Kernel::System::UnitTest' for convenience.
+            $Kernel::OM->ObjectInstanceRegister(
+                Package      => 'Kernel::System::UnitTest',
+                Object       => $Self,
+                Dependencies => [],
+            );
+
+            push @{ $Self->{NotOkInfo} }, [$File];
+
+            $Self->{OutputBuffer} = '';
+            local *STDOUT = *STDOUT;
+            local *STDERR = *STDERR;
+            if ( !$Param{Verbose} ) {
+                undef *STDOUT;
+                undef *STDERR;
+                open STDOUT, '>:utf8', \$Self->{OutputBuffer};    ## no critic
+                open STDERR, '>:utf8', \$Self->{OutputBuffer};    ## no critic
             }
 
-            $Self->_PrintHeadlineEnd($File);
+            # HERE the actual tests are run!!!
+            if ( !eval ${$UnitTestFile} ) {                       ## no critic
+                if ($@) {
+                    $Self->True( 0, "ERROR: Error in $File: $@" );
+                }
+                else {
+                    $Self->True( 0, "ERROR: $File did not return a true value." );
+                }
+            }
+        }
+
+        my $FileDurationObj = $Kernel::OM->Create('Kernel::System::DateTime');
+
+        my $FileDuration = $FileDurationObj->ToEpoch() - $FileStartTime;
+        $Self->{ResultData}->{$File}->{Duration} = $FileDuration;
+
+        print "\n";
+    }
+
+    my $EndTimeObj = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $EndTime    = $EndTimeObj->ToEpoch();
+    my $Duration   = $EndTime - $StartTime;
+
+    my $Host = $Kernel::OM->Get('Kernel::Config')->Get('FQDN');
+
+    print "=====================================================================\n";
+    print $Self->_Color( 'yellow', $Host ) . " ran tests in " . $Self->_Color( 'yellow', "${Duration}s" );
+    print " for " . $Self->_Color( 'yellow', $Product ) . "\n";
+
+    if ( $Self->{TestCountNotOk} ) {
+        print $Self->_Color( 'red', "$Self->{TestCountNotOk} tests failed.\n" );
+    }
+    else {
+        if ( $Self->{TestCountOk} ) {
+            print $Self->_Color( 'green', "All $Self->{TestCountOk} tests passed.\n" );
+        }
+        else {
+            print $Self->_Color( 'yellow', "No tests executed.\n" );
         }
     }
 
-    my $Time = $Kernel::OM->Get('Kernel::System::Time')->SystemTime() - $StartTime;
-    $ResultSummary{TimeTaken} = $Time;
-    $ResultSummary{Time}      = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-        SystemTime => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
-    );
-    $ResultSummary{Product} = $Product;
-    $ResultSummary{Host}    = $Kernel::OM->Get('Kernel::Config')->Get('FQDN');
-    $ResultSummary{Perl}    = sprintf "%vd", $^V;
-    my %OSInfo = $Kernel::OM->Get('Kernel::System::Environment')->OSInfoGet();
-    $ResultSummary{OS}        = $OSInfo{OS};
-    $ResultSummary{Vendor}    = $OSInfo{OSName};
-    $ResultSummary{Database}  = lc $Kernel::OM->Get('Kernel::System::DB')->Version();
-    $ResultSummary{TestOk}    = $Self->{TestCountOk};
-    $ResultSummary{TestNotOk} = $Self->{TestCountNotOk};
-
-    $Self->_PrintSummary(%ResultSummary);
-    if ( $Self->{Content} ) {
-        print $Self->{Content};
-    }
-
-    my $XML = "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n";
-    $XML .= "<otrs_test>\n";
-    $XML .= "<Summary>\n";
-    for my $Key ( sort keys %ResultSummary ) {
-        $ResultSummary{$Key} =~ s/&/&amp;/g;
-        $ResultSummary{$Key} =~ s/</&lt;/g;
-        $ResultSummary{$Key} =~ s/>/&gt;/g;
-        $ResultSummary{$Key} =~ s/"/&quot;/g;
-        $XML .= "  <Item Name=\"$Key\">$ResultSummary{$Key}</Item>\n";
-    }
-    $XML .= "</Summary>\n";
-    for my $Key ( sort keys %{ $Self->{XML}->{Test} } ) {
-
-        # extract duration time
-        my $Duration = $Self->{Duration}->{$Key};
-
-        $XML .= "<Unit Name=\"$Key\" Duration=\"$Duration\">\n";
-
-        for my $TestCount ( sort { $a <=> $b } keys %{ $Self->{XML}->{Test}->{$Key} } ) {
-            my $Result  = $Self->{XML}->{Test}->{$Key}->{$TestCount}->{Result};
-            my $Content = $Self->{XML}->{Test}->{$Key}->{$TestCount}->{Name};
-            $Content =~ s/&/&amp;/g;
-            $Content =~ s/</&lt;/g;
-            $Content =~ s/>/&gt;/g;
-            $XML .= qq|  <Test Result="$Result" Count="$TestCount">$Content</Test>\n|;
+    if ( $Self->{TestCountNotOk} ) {
+        print " FailedTests:\n";
+        FAILEDFILE:
+        for my $FailedFile ( @{ $Self->{NotOkInfo} || [] } ) {
+            my ( $File, @Tests ) = @{ $FailedFile || [] };
+            next FAILEDFILE if !@Tests;
+            print sprintf "  %s #%s\n", $File, join ", ", @Tests;
         }
-
-        $XML .= "</Unit>\n";
-    }
-    $XML .= "</otrs_test>\n";
-
-    if ( $Self->{Output} eq 'XML' ) {
-        print $XML;
     }
 
     if ( $Param{SubmitURL} ) {
-        $Kernel::OM->Get('Kernel::System::Encode')->EncodeOutput( \$XML );
 
-        my $RPC = SOAP::Lite->new(
-            proxy => $Param{SubmitURL},
-            uri   => 'http://localhost/Core',
+        my %SupportData = $Kernel::OM->Get('Kernel::System::SupportDataCollector')->Collect();
+        die "Could not collect SupportData.\n" if !$SupportData{Success};
+
+        my %SubmitData = (
+            Auth     => $Param{SubmitAuth} // '',
+            JobID    => $Param{JobID}      // '',
+            Scenario => $Param{Scenario}   // '',
+            Meta     => {
+                StartTime => $StartTime,
+                Duration  => $Duration,
+                TestOk    => $Self->{TestCountOk},
+                TestNotOk => $Self->{TestCountNotOk},
+            },
+            SupportData => $SupportData{Result},
+            Results     => $Self->{ResultData},
         );
 
-        my $Key = $RPC->Submit( '', '', $XML )->result();
-        print STDERR "NOTICE: Sent to $Param{SubmitURL} with SubmitID: '$Key'.\n";
+        print "=====================================================================\n";
+        print "Sending results to " . $Self->_Color( 'yellow', $Param{SubmitURL} ) . " ...\n";
+
+        # Flush possible output log files to be able to submit them.
+        *STDOUT->flush();
+        *STDERR->flush();
+
+        # Limit attachment sizes to 2MB in total.
+        my $AttachmentCount = scalar @{ $Param{AttachmentPath} // [] };
+        my $AttachmentsSize = 1024 * 1024 * 2;
+        for my $AttachmentPath ( @{ $Param{AttachmentPath} // [] } ) {
+            my $FileHandle;
+            my $Content;
+
+            if ( !open $FileHandle, '<:encoding(UTF-8)', $AttachmentPath ) {    ## no-critic
+                print $Self->_Color( 'red', "Could not open file $AttachmentPath, aborting submission.\n" );
+                return;
+            }
+
+            # Read only allocated size of file to try to avoid out of memory error.
+            if ( !read $FileHandle, $Content, $AttachmentsSize / $AttachmentCount ) {    ## no-critic
+                print $Self->_Color( 'red', "Could not read file $AttachmentPath, aborting submission.\n" );
+                close $FileHandle;
+                return;
+            }
+
+            my $Stat = stat($AttachmentPath);
+
+            if ( !$Stat ) {
+                print $Self->_Color( 'red', "Cannot stat file $AttachmentPath, aborting submission.\n" );
+                return;
+            }
+
+            # If file size exceeds the limit, include message about shortening at the end.
+            if ( $Stat->size() > $AttachmentsSize / $AttachmentCount ) {
+                $Content .= "\nThis file has been shortened because of size constraint.";
+            }
+
+            close $FileHandle;
+
+            $SubmitData{Attachments}->{$AttachmentPath} = $Content;
+        }
+
+        my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
+
+        # Perform web service request and get response.
+        my %Response = $Kernel::OM->Get('Kernel::System::WebUserAgent')->Request(
+            Type => 'POST',
+            URL  => $Param{SubmitURL},
+            Data => {
+                Action      => 'PublicCIMaster',
+                Subaction   => 'TestResults',
+                RequestData => $JSONObject->Encode(
+                    Data => \%SubmitData,
+                ),
+            },
+        );
+
+        if ( $Response{Status} ne '200 OK' ) {
+            print $Self->_Color( 'red', "Submission to server failed (status code '$Response{Status}').\n" );
+            return;
+        }
+
+        if ( !$Response{Content} ) {
+            print $Self->_Color( 'red', "Submission to server failed (no response).\n" );
+            return;
+        }
+
+        # Convert internal used charset.
+        $Kernel::OM->Get('Kernel::System::Encode')->EncodeInput(
+            $Response{Content},
+        );
+
+        my $ResponseData = $JSONObject->Decode(
+            Data => ${ $Response{Content} },
+        );
+
+        if ( !$ResponseData ) {
+            print $Self->_Color( 'red', "Submission to server failed (invalid response).\n" );
+            return;
+        }
+
+        if ( !$ResponseData->{Success} && $ResponseData->{ErrorMessage} ) {
+            print $Self->_Color(
+                'red',
+                "Submission to server failed (error message '$ResponseData->{ErrorMessage}').\n"
+            );
+            return;
+        }
+
+        print $Self->_Color( 'green', "Submission was successful.\n" );
+
+        if ( $Param{SubmitResultAsExitCode} ) {
+            return 1;
+        }
     }
 
-    return $ResultSummary{TestNotOk} ? 0 : 1;
+    return $Self->{TestCountNotOk} ? 0 : 1;
 }
 
-=item True()
+=head2 True()
 
 test for a scalar value that evaluates to true.
 
@@ -299,7 +388,7 @@ sub True {
     }
 }
 
-=item False()
+=head2 False()
 
 test for a scalar value that evaluates to false.
 
@@ -330,7 +419,7 @@ sub False {
     }
 }
 
-=item Is()
+=head2 Is()
 
 compares two scalar values for equality.
 
@@ -384,7 +473,7 @@ sub Is {
     }
 }
 
-=item IsNot()
+=head2 IsNot()
 
 compares two scalar values for inequality.
 
@@ -427,7 +516,7 @@ sub IsNot {
     }
 }
 
-=item IsDeeply()
+=head2 IsDeeply()
 
 compares complex data structures for equality.
 
@@ -461,7 +550,7 @@ sub IsDeeply {
         return;
     }
 
-    my $Diff = $Self->_DataDiff(
+    my $Diff = DataIsDifferent(
         Data1 => $Test,
         Data2 => $ShouldBe,
     );
@@ -490,7 +579,7 @@ sub IsDeeply {
     }
 }
 
-=item IsNotDeeply()
+=head2 IsNotDeeply()
 
 compares two data structures for inequality.
 
@@ -511,7 +600,7 @@ sub IsNotDeeply {
         return;
     }
 
-    my $Diff = $Self->_DataDiff(
+    my $Diff = DataIsDifferent(
         Data1 => $Test,
         Data2 => $ShouldBe,
     );
@@ -547,302 +636,55 @@ sub IsNotDeeply {
 
 =cut
 
-=item _DataDiff()
-
-compares two data structures with each other. Returns 1 if
-they are different, undef otherwise.
-
-Data parameters need to be passed by reference and can be SCALAR,
-ARRAY or HASH.
-
-    my $DataIsDifferent = $UnitTestObject->_DataDiff(
-        Data1 => \$Data1,
-        Data2 => \$Data2,
-    );
-
-=cut
-
-sub _DataDiff {
-    my ( $Self, %Param ) = @_;
-
-    # check needed stuff
-    for (qw(Data1 Data2)) {
-        if ( !defined $Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
-            return;
-        }
-    }
-
-    # ''
-    if ( ref $Param{Data1} eq '' && ref $Param{Data2} eq '' ) {
-
-        # do nothing, it's ok
-        return if !defined $Param{Data1} && !defined $Param{Data2};
-
-        # return diff, because its different
-        return 1 if !defined $Param{Data1} || !defined $Param{Data2};
-
-        # return diff, because its different
-        return 1 if $Param{Data1} ne $Param{Data2};
-
-        # return, because its not different
-        return;
-    }
-
-    # SCALAR
-    if ( ref $Param{Data1} eq 'SCALAR' && ref $Param{Data2} eq 'SCALAR' ) {
-
-        # do nothing, it's ok
-        return if !defined ${ $Param{Data1} } && !defined ${ $Param{Data2} };
-
-        # return diff, because its different
-        return 1 if !defined ${ $Param{Data1} } || !defined ${ $Param{Data2} };
-
-        # return diff, because its different
-        return 1 if ${ $Param{Data1} } ne ${ $Param{Data2} };
-
-        # return, because its not different
-        return;
-    }
-
-    # ARRAY
-    if ( ref $Param{Data1} eq 'ARRAY' && ref $Param{Data2} eq 'ARRAY' ) {
-        my @A = @{ $Param{Data1} };
-        my @B = @{ $Param{Data2} };
-
-        # check if the count is different
-        return 1 if $#A ne $#B;
-
-        # compare array
-        COUNT:
-        for my $Count ( 0 .. $#A ) {
-
-            # do nothing, it's ok
-            next COUNT if !defined $A[$Count] && !defined $B[$Count];
-
-            # return diff, because its different
-            return 1 if !defined $A[$Count] || !defined $B[$Count];
-
-            if ( $A[$Count] ne $B[$Count] ) {
-                if ( ref $A[$Count] eq 'ARRAY' || ref $A[$Count] eq 'HASH' ) {
-                    return 1 if $Self->_DataDiff(
-                        Data1 => $A[$Count],
-                        Data2 => $B[$Count]
-                    );
-                    next COUNT;
-                }
-                return 1;
-            }
-        }
-        return;
-    }
-
-    # HASH
-    if ( ref $Param{Data1} eq 'HASH' && ref $Param{Data2} eq 'HASH' ) {
-        my %A = %{ $Param{Data1} };
-        my %B = %{ $Param{Data2} };
-
-        # compare %A with %B and remove it if checked
-        KEY:
-        for my $Key ( sort keys %A ) {
-
-            # Check if both are undefined
-            if ( !defined $A{$Key} && !defined $B{$Key} ) {
-                delete $A{$Key};
-                delete $B{$Key};
-                next KEY;
-            }
-
-            # return diff, because its different
-            return 1 if !defined $A{$Key} || !defined $B{$Key};
-
-            if ( $A{$Key} eq $B{$Key} ) {
-                delete $A{$Key};
-                delete $B{$Key};
-                next KEY;
-            }
-
-            # return if values are different
-            if ( ref $A{$Key} eq 'ARRAY' || ref $A{$Key} eq 'HASH' ) {
-                return 1 if $Self->_DataDiff(
-                    Data1 => $A{$Key},
-                    Data2 => $B{$Key}
-                );
-                delete $A{$Key};
-                delete $B{$Key};
-                next KEY;
-            }
-            return 1;
-        }
-
-        # check rest
-        return 1 if %B;
-        return;
-    }
-
-    if ( ref $Param{Data1} eq 'REF' && ref $Param{Data2} eq 'REF' ) {
-        return 1 if $Self->_DataDiff(
-            Data1 => ${ $Param{Data1} },
-            Data2 => ${ $Param{Data2} }
-        );
-        return;
-    }
-
-    return 1;
-}
-
-sub _PrintSummary {
-    my ( $Self, %ResultSummary ) = @_;
-
-    # show result
-    if ( $Self->{Output} eq 'HTML' ) {
-        print "<table width='600' border='1'>\n";
-        if ( $ResultSummary{TestNotOk} ) {
-            print "<tr><td bgcolor='red' colspan='2'>Summary</td></tr>\n";
-        }
-        else {
-            print "<tr><td bgcolor='green' colspan='2'>Summary</td></tr>\n";
-        }
-        print "<tr><td>Product: </td><td>$ResultSummary{Product}</td></tr>\n";
-        print "<tr><td>Test Time:</td><td>$ResultSummary{TimeTaken} s</td></tr>\n";
-        print "<tr><td>Time:     </td><td> $ResultSummary{Time}</td></tr>\n";
-        print "<tr><td>Host:     </td><td>$ResultSummary{Host}</td></tr>\n";
-        print "<tr><td>Perl:     </td><td>$ResultSummary{Perl}</td></tr>\n";
-        print "<tr><td>OS:       </td><td>$ResultSummary{OS}</td></tr>\n";
-        print "<tr><td>Vendor:   </td><td>$ResultSummary{Vendor}</td></tr>\n";
-        print "<tr><td>Database: </td><td>$ResultSummary{Database}</td></tr>\n";
-        print "<tr><td>TestOk:   </td><td>$ResultSummary{TestOk}</td></tr>\n";
-        print "<tr><td>TestNotOk:</td><td>$ResultSummary{TestNotOk}</td></tr>\n";
-        print "</table><br>\n";
-    }
-    elsif ( $Self->{Output} eq 'ASCII' ) {
-        print "=====================================================================\n";
-        print " Product:     $ResultSummary{Product}\n";
-        print " Test Time:   $ResultSummary{TimeTaken} s\n";
-        print " Time:        $ResultSummary{Time}\n";
-        print " Host:        $ResultSummary{Host}\n";
-        print " Perl:        $ResultSummary{Perl}\n";
-        print " OS:          $ResultSummary{OS}\n";
-        print " Vendor:      $ResultSummary{Vendor}\n";
-        print " Database:    $ResultSummary{Database}\n";
-        print " TestOk:      $ResultSummary{TestOk}\n";
-        print " TestNotOk:   $ResultSummary{TestNotOk}\n";
-
-        if ( $ResultSummary{TestNotOk} ) {
-            print " FailedTests:\n";
-            FAILEDFILE:
-            for my $FailedFile ( @{ $Self->{NotOkInfo} || [] } ) {
-                my ( $File, @Tests ) = @{ $FailedFile || [] };
-                next FAILEDFILE if !@Tests;
-                print sprintf "  %s #%s\n", $File, join ", ", @Tests;
-            }
-        }
-
-        print "=====================================================================\n";
-    }
-    return 1;
-}
-
-sub _PrintHeadlineStart {
-    my ( $Self, $Name ) = @_;
-
-    # set default name
-    $Name ||= '->>No Name!<<-';
-
-    if ( $Self->{Output} eq 'HTML' ) {
-        $Self->{Content} .= "<table width='600' border='1'>\n";
-        $Self->{Content} .= "<tr><td colspan='2'>$Name</td></tr>\n";
-    }
-    elsif ( $Self->{Output} eq 'ASCII' ) {
-        print "+-------------------------------------------------------------------+\n";
-        print "$Name:\n";
-        print "+-------------------------------------------------------------------+\n";
-    }
-
-    $Self->{XMLUnit} = $Name;
-
-    # set duration start time
-    $Self->{DurationStartTime}->{$Name} = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
-
-    return 1;
-}
-
-sub _PrintHeadlineEnd {
-    my ( $Self, $Name ) = @_;
-
-    # set default name
-    $Name ||= '->>No Name!<<-';
-
-    if ( $Self->{Output} eq 'HTML' ) {
-        $Self->{Content} .= "</table><br>\n";
-    }
-    elsif ( $Self->{Output} eq 'ASCII' ) {
-    }
-
-    # calculate duration time
-    my $Duration = '';
-    if ( $Self->{DurationStartTime}->{$Name} ) {
-
-        $Duration = $Kernel::OM->Get('Kernel::System::Time')->SystemTime()
-            - $Self->{DurationStartTime}->{$Name};
-
-        delete $Self->{DurationStartTime}->{$Name};
-    }
-    $Self->{Duration}->{$Name} = $Duration;
-
-    return 1;
-}
-
 sub _Print {
-    my ( $Self, $Test, $Name ) = @_;
-    if ( !$Name ) {
-        $Name = '->>No Name!<<-';
+    my ( $Self, $ResultOk, $Message ) = @_;
+
+    $Message ||= '->>No Name!<<-';
+
+    my $ShortMessage = $Message;
+    if ( length $ShortMessage > 1000 && !$Self->{Verbose} ) {
+        $ShortMessage = substr( $ShortMessage, 0, 1000 ) . "...";
     }
+
+    if ( $Self->{Verbose} || !$ResultOk ) {
+        print { $Self->{OriginalSTDOUT} } $Self->{OutputBuffer};
+    }
+    $Self->{OutputBuffer} = '';
 
     $Self->{TestCount}++;
-    if ($Test) {
+    if ($ResultOk) {
         $Self->{TestCountOk}++;
-        if ( $Self->{Output} eq 'HTML' ) {
-            $Self->{Content}
-                .= "<tr><td width='70' bgcolor='green'>ok $Self->{TestCount}</td><td>$Name</td></tr>\n";
+        if ( $Self->{Verbose} ) {
+            print { $Self->{OriginalSTDOUT} } " "
+                . $Self->_Color( 'green', "ok" )
+                . " $Self->{TestCount} - $ShortMessage\n";
         }
-        elsif ( $Self->{Output} eq 'ASCII' ) {
-            print color('green') . " ok" . color('reset') . " $Self->{TestCount} - $Name\n";
+        else {
+            print { $Self->{OriginalSTDOUT} } $Self->_Color( 'green', "." );
         }
-        $Self->{XML}->{Test}->{ $Self->{XMLUnit} }->{ $Self->{TestCount} }->{Result} = 'ok';
-        $Self->{XML}->{Test}->{ $Self->{XMLUnit} }->{ $Self->{TestCount} }->{Name}   = $Name;
+        $Self->{ResultData}->{ $Self->{TestFile} }->{TestOk}++;
         return 1;
     }
     else {
         $Self->{TestCountNotOk}++;
-        if ( $Self->{Output} eq 'HTML' ) {
-            $Self->{Content}
-                .= "<tr><td width='70' bgcolor='red'>not ok $Self->{TestCount}</td><td>$Name</td></tr>\n";
+        if ( !$Self->{Verbose} ) {
+            print { $Self->{OriginalSTDOUT} } "\n";
         }
-        elsif ( $Self->{Output} eq 'ASCII' ) {
+        print { $Self->{OriginalSTDOUT} } " "
+            . $Self->_Color( 'red', "not ok" )
+            . " $Self->{TestCount} - $ShortMessage\n";
+        $Self->{ResultData}->{ $Self->{TestFile} }->{TestNotOk}++;
+        $Self->{ResultData}->{ $Self->{TestFile} }->{Results}->{ $Self->{TestCount} }->{Status}  = 'not ok';
+        $Self->{ResultData}->{ $Self->{TestFile} }->{Results}->{ $Self->{TestCount} }->{Message} = $Message;
 
-            my $PrintName = $Name;
-
-            if ( length $PrintName > 1000 ) {
-                $PrintName = substr( $PrintName, 0, 1000 ) . "...";
-            }
-
-            print color('red') . " not ok" . color('reset') . " $Self->{TestCount} - $PrintName\n";
-        }
-        $Self->{XML}->{Test}->{ $Self->{XMLUnit} }->{ $Self->{TestCount} }->{Result} = 'not ok';
-        $Self->{XML}->{Test}->{ $Self->{XMLUnit} }->{ $Self->{TestCount} }->{Name}   = $Name;
-
-        my $TestFailureDetails = $Name;
+        my $TestFailureDetails = $Message;
         $TestFailureDetails =~ s{\(.+\)$}{};
         if ( length $TestFailureDetails > 200 ) {
             $TestFailureDetails = substr( $TestFailureDetails, 0, 200 ) . "...";
         }
 
         # Store information about failed tests, but only if we are running in a toplevel unit test object
-        #   that is actually processing filed, and not in an embedded object that just runs individual tests.
+        #   that is actually processing files, and not in an embedded object that just runs individual tests.
         if ( ref $Self->{NotOkInfo} eq 'ARRAY' ) {
             push @{ $Self->{NotOkInfo}->[-1] }, sprintf "%s - %s", $Self->{TestCount},
                 $TestFailureDetails;
@@ -852,21 +694,37 @@ sub _Print {
     }
 }
 
-sub DESTROY {
-    my $Self = shift;
+sub AttachSeleniumScreenshot {
+    my ( $Self, %Param ) = @_;
 
-    if ( $Self->{Output} eq 'HTML' ) {
-        print "</body>\n";
-        print "</html>\n";
-    }
+    push @{ $Self->{ResultData}->{ $Self->{TestFile} }->{Results}->{ $Self->{TestCount} }->{Screenshots} },
+        {
+        Filename => $Param{Filename},
+        Content  => $Param{Content},
+        };
+
     return;
+}
+
+=head2 _Color()
+
+this will color the given text (see Term::ANSIColor::color()) if
+ANSI output is available and active, otherwise the text stays unchanged.
+
+    my $PossiblyColoredText = $CommandObject->_Color('green', $Text);
+
+=cut
+
+sub _Color {
+    my ( $Self, $Color, $Text ) = @_;
+
+    return $Text if !$Self->{ANSI};
+    return Term::ANSIColor::color($Color) . $Text . Term::ANSIColor::color('reset');
 }
 
 1;
 
 =end Internal:
-
-=back
 
 =head1 TERMS AND CONDITIONS
 

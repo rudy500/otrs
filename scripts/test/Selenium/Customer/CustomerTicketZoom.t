@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,70 +19,103 @@ $Selenium->RunTest(
     sub {
 
         # get helper object
-        $Kernel::OM->ObjectParamAdd(
-            'Kernel::System::UnitTest::Helper' => {
-                RestoreSystemConfiguration => 1,
-            },
-        );
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         # do not check RichText
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
+        $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'Frontend::RichText',
             Value => 0
         );
 
-        # do not check type
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
-            Valid => 1,
-            Key   => 'Ticket::Type',
-            Value => 0
+        # create test customer user
+        my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate(
+        ) || die "Did not get test customer user";
+
+        # get ticket object
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+
+        # create test ticket
+        my $TicketNumber = $TicketObject->TicketCreateNumber();
+        my $TicketID     = $TicketObject->TicketCreate(
+            TN           => $TicketNumber,
+            Title        => 'Some Ticket Title',
+            Queue        => 'Raw',
+            Lock         => 'unlock',
+            Priority     => '3 normal',
+            State        => 'new',
+            CustomerID   => $TestCustomerUserLogin,
+            CustomerUser => $TestCustomerUserLogin,
+            OwnerID      => 1,
+            UserID       => 1,
+        );
+        $Self->True(
+            $TicketID,
+            "Ticket is created - $TicketID",
         );
 
-        # do not check service
-        $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigItemUpdate(
-            Valid => 1,
-            Key   => 'Ticket::Service',
-            Value => 0
-        );
-
-        # create test customer user and login
-        my $TestUserLogin = $Helper->TestCustomerUserCreate(
-            Groups => ['admin'],
-        ) || die "Did not get test user";
-
-        $Selenium->Login(
-            Type     => 'Customer',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
-        );
-
-        # click on 'Create your first ticket'
-        $Selenium->find_element( ".Button", 'css' )->click();
-
-        # input fields and create ticket
+        # create test article for test ticket
         my $SubjectRandom = "Subject" . $Helper->GetRandomID();
         my $TextRandom    = "Text" . $Helper->GetRandomID();
-        $Selenium->execute_script("\$('#Dest').val('2||Raw').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Subject",  'css' )->send_keys($SubjectRandom);
-        $Selenium->find_element( "#RichText", 'css' )->send_keys($TextRandom);
-        $Selenium->find_element( "#Subject",  'css' )->submit();
 
-        # Wait until form has loaded, if neccessary
-        $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('table.Overview').length" );
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => 'Phone',
+        );
 
-        # get needed data
-        my @User = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerIDs(
-            User => $TestUserLogin,
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $TicketID,
+            SenderType           => 'customer',
+            IsVisibleForCustomer => 1,
+            Subject              => $SubjectRandom,
+            Body                 => $TextRandom,
+            Charset              => 'charset=ISO-8859-15',
+            MimeType             => 'text/plain',
+            HistoryType          => 'AddNote',
+            HistoryComment       => 'Some free text!',
+            UserID               => 1,
         );
-        my $UserID    = $User[0];
-        my %TicketIDs = $Kernel::OM->Get('Kernel::System::Ticket')->TicketSearch(
-            Result         => 'HASH',
-            Limit          => 1,
-            CustomerUserID => $UserID,
+
+        $Self->True(
+            $ArticleID,
+            "Article is created - $ArticleID",
         );
-        my $TicketNumber = (%TicketIDs)[1];
+
+        # account some time to the ticket
+        my $Success = $TicketObject->TicketAccountTime(
+            TicketID  => $TicketID,
+            ArticleID => $ArticleID,
+            TimeUnit  => '7',
+            UserID    => 1,
+        );
+        $Self->True(
+            $Success,
+            "Time accounted to the ticket",
+        );
+
+        # login test customer user
+        $Selenium->Login(
+            Type     => 'Customer',
+            User     => $TestCustomerUserLogin,
+            Password => $TestCustomerUserLogin,
+        );
+
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketZoom;TicketNumber=123123123");
+
+        $Self->True(
+            index( $Selenium->get_page_source(), 'No Permission' ) > -1,
+            "No permission message for tickets the user may not see, even if they don't exist.",
+        );
+
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketZoom;TicketNumber=");
+
+        $Self->True(
+            index( $Selenium->get_page_source(), 'Need TicketID' ) > -1,
+            "Error message for missing TicketID/TicketNumber.",
+        );
+
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketOverview");
 
         # search for new created ticket on CustomerTicketOverview screen
         $Self->True(
@@ -92,7 +125,7 @@ $Selenium->RunTest(
 
         # check customer ticket zoom screen
         $Selenium->find_element("//a[contains(\@href, \'Action=CustomerTicketZoom;TicketNumber=$TicketNumber' )]")
-            ->click();
+            ->VerifiedClick();
 
         # check add page
         for my $ID (
@@ -107,12 +140,12 @@ $Selenium->RunTest(
         # check ticket data
         $Self->True(
             index( $Selenium->get_page_source(), $TicketNumber ) > -1,
-            "Ticket number is  $TicketNumber",
+            "Ticket number is $TicketNumber",
         );
 
         $Self->True(
             index( $Selenium->get_page_source(), $SubjectRandom ) > -1,
-            "Subject is  $SubjectRandom",
+            "Subject is $SubjectRandom",
         );
 
         $Self->True(
@@ -125,24 +158,68 @@ $Selenium->RunTest(
             "Queue is Raw",
         );
 
+        # accounted time should not be displayed
+        $Self->False(
+            index( $Selenium->get_page_source(), '<span class="Key">Accounted time:</span>' ) > -1,
+            "Accounted time is not displayed",
+        );
+
+        # enable displaying accounted time
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::CustomerTicketZoom###ZoomTimeDisplay',
+            Value => 1
+        );
+
+        # reload the page
+        $Selenium->VerifiedGet("${ScriptAlias}customer.pl?Action=CustomerTicketZoom;TicketNumber=$TicketNumber");
+
+        # accounted time should now be displayed
+        $Self->True(
+            index( $Selenium->get_page_source(), '<span class="Key">Accounted time:</span>' ) > -1,
+            "Accounted time is displayed",
+        );
+
+        # check reply button
+        $Selenium->find_element("//a[contains(\@id, \'ReplyButton' )]")->VerifiedClick();
+        $Selenium->find_element("//button[contains(\@value, \'Submit' )]");
+
+        # change the ticket state to 'merged'
+        my $Merged = $TicketObject->TicketStateSet(
+            State    => 'merged',
+            TicketID => $TicketID,
+            UserID   => 1,
+        );
+        $Self->True(
+            $Merged,
+            "Ticket state changed to 'merged'",
+        );
+
+        # refresh the page
+        $Selenium->VerifiedRefresh();
+
+        # check if reply button is missing in merged ticket (bug#7301)
+        $Self->Is(
+            $Selenium->execute_script('return $("a#ReplyButton").length'),
+            0,
+            "Reply button not found",
+        );
+
         # check print button
-        $Selenium->find_element("//a[contains(\@href, \'Action=CustomerTicketPrint;' )]")->click();
+        $Selenium->find_element("//a[contains(\@href, \'Action=CustomerTicketPrint;' )]")->VerifiedClick();
 
         # clean up test data from the DB
-        my $TicketID = (%TicketIDs)[0];
-        my $Success  = $Kernel::OM->Get('Kernel::System::Ticket')->TicketDelete(
+        $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
-            UserID   => $UserID,
+            UserID   => 1,
         );
         $Self->True(
             $Success,
-            "Ticket with ticket number $TicketNumber is deleted"
+            "Ticket is deleted - $TicketID",
         );
 
-        # make sure the cache is correct.
+        # make sure the cache is correct
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Ticket' );
 
     }
 );
-
-1;

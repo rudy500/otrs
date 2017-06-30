@@ -1,26 +1,32 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst AdminGenericInterfaceTransportHTTPREST">
-    <h1>[% Translate("GenericInterface Transport HTTP::REST for Web Service %s", Data.WebserviceName) | html %]</h1>
+    <h1>[% Translate( "GenericInterface Web Service Management" ) | html %]</h1>
 
-    <ul class="BreadCrumb">
-        <li>[% Translate("You are here") | html %]:</li>
-[% RenderBlockStart("WebservicePathElement") %]
-        <li>
-            <a href="[% Env("Baselink") %][% Data.Link %];Nav=[% Data.Nav | uri %]">[% Data.Name | html %]</a>
-        </li>
-[% RenderBlockEnd("WebservicePathElement") %]
-[% RenderBlockStart("WebservicePathElementNoLink") %]
-        <li>
-            [% Data.Name | html %]
-        </li>
-[% RenderBlockEnd("WebservicePathElementNoLink") %]
-    </ul>
+    [% USE BreadcrumbLink = String( "AdminGenericInterfaceWebservice" ) %]
+    [% USE HTTPRESTName   = String( Data.CommunicationType ) %]
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate( 'Web Service Management' ),
+                Link => BreadcrumbLink,
+            },
+            {
+                Name => Data.WebserviceName,
+                Link => BreadcrumbLink.copy.append( ";Subaction=", Data.Action, ";WebserviceID=", Data.WebserviceID ),
+            },
+            {
+                Name => HTTPRESTName.append( " Transport ", Data.Type ),
+            }
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
         <div class="WidgetSimple">
@@ -40,7 +46,7 @@
 
         <div class="WidgetSimple">
             <div class="Header">
-                <h2>[% Translate("Network transport") | html %]</h2>
+                <h2>[% Translate("Network Transport") | html %]</h2>
             </div>
             <div class="Content">
                 <h3>[% Translate("Properties") | html %]</h3>
@@ -101,6 +107,51 @@
                             <div class="Clear"></div>
 [% RenderBlockEnd("TransportProvider") %]
 
+[% RenderBlockStart("AdditionalHeaders") %]
+                        <label>[% Translate("Additional response headers") | html %]:</label>
+                        <div class="Field ValueInsert">
+
+                            <input type="hidden" name="ValueCounter" value="[% Data.ValueCounter | html %]" id="ValueCounter" class="ValueCounter" />
+[% RenderBlockStart("ValueRow") %]
+                            <div class="ValueRow">
+                                <input name="Key_[% Data.ValueCounter | html %]" id="Key_[% Data.ValueCounter | html %]" class="DefaultValueKeyItem Validate_Required W20pc [% Data.KeyError | html %]" type="text" maxlength="150" value="[% Data.Key | html %]" style="width:250px"/>
+                                <div id="Key_[% Data.ValueCounter | html %]Error" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
+                                <div id="Key_[% Data.ValueCounter | html %]ServerError" class="TooltipErrorMessage"><p>[% Translate(Data.KeyErrorStrg) | html %]</p></div>
+
+                                <label class="Mandatory" for="Value_[% Data.ValueCounter | html %]"><span class="Marker">*</span>[% Translate("Value") | html %]:</label>
+                                <input name="Value_[% Data.ValueCounter | html %]" id="Value_[% Data.ValueCounter | html %]" class="DefaultValueItem Validate_Required W20pc [% Data.ValueError | html %]" type="text" maxlength="150" value="[% Data.Value | html %]"/>
+                                <div id="Value_[% Data.ValueCounter | html %]Error" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
+                                <div id="Value_[% Data.ValueCounter | html %]ServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
+
+                                <a href="#" id="RemoveValue_[% Data.ValueCounter | html %]" class="RemoveButton ValueRemove"><i class="fa fa-minus-square-o"></i><span class="InvisibleText">[% Translate("Remove value") | html %]</span></a>
+                                <div class="SpacingTopMini" ></div>
+                            </div>
+[% RenderBlockEnd("ValueRow") %]
+                        <div class="Field">
+                            <a href="#" id="AddValue" class="CallForAction AddButton Inline"><span><i class="fa fa-plus-square-o">&nbsp;</i>[% Translate("Add response header") | html %]</span></a>
+                        </div>
+[% RenderBlockStart("ValueTemplate") %]
+                            <div class="ValueTemplate Hidden">
+                                <input name="Key_[% Data.ValueCounter | html %]" id="Key" class="DefaultValueKeyItem W20pc" type="text" maxlength="150" value="[% Data.Key | html %]" style="width:250px"/>
+                                <div id="KeyError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
+                                <div id="KeyServerError" class="TooltipErrorMessage"><p>[% Translate(Data.KeyErrorStrg) | html %]</p></div>
+
+                                <label class="Mandatory" for="Value"><span class="Marker">*</span>[% Translate("Value") | html %]:</label>
+                                <input name="Value_[% Data.ValueCounter | html %]" id="Value" class="DefaultValueItem W20pc" type="text" maxlength="150" value="[% Data.Value | html %]"/>
+                                <div id="ValueError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
+                                <div id="ValueServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
+
+                                <a href="#" id="RemoveValue_[% Data.ValueCounter | html %]" class="RemoveButton ValueRemove"><i class="fa fa-minus-square-o"></i><span class="InvisibleText">[% Translate("Remove value") | html %]</span></a>
+                                <div class="SpacingTopMini" ></div>
+                            </div>
+[% RenderBlockEnd("ValueTemplate") %]
+
+                            <input type="hidden" name="DeletedValue" value="[% Data.DeletedString | html %]" id="DeletedValue" class="DeletedValue" />
+
+                        </div>
+                        <div class="Clear"></div>
+[% RenderBlockEnd("AdditionalHeaders") %]
+
 [% RenderBlockStart("TransportRequester") %]
                             <label class="Mandatory" for="Host"><span class="Marker">*</span>[% Translate("Host") | html %]:</label>
                             <div class="Field">
@@ -153,24 +204,6 @@
                                     [% Translate("A \"-\" value means no authentication.") | html %]
                                 </p>
                             </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('#Authentication').bind('change', function(){
-    if ( $(this).val() === 'BasicAuth') {
-        $('.BasicAuthField').removeClass('Hidden');
-        $('.BasicAuthField').find('#User').each(function(){
-            $(this).addClass('Validate_Required');
-        });
-    }
-    else {
-        $('.BasicAuthField').addClass('Hidden');
-        $('.BasicAuthField').find('#User').each(function(){
-            $(this).removeClass('Validate_Required');
-        });
-    }
-});
-//]]></script>
-[% END %]
                             <div class="Clear"></div>
 
                             <div class="BasicAuthField [% Data.BasicAuthHidden | html %]">
@@ -205,34 +238,6 @@ $('#Authentication').bind('change', function(){
                                     [% Translate("Show or hide SSL options to connect to the remote system.") | html %]
                                 </p>
                             </div>
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('#UseX509').bind('change', function(){
-    if ( $(this).val() === 'Yes') {
-        $('.X509Field').removeClass('Hidden');
-
-        $('.X509Field').find('#X509CertFile').each(function(){
-            $(this).addClass('Validate_Required');
-        });
-        $('.X509Field').find('#X509KeyFile').each(function(){
-            $(this).addClass('Validate_Required');
-        });
-    }
-
-    else {
-        $('.X509Field').addClass('Hidden');
-
-        $('.X509Field').find('#X509CertFile').each(function(){
-            $(this).removeClass('Validate_Required');
-        });
-        $('.X509Field').find('#X509KeyFile').each(function(){
-            $(this).removeClass('Validate_Required');
-        });
-    }
-});
-//]]></script>
-[% END %]
-
                             <div class="X509Field [% Data.X509Hidden | html %]">
                                 <fieldset class="TableLike">
 
@@ -282,14 +287,7 @@ $('#UseX509').bind('change', function(){
 [% RenderBlockStart("SaveAndFinishButton") %]
                                 [% Translate("or") | html %]
                                 <button type="submit" id="SaveAndFinishButton" class="CallForAction" value="[% Translate("Save and finish") | html %]"><span>[% Translate("Save and finish") | html %]</span></button>
-                                <input type="hidden" name="ReturnToWebservice" id="ReturnToWebservice" value="" />
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-$('#SaveAndFinishButton').bind('click', function(){
-    $('#ReturnToWebservice').val(1);
-});
-//]]></script>
-[% END %]
+                                <input autocomplete="off" type="hidden" name="ReturnToWebservice" id="ReturnToWebservice" value="" />
 [% RenderBlockEnd("SaveAndFinishButton") %]
                                 [% Translate("or") | html %]
                                 <a href="[% Env("Baselink") %]Action=AdminGenericInterfaceWebservice;Subaction=Change;WebserviceID=[% Data.WebserviceID | uri %]">[% Translate("Cancel") | html %]</a>

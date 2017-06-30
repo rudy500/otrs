@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -150,7 +150,7 @@
                             </ul>
                             <ul class="AllocationList Tablelike W90pc" id="AvailableFields">
 [% RenderBlockStart("AvailableFieldRow") %]
-                                <li title="Name: [% Data.FieldnameTranslated | html %]" data-id="[% Data.Field | html %]" data-config="">
+                                <li title="[% Translate("Name: %s", Data.FieldnameTranslated) | html %]" data-name-translated="[% Data.FieldnameTranslated | html %]" data-id="[% Data.Field | html %]" data-config="">
                                     [% Data.FieldnameTranslated | html %]
                                     <span class="Functions ShowOnAssignedList">
                                         <a href="#" data-id="[% Data.Field | html %]" data-entity="[% Data.Field | html %]" class="FieldDetailsOverlay Icon" title="[% Translate("Edit") | html %]">
@@ -169,7 +169,7 @@
                             </ul>
                             <ul class="AllocationList Tablelike W90pc" id="AssignedFields">
 [% RenderBlockStart("AssignedFieldRow") %]
-                                <li data-id="[% Data.Field | html %]" data-entity="[% Data.Field | html %]" data-config='[% Data.FieldConfig %]' title="Name: [% Translate(Data.Field) | html %]">
+                                <li data-id="[% Data.Field | html %]" data-entity="[% Data.Field | html %]" data-config="[% Data.FieldConfig | html %]" title="Name: [% Translate(Data.Field) | html %]">
                                     [% Translate(Data.Field) | html %]
                                     <span class="Functions ShowOnAssignedList">
                                         <a href="#" data-id="[% Data.Field | html %]" data-entity="[% Data.Field | html %]" class="FieldDetailsOverlay Icon" title="[% Translate("Edit") | html %]">
@@ -188,14 +188,13 @@
         </div>
     </div>
     <div class="Footer">
-        <button class="Primary CallForAction" id="Submit" title="[% Translate("Submit") | html %]" type="submit" value="[% Translate("Submit") | html %]"><span>[% Translate("Submit") | html %]</span></button>
+        <button class="Primary CallForAction" id="Submit" title="[% Translate("Save") | html %]" type="submit" value="[% Translate("Save") | html %]"><span>[% Translate("Save") | html %]</span></button>
     </div>
 </div>
 
 <div id="Dialogs" class="Hidden">
     <div id="FieldDetails">
         <div style="width: 500px;">
-            <h2>[% Translate("Edit Details for Field") | html %] "<span id="DialogFieldName"></span>"</h2>
             <fieldset class="TableLike">
                 <label for="DescShort">[% Translate("Description (short)") | html %]:</label>
                 <div class="Field">
@@ -214,19 +213,27 @@
                     <input type="text" name="DefaultValue" id="DefaultValue" value="" class="W50pc" />
                 </div>
                 <div class="Clear"></div>
-            </fieldset>
 
-            <div id="ArticleTypeContainer" class='Hidden'>
-                <fieldset class="TableLike">
-                    <label for="ArticleType">[% Translate("ArticleType") | html %]:</label>
-                    <div class="Field">
-                        [% Data.ArticleTypeSelection %]
-                    </div>
-                    <div class="Clear"></div>
-                </fieldset>
-            </div>
+                <label for="CommunicationChannel">[% Translate("Communication Channel") | html %]:</label>
+                <div class="Field" id="CommunicationChannelContainer" class='Hidden'>
+                    [% Data.CommunicationChannelSelection %]
+                </div>
+                <div class="Clear"></div>
 
-            <fieldset class="TableLike">
+                <label for="IsVisibleForCustomer">[% Translate("Is visible for customer") | html %]:</label>
+                <div class="Field" id="IsVisibleForCustomerContainer" class='Hidden'>
+                    <input type="checkbox" name="IsVisibleForCustomer" id="IsVisibleForCustomer"/>
+                </div>
+                <div class="Clear"></div>
+
+[% RenderBlockStart("TimeUnitsContainer") %]
+                <label for="TimeUnits">[% Translate("Time units") | html %]:</label>
+                <div class="Field" id="TimeUnitsContainer" class="Hidden">
+                    [% Data.TimeUnitsSelection %]
+                </div>
+                <div class="Clear"></div>
+[% RenderBlockEnd("TimeUnitsContainer") %]
+
                 <label for="Display">[% Translate("Display") | html %]:</label>
                 <div class="Field">
                     [% Data.DisplaySelection %]
@@ -236,17 +243,3 @@
         </div>
     </div>
 </div>
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Agent.Admin.ProcessManagement.InitActivityDialogEdit();
-
-//Localizations
-Core.Agent.Admin.ProcessManagement.Localization = {
-        CancelMsg: "[% Translate("Cancel") | html %]",
-        SaveMsg: "[% Translate("Save") | html %]",
-        DialogTitle: "[% Translate("Edit Field Details") | html %]",
-        WrongArticleTypeMsg: "[% Translate("Customer interface does not support internal article types.") | html %]"
-};
-//]]></script>
-[% END %]

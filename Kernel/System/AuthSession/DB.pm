@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,16 +11,18 @@ package Kernel::System::AuthSession::DB;
 use strict;
 use warnings;
 
-use Storable qw();
 use MIME::Base64 qw();
+
+use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::Encode',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
+    'Kernel::System::Storable',
 );
 
 sub new {
@@ -30,17 +32,7 @@ sub new {
     my $Self = {};
     bless( $Self, $Type );
 
-    # get config object
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
-    # get more common params
-    $Self->{SessionTable}                = $ConfigObject->Get('SessionTable') || 'sessions';
-    $Self->{SystemID}                    = $ConfigObject->Get('SystemID');
-    $Self->{AgentSessionLimit}           = $ConfigObject->Get('AgentSessionLimit');
-    $Self->{AgentSessionPerUserLimit}    = $ConfigObject->Get('AgentSessionPerUserLimit');
-    $Self->{CustomerSessionLimit}        = $ConfigObject->Get('CustomerSessionLimit');
-    $Self->{CustomerSessionPerUserLimit} = $ConfigObject->Get('CustomerSessionPerUserLimit');
-    $Self->{SessionActiveTime}           = $ConfigObject->Get('SessionActiveTime') || 60 * 10;
+    $Self->{SessionTable} = $Kernel::OM->Get('Kernel::Config')->Get('SessionTable') || 'sessions';
 
     # get database type
     $Self->{DBType} = $Kernel::OM->Get('Kernel::System::DB')->{'DB::Type'} || '';
@@ -63,13 +55,13 @@ sub CheckSessionID {
     my $RemoteAddr = $ENV{REMOTE_ADDR} || 'none';
 
     # set default message
-    $Self->{SessionIDErrorMessage} = 'Session invalid. Please log in again.';
+    $Self->{SessionIDErrorMessage} = Translatable('Session invalid. Please log in again.');
 
     # get session data
     my %Data = $Self->GetSessionIDData( SessionID => $Param{SessionID} );
 
     if ( !$Data{UserID} || !$Data{UserLogin} ) {
-        $Self->{SessionIDErrorMessage} = 'Session invalid. Please log in again.';
+        $Self->{SessionIDErrorMessage} = Translatable('Session invalid. Please log in again.');
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'notice',
             Message  => "SessionID: '$Param{SessionID}' is invalid!!!",
@@ -102,12 +94,12 @@ sub CheckSessionID {
     }
 
     # check session idle time
-    my $TimeNow            = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow            = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
     my $MaxSessionIdleTime = $ConfigObject->Get('SessionMaxIdleTime');
 
     if ( ( $TimeNow - $MaxSessionIdleTime ) >= $Data{UserLastRequest} ) {
 
-        $Self->{SessionIDErrorMessage} = 'Session has timed out. Please log in again.';
+        $Self->{SessionIDErrorMessage} = Translatable('Session has timed out. Please log in again.');
 
         my $Timeout = int( ( $TimeNow - $Data{UserLastRequest} ) / ( 60 * 60 ) );
 
@@ -130,7 +122,7 @@ sub CheckSessionID {
 
     if ( ( $TimeNow - $MaxSessionTime ) >= $Data{UserSessionStart} ) {
 
-        $Self->{SessionIDErrorMessage} = 'Session has timed out. Please log in again.';
+        $Self->{SessionIDErrorMessage} = Translatable('Session has timed out. Please log in again.');
 
         my $Timeout = int( ( $TimeNow - $Data{UserSessionStart} ) / ( 60 * 60 ) );
 
@@ -163,14 +155,12 @@ sub GetSessionIDData {
     if ( !$Param{SessionID} ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => 'Got no SessionID!!'
+            Message  => 'Got no SessionID!'
         );
         return;
     }
 
-    # check cache
-    return %{ $Self->{Cache}->{ $Param{SessionID} } }
-        if $Self->{Cache}->{ $Param{SessionID} };
+    return %{ $Self->{Cache}->{ $Param{SessionID} } } if $Self->{Cache}->{ $Param{SessionID} };
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -188,6 +178,9 @@ sub GetSessionIDData {
     # get encode object
     my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 
+    # get storable object
+    my $StorableObject = $Kernel::OM->Get('Kernel::System::Storable');
+
     my %Session;
     my %SessionID;
     ROW:
@@ -195,7 +188,9 @@ sub GetSessionIDData {
 
         # deserialize data if needed
         if ( $Row[3] ) {
-            my $Value = eval { Storable::thaw( MIME::Base64::decode_base64( $Row[2] ) ) };
+            my $Value = eval {
+                $StorableObject->Deserialize( Data => MIME::Base64::decode_base64( $Row[2] ) )
+            };
 
             # workaround for the oracle problem with empty
             # strings and NULL values in VARCHAR columns
@@ -231,101 +226,7 @@ sub GetSessionIDData {
 sub CreateSessionID {
     my ( $Self, %Param ) = @_;
 
-    # get system time
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
-
-    # get session limit config
-    my $SessionLimit;
-    if ( $Param{UserType} && $Param{UserType} eq 'User' && $Self->{AgentSessionLimit} ) {
-        $SessionLimit = $Self->{AgentSessionLimit};
-    }
-    elsif ( $Param{UserType} && $Param{UserType} eq 'Customer' && $Self->{CustomerSessionLimit} ) {
-        $SessionLimit = $Self->{CustomerSessionLimit};
-    }
-
-    # get session per user limit config
-    my $SessionPerUserLimit;
-    if ( $Param{UserType} && $Param{UserType} eq 'User' && $Self->{AgentSessionPerUserLimit} ) {
-        $SessionPerUserLimit = $Self->{AgentSessionPerUserLimit};
-    }
-    elsif (
-        $Param{UserType}
-        && $Param{UserType} eq 'Customer'
-        && $Self->{CustomerSessionPerUserLimit}
-        )
-    {
-        $SessionPerUserLimit = $Self->{CustomerSessionPerUserLimit};
-    }
-
-    # get database object
-    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
-
-    if ( $SessionLimit || $SessionPerUserLimit ) {
-
-        # get all needed timestamps to investigate the expired sessions
-        $DBObject->Prepare(
-            SQL => "
-                SELECT session_id, data_key, data_value
-                FROM $Self->{SessionTable}
-                WHERE data_key = 'UserType'
-                    OR data_key = 'UserLastRequest'
-                    OR data_key = 'UserLogin'
-                ORDER BY id ASC",
-        );
-
-        my %SessionData;
-        ROW:
-        while ( my @Row = $DBObject->FetchrowArray() ) {
-
-            next ROW if !$Row[0];
-            next ROW if !$Row[1];
-
-            $SessionData{ $Row[0] }->{ $Row[1] } = $Row[2];
-        }
-
-        my $ActiveSessionCount = 0;
-        my %ActiveSessionPerUserCount;
-        SESSIONID:
-        for my $SessionID ( sort keys %SessionData ) {
-
-            next SESSIONID if !$SessionID;
-            next SESSIONID if !$SessionData{$SessionID};
-
-            # get needed data
-            my $UserType        = $SessionData{$SessionID}->{UserType}        || '';
-            my $UserLastRequest = $SessionData{$SessionID}->{UserLastRequest} || $TimeNow;
-            my $UserLogin       = $SessionData{$SessionID}->{UserLogin};
-
-            next SESSIONID if $UserType ne $Param{UserType};
-
-            next SESSIONID if ( $UserLastRequest + $Self->{SessionActiveTime} ) < $TimeNow;
-
-            $ActiveSessionCount++;
-
-            $ActiveSessionPerUserCount{$UserLogin} || 0;
-            $ActiveSessionPerUserCount{$UserLogin}++;
-
-            next SESSIONID if $ActiveSessionCount < $SessionLimit;
-
-            $Self->{SessionIDErrorMessage} = 'Session limit reached! Please try again later.';
-
-            return;
-        }
-
-        # check session per user limit
-        if (
-            $SessionPerUserLimit
-            && $Param{UserLogin}
-            && defined $ActiveSessionPerUserCount{ $Param{UserLogin} }
-            && $ActiveSessionPerUserCount{ $Param{UserLogin} } >= $SessionPerUserLimit
-            )
-        {
-
-            $Self->{SessionIDErrorMessage} = 'Session per user limit reached!';
-
-            return;
-        }
-    }
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     # get remote address and the http user agent
     my $RemoteAddr      = $ENV{REMOTE_ADDR}     || 'none';
@@ -357,6 +258,8 @@ sub CreateSessionID {
     $Data{UserRemoteAddr}      = $RemoteAddr;
     $Data{UserRemoteUserAgent} = $RemoteUserAgent;
     $Data{UserChallengeToken}  = $ChallengeToken;
+
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
     # create sql data
     my @SQLs;
@@ -478,6 +381,67 @@ sub GetAllSessionIDs {
     return @SessionIDs;
 }
 
+sub GetActiveSessions {
+    my ( $Self, %Param ) = @_;
+
+    my $MaxSessionIdleTime = $Kernel::OM->Get('Kernel::Config')->Get('SessionMaxIdleTime');
+
+    # get system time
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+
+    $DBObject->Prepare(
+        SQL => "
+            SELECT session_id, data_key, data_value
+            FROM $Self->{SessionTable}
+            WHERE data_key = 'UserType'
+                OR data_key = 'UserLastRequest'
+                OR data_key = 'UserLogin'
+            ORDER BY id ASC",
+    );
+
+    my %SessionData;
+    ROW:
+    while ( my @Row = $DBObject->FetchrowArray() ) {
+
+        next ROW if !$Row[0];
+        next ROW if !$Row[1];
+
+        $SessionData{ $Row[0] }->{ $Row[1] } = $Row[2];
+    }
+
+    my $ActiveSessionCount = 0;
+    my %ActiveSessionPerUserCount;
+    SESSIONID:
+    for my $SessionID ( sort keys %SessionData ) {
+
+        next SESSIONID if !$SessionID;
+        next SESSIONID if !$SessionData{$SessionID};
+
+        # get needed data
+        my $UserType        = $SessionData{$SessionID}->{UserType}        || '';
+        my $UserLastRequest = $SessionData{$SessionID}->{UserLastRequest} || $TimeNow;
+        my $UserLogin       = $SessionData{$SessionID}->{UserLogin};
+
+        next SESSIONID if $UserType ne $Param{UserType};
+
+        next SESSIONID if ( $UserLastRequest + $MaxSessionIdleTime ) < $TimeNow;
+
+        $ActiveSessionCount++;
+
+        $ActiveSessionPerUserCount{$UserLogin} || 0;
+        $ActiveSessionPerUserCount{$UserLogin}++;
+    }
+
+    my %Result = (
+        Total   => $ActiveSessionCount,
+        PerUser => \%ActiveSessionPerUserCount,
+    );
+
+    return %Result;
+}
+
 sub GetExpiredSessionIDs {
     my ( $Self, %Param ) = @_;
 
@@ -489,7 +453,7 @@ sub GetExpiredSessionIDs {
     my $MaxSessionIdleTime = $ConfigObject->Get('SessionMaxIdleTime');
 
     # get current time
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -657,6 +621,8 @@ sub _SQLCreate {
     return if !$Param{SQLs};
     return if ref $Param{SQLs} ne 'ARRAY';
 
+    my $StorableObject = $Kernel::OM->Get('Kernel::System::Storable');
+
     if ( $Self->{DBType} eq 'mysql' || $Self->{DBType} eq 'postgresql' ) {
 
         # define row
@@ -680,7 +646,9 @@ sub _SQLCreate {
             {
 
                 # dump the data
-                $Value      = MIME::Base64::encode_base64( Storable::nfreeze($Value) );
+                $Value = MIME::Base64::encode_base64(
+                    $StorableObject->Serialize( Data => $Value )
+                );
                 $Serialized = 1;
             }
 
@@ -744,7 +712,9 @@ sub _SQLCreate {
                 }
 
                 # dump the data
-                $Value      = MIME::Base64::encode_base64( Storable::nfreeze($Value) );
+                $Value = MIME::Base64::encode_base64(
+                    $StorableObject->Serialize( Data => $Value )
+                );
                 $Serialized = 1;
             }
 
@@ -810,7 +780,9 @@ sub _SQLCreate {
             {
 
                 # dump the data
-                $Value      = MIME::Base64::encode_base64( Storable::nfreeze($Value) );
+                $Value = MIME::Base64::encode_base64(
+                    $StorableObject->Serialize( Data => $Value )
+                );
                 $Serialized = 1;
             }
 

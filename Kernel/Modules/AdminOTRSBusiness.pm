@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -29,11 +29,28 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    my $OTRSBusinessObject = $Kernel::OM->Get('Kernel::System::OTRSBusiness');
-    my $LayoutObject       = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    my $OTRSBusinessLabel  = '<strong>OTRS Business Solution</strong>™';
+    # get layout object
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
-    my $ParamObject           = $Kernel::OM->Get('Kernel::System::Web::Request');
+    # check if cloud services are disabled
+    my $CloudServicesDisabled = $Kernel::OM->Get('Kernel::Config')->Get('CloudServices::Disabled') || 0;
+
+    if ($CloudServicesDisabled) {
+
+        my $Output = $LayoutObject->Header( Title => 'Error' );
+        $Output .= $LayoutObject->Output(
+            TemplateFile => 'CloudServicesDisabled',
+            Data         => \%Param
+        );
+        $Output .= $LayoutObject->Footer();
+        return $Output
+    }
+
+    # get needed objects
+    my $OTRSBusinessObject = $Kernel::OM->Get('Kernel::System::OTRSBusiness');
+    my $ParamObject        = $Kernel::OM->Get('Kernel::System::Web::Request');
+
+    my $OTRSBusinessLabel     = '<strong>OTRS Business Solution</strong>™';
     my $NotificationCode      = $ParamObject->GetParam( Param => 'NotificationCode' );
     my %NotificationCode2Text = (
         InstallOk => {
@@ -110,25 +127,47 @@ sub Run {
         );
     }
     elsif ( $Self->{Subaction} eq 'InstallAction' ) {
-        if ( $OTRSBusinessObject->OTRSBusinessInstall() ) {
+        my %Response = $OTRSBusinessObject->OTRSBusinessInstall();
+        if ( $Response{Success} ) {
             return $LayoutObject->Redirect(
                 OP => "Action=AdminOTRSBusiness;NotificationCode=InstallOk"
             );
         }
 
+        my $Parameters = '';
+        if ( $Response{RequiredFrameworkMinimum} ) {
+            $Parameters .= ";RequiredFrameworkMinimum=$Response{RequiredFrameworkMinimum}";
+        }
+        if ( $Response{RequiredFrameworkMaximum} ) {
+            $Parameters .= ";RequiredFrameworkMaximum=$Response{RequiredFrameworkMaximum}";
+        }
+        if ( $Response{ShowBlock} ) {
+            $Parameters .= ";ShowBlock=$Response{ShowBlock}";
+        }
         return $LayoutObject->Redirect(
-            OP => "Action=AdminOTRSBusiness;NotificationCode=InstallError"
+            OP => "Action=AdminOTRSBusiness;NotificationCode=InstallError" . $Parameters,
         );
     }
     elsif ( $Self->{Subaction} eq 'UpdateAction' ) {
-        if ( $OTRSBusinessObject->OTRSBusinessUpdate() ) {
+        my %Response = $OTRSBusinessObject->OTRSBusinessUpdate();
+        if ( $Response{Success} ) {
             return $LayoutObject->Redirect(
                 OP => "Action=AdminOTRSBusiness;NotificationCode=UpdateOk"
             );
         }
 
+        my $Parameters = '';
+        if ( $Response{RequiredFrameworkMinimum} ) {
+            $Parameters .= ";RequiredFrameworkMinimum=$Response{RequiredFrameworkMinimum}";
+        }
+        if ( $Response{RequiredFrameworkMaximum} ) {
+            $Parameters .= ";RequiredFrameworkMaximum=$Response{RequiredFrameworkMaximum}";
+        }
+        if ( $Response{ShowBlock} ) {
+            $Parameters .= ";ShowBlock=$Response{ShowBlock}";
+        }
         return $LayoutObject->Redirect(
-            OP => "Action=AdminOTRSBusiness;NotificationCode=UpdateError"
+            OP => "Action=AdminOTRSBusiness;NotificationCode=UpdateError" . $Parameters,
         );
     }
 
@@ -188,8 +227,27 @@ sub NotInstalledScreen {
         );
     }
     else {
+        my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
+        my %GetParam;
+        $GetParam{ShowBlock}              = $ParamObject->GetParam( Param => 'ShowBlock' )                || '';
+        $GetParam{RequiredMinimumVersion} = $ParamObject->GetParam( Param => 'RequiredFrameworkMinimum' ) || '';
+        $GetParam{RequiredMaximumVersion} = $ParamObject->GetParam( Param => 'RequiredFrameworkMaximum' ) || '';
+
+        my $NotificationCode = $ParamObject->GetParam( Param => 'NotificationCode' ) || '';
+        if ( $NotificationCode eq 'InstallError' ) {
+            $GetParam{Type} = 'InstallIncompatible';
+        }
+
+        if ( $GetParam{Type} ) {
+            $LayoutObject->Block(
+                Name => 'Actions',
+                Data => \%GetParam,
+            );
+        }
+
         $LayoutObject->Block(
             Name => 'Install',
+            Data => \%GetParam,
         );
     }
 
@@ -245,8 +303,27 @@ sub InstalledScreen {
             }
         }
         elsif ( $OTRSBusinessObject->OTRSBusinessIsUpdateable() ) {
+            my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
+            my %GetParam;
+            $GetParam{ShowBlock}              = $ParamObject->GetParam( Param => 'ShowBlock' )                || '';
+            $GetParam{RequiredMinimumVersion} = $ParamObject->GetParam( Param => 'RequiredFrameworkMinimum' ) || '';
+            $GetParam{RequiredMaximumVersion} = $ParamObject->GetParam( Param => 'RequiredFrameworkMaximum' ) || '';
+
+            my $NotificationCode = $ParamObject->GetParam( Param => 'NotificationCode' ) || '';
+
+            if ( $NotificationCode eq 'UpdateError' ) {
+                $GetParam{Type} = 'UpgradeIncompatible';
+            }
+
+            if ( $GetParam{Type} ) {
+                $LayoutObject->Block(
+                    Name => 'Actions',
+                );
+            }
+
             $LayoutObject->Block(
                 Name => 'NeedsUpdate',
+                Data => \%GetParam,
             );
         }
         else {

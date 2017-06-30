@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,22 +14,48 @@ use vars (qw($Self));
 
 # get needed objects
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $TimeObject   = $Kernel::OM->Get('Kernel::System::Time');
 my $UserObject   = $Kernel::OM->Get('Kernel::System::User');
+
+# get helper object
+$Kernel::OM->ObjectParamAdd(
+    'Kernel::System::UnitTest::Helper' => {
+        RestoreDatabase => 1,
+    },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 $ConfigObject->Set(
     Key   => 'CheckEmailAddresses',
     Value => 0,
 );
 
-# add users
-my $UserRand1 = 'example-user' . int( rand(1000000) );
+# create non existing user login
+my $UserRand;
+TRY:
+for my $Try ( 1 .. 20 ) {
 
+    $UserRand = 'unittest-' . $Helper->GetRandomID();
+
+    my $UserID = $UserObject->UserLookup(
+        UserLogin => $UserRand,
+    );
+
+    last TRY if !$UserID;
+
+    next TRY if $Try ne 20;
+
+    $Self->True(
+        0,
+        'Find non existing user login.',
+    );
+}
+
+# add user
 my $UserID = $UserObject->UserAdd(
     UserFirstname => 'Firstname Test1',
     UserLastname  => 'Lastname Test1',
-    UserLogin     => $UserRand1,
-    UserEmail     => $UserRand1 . '@example.com',
+    UserLogin     => $UserRand,
+    UserEmail     => $UserRand . '@example.com',
     ValidID       => 1,
     ChangeUserID  => 1,
 );
@@ -85,14 +111,14 @@ $ConfigObject->Set(
 );
 $Self->Is(
     $UserObject->UserName( UserID => $UserID ),
-    "Firstname Test1 Lastname Test1 ($UserRand1)",
+    "Firstname Test1 Lastname Test1 ($UserRand)",
     'UserName - Order 2',
 );
 
 my %NameCheckList2 = $UserObject->UserList( Type => 'Long' );
 $Self->Is(
     $NameCheckList2{$UserID},
-    "Firstname Test1 Lastname Test1 ($UserRand1)",
+    "Firstname Test1 Lastname Test1 ($UserRand)",
     'Username in List - Order 2',
 );
 
@@ -110,12 +136,12 @@ $Self->Is(
 );
 $Self->Is(
     $UserData{UserLogin} || '',
-    $UserRand1,
+    $UserRand,
     'GetUserData() - UserLogin',
 );
 $Self->Is(
     $UserData{UserEmail} || '',
-    $UserRand1 . '@example.com',
+    $UserRand . '@example.com',
     'GetUserData() - UserEmail',
 );
 
@@ -126,7 +152,7 @@ my %UserList = $UserObject->UserList(
 
 $Self->Is(
     $UserList{$UserID},
-    $UserRand1,
+    $UserRand,
     "UserList valid 0",
 );
 
@@ -137,7 +163,7 @@ $Self->Is(
 
 $Self->Is(
     $UserList{$UserID},
-    $UserRand1,
+    $UserRand,
     "UserList valid 1",
 );
 
@@ -148,7 +174,7 @@ $Self->Is(
 
 $Self->Is(
     $UserList{$UserID},
-    $UserRand1,
+    $UserRand,
     "UserList valid 0 cached",
 );
 
@@ -159,7 +185,7 @@ $Self->Is(
 
 $Self->Is(
     $UserList{$UserID},
-    $UserRand1,
+    $UserRand,
     "UserList valid 1 cached",
 );
 
@@ -167,8 +193,8 @@ my $Update = $UserObject->UserUpdate(
     UserID        => $UserID,
     UserFirstname => 'Михаил',
     UserLastname  => 'Lastname Tëst2',
-    UserLogin     => $UserRand1 . '房治郎',
-    UserEmail     => $UserRand1 . '@example2.com',
+    UserLogin     => $UserRand . '房治郎',
+    UserEmail     => $UserRand . '@example2.com',
     ValidID       => 2,
     ChangeUserID  => 1,
 );
@@ -192,12 +218,12 @@ $Self->Is(
 );
 $Self->Is(
     $UserData{UserLogin} || '',
-    $UserRand1 . '房治郎',
+    $UserRand . '房治郎',
     'GetUserData() - UserLogin',
 );
 $Self->Is(
     $UserData{UserEmail} || '',
-    $UserRand1 . '@example2.com',
+    $UserRand . '@example2.com',
     'GetUserData() - UserEmail',
 );
 
@@ -208,7 +234,7 @@ $Self->Is(
 
 $Self->Is(
     $UserList{$UserID},
-    $UserRand1 . '房治郎',
+    $UserRand . '房治郎',
     "UserList valid 0",
 );
 
@@ -230,7 +256,7 @@ $Self->Is(
 
 $Self->Is(
     $UserList{$UserID},
-    $UserRand1 . '房治郎',
+    $UserRand . '房治郎',
     "UserList valid 0 cached",
 );
 
@@ -252,7 +278,7 @@ my %UserSearch = $UserObject->UserSearch(
 
 $Self->Is(
     $UserSearch{$UserID},
-    $UserRand1 . '房治郎',
+    $UserRand . '房治郎',
     "UserSearch after update",
 );
 
@@ -263,18 +289,18 @@ $Self->Is(
 
 $Self->Is(
     $UserSearch{$UserID},
-    $UserRand1 . '房治郎',
+    $UserRand . '房治郎',
     "UserSearch for login after update",
 );
 
 %UserSearch = $UserObject->UserSearch(
-    PostMasterSearch => $UserRand1 . '@example2.com',
+    PostMasterSearch => $UserRand . '@example2.com',
     Valid            => 0,
 );
 
 $Self->Is(
     $UserSearch{$UserID},
-    $UserRand1 . '@example2.com',
+    $UserRand . '@example2.com',
     "UserSearch for login after update",
 );
 
@@ -435,18 +461,16 @@ $Self->False(
     'GetUserData() - OutOfOfficeMessage',
 );
 
-my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-    SystemTime => $TimeObject->SystemTime(),
-);
+my $CurSysDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
 my %Values = (
     'OutOfOffice'           => 'on',
-    'OutOfOfficeStartYear'  => $Year,
-    'OutOfOfficeStartMonth' => $Month,
-    'OutOfOfficeStartDay'   => $Day,
-    'OutOfOfficeEndYear'    => $Year,
-    'OutOfOfficeEndMonth'   => $Month,
-    'OutOfOfficeEndDay'     => $Day,
+    'OutOfOfficeStartYear'  => $CurSysDTObject->Format( Format => '%Y' ),
+    'OutOfOfficeStartMonth' => $CurSysDTObject->Format( Format => '%m' ),
+    'OutOfOfficeStartDay'   => $CurSysDTObject->Format( Format => '%d' ),
+    'OutOfOfficeEndYear'    => $CurSysDTObject->Format( Format => '%Y' ),
+    'OutOfOfficeEndMonth'   => $CurSysDTObject->Format( Format => '%m' ),
+    'OutOfOfficeEndDay'     => $CurSysDTObject->Format( Format => '%d' ),
 );
 
 for my $Key ( sort keys %Values ) {
@@ -476,4 +500,7 @@ $Self->True(
     $UserData{OutOfOfficeMessage},
     'GetUserData() - OutOfOfficeMessage',
 );
+
+# cleanup is done by RestoreDatabase
+
 1;

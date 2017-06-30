@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2015 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,13 +10,13 @@
 <!-- start login -->
 <div id="MainBox" class="Login ARIARoleMain">
 [% RenderBlockStart("Message") %]
-    <div class="[% IF Data.MessageType == 'Success' %]SuccessBox[% ELSE %]ErrorBox[% END %]"><span>[% Data.Message | html %]</span></div>
+    <div class="[% IF Data.MessageType == 'Success' %]SuccessBox[% ELSE %]ErrorBox[% END %]"><span>[% Translate(Data.Message) | html %]</span></div>
 [% RenderBlockEnd("Message") %]
     <noscript>
     <div id="NoJavaScript">
         <h2>[% Translate("JavaScript Not Available") | html %]</h2>
         <p>
-            [% Translate("In order to experience OTRS, you'll need to enable JavaScript in your browser.") | html %]
+            [% Translate("In order to experience this software, you'll need to enable JavaScript in your browser.") | html %]
         </p>
     </div>
     </noscript>
@@ -24,7 +24,7 @@
         <h2 class="Center">[% Translate("Browser Warning") | html %]</h2>
         <p>
             [% Translate("The browser you are using is too old.") | html %]
-            [% Translate("OTRS runs with a huge lists of browsers, please upgrade to one of these.") | html %]
+            [% Translate("This software runs with a huge lists of browsers, please upgrade to one of these.") | html %]
             [% Translate("Please see the documentation or ask your admin for further information.") | html %]
         </p>
     </div>
@@ -44,7 +44,7 @@
                     <input type="hidden" name="Action" value="Login" />
                     <input type="hidden" name="RequestedURL" value="[% Data.RequestedURL | html %]"/>
                     <input type="hidden" name="Lang" value="[% Env("UserLanguage") | html %]"/>
-                    <input type="hidden" name="TimeOffset" id="TimeOffset" value=""/>
+                    <input type="hidden" name="TimeZoneOffset" id="TimeZoneOffset" value=""/>
                 </form>
             </div>
 [% RenderBlockEnd("PreLogin") %]
@@ -55,7 +55,7 @@
                     <input type="hidden" name="Action" value="Login"/>
                     <input type="hidden" name="RequestedURL" value="[% Data.RequestedURL | html %]"/>
                     <input type="hidden" name="Lang" value="[% Env("UserLanguage") | html %]"/>
-                    <input type="hidden" name="TimeOffset" id="TimeOffset" value=""/>
+                    <input type="hidden" name="TimeZoneOffset" id="TimeZoneOffset" value=""/>
                     <div>
                         <label for="User">[% Translate("User name") | html %]</label>
                         <input autocorrect="off" autocapitalize="off" title="[% Translate("Your user name") | html %]" type="text" name="User" id="User" maxlength="150" />
@@ -90,7 +90,7 @@
 [% RenderBlockStart("LostPassword") %]
             <div id="Reset">
                 <a href="#Login" class="InlineNavigation">&larr; [% Translate("Back") | html %]</a>
-                <h2>[% Translate("Request new password") | html %]</h2>
+                <h2>[% Translate("Request New Password") | html %]</h2>
                 <form class="Floating" action="[% Env("CGIHandle") %]" method="post" enctype="application/x-www-form-urlencoded">
                     <input type="hidden" name="Action" value="CustomerLostPassword" />
                     <input type="hidden" name="Lang" value="[% Env("UserLanguage") | html %]" />
@@ -115,8 +115,8 @@
                     <input type="hidden" name="Action" value="CustomerCreateAccount"/>
                     <input type="hidden" name="Lang" value="[% Env("UserLanguage") | html %]"/>
                     <div>
-                        <label for="Title">[% Translate("Title") | html %]</label>
-                        <input title="[% Translate("How we should address you") | html %]" type="text" name="Title"  id="Title" maxlength="50" value="[% Data.UserTitle | html %]"/>
+                        <label for="Title">[% Translate("Title or salutation") | html %]</label>
+                        <input title="[% Translate("How we should address you") | html %]" type="text" name="Title"  id="Title" class="W50pc" value="[% Data.UserTitle | html %]"/>
                     </div>
                     <div class="NewLine">
                         <label class="Mandatory" for="FirstName"><span class="Marker">*</span> [% Translate("Firstname") | html %]</label>
@@ -145,15 +145,5 @@
     </div>
 </div>
 <!-- stop login -->
-
-[% WRAPPER JSOnDocumentComplete %]
-<script type="text/javascript">//<![CDATA[
-Core.Customer.Login.Init({LastLoginFailed: '[% Data.LoginFailed %]'});
-
-[% RenderBlockStart("SignupError") %]
-window.location.hash = 'Signup';
-[% RenderBlockEnd("SignupError") %]
-//]]></script>
-[% END %]
 
 [% InsertTemplate("CustomerFooter.tt") %]
